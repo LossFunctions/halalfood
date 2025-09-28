@@ -113,36 +113,12 @@ enum PlaceOverrides {
         return Set(names.map { normalizedName(for: $0) })
     }()
 
-    private static let manualEntries: [Place] = [
-        Place(
-            name: "BK Jani",
-            latitude: 40.7020781,
-            longitude: -73.9243236,
-            address: "276 Knickerbocker Ave, Brooklyn, NY 11237",
-            halalStatus: .only,
-            rating: 4.5,
-            ratingCount: 250,
-            confidence: 0.9,
-            source: "manual"
-        )
-    ]
-
-    static func apply(overridesTo places: [Place], in region: MKCoordinateRegion) -> [Place] {
-        var filtered = places.filter { !isMarkedClosed(name: $0.name) }
-
-        var existingKeys = Set(filtered.map { normalizedName(for: $0.name) })
-
-        for manualPlace in manualEntries(in: region) {
-            let key = normalizedName(for: manualPlace.name)
-            guard !existingKeys.contains(key) else { continue }
-            filtered.append(manualPlace)
-            existingKeys.insert(key)
-        }
-
+    static func apply(overridesTo places: [Place], in _: MKCoordinateRegion) -> [Place] {
+        let filtered = places.filter { !isMarkedClosed(name: $0.name) }
         return sorted(filtered)
     }
 
-    static func normalizedName(for name: String) -> String {
+    nonisolated static func normalizedName(for name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let folded = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
         let scalars = folded.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
@@ -157,45 +133,8 @@ enum PlaceOverrides {
         return false
     }
 
-    private static func manualEntries(in region: MKCoordinateRegion) -> [Place] {
-        manualEntries.filter { regionContains(region, coordinate: $0.coordinate) }
-    }
-
-    static func searchMatches(for query: String, knownPlaces: [Place]) -> [Place] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-
-        let existingKeys = Set(knownPlaces.map { normalizedName(for: $0.name) })
-
-        let matches = manualEntries.filter { place in
-            let key = normalizedName(for: place.name)
-            guard !existingKeys.contains(key) else { return false }
-            if place.name.localizedCaseInsensitiveContains(trimmed) { return true }
-            if place.address?.localizedCaseInsensitiveContains(trimmed) == true { return true }
-            return false
-        }
-
-        return sorted(matches)
-    }
-
     static func sorted(_ places: [Place]) -> [Place] {
         places.sorted(by: placeSortPredicate(_:_:))
-    }
-
-    private static func regionContains(_ region: MKCoordinateRegion, coordinate: CLLocationCoordinate2D) -> Bool {
-        let halfLat = region.span.latitudeDelta / 2.0
-        let halfLon = region.span.longitudeDelta / 2.0
-        guard halfLat > 0, halfLon > 0 else { return false }
-
-        let minLat = region.center.latitude - halfLat
-        let maxLat = region.center.latitude + halfLat
-        let minLon = region.center.longitude - halfLon
-        let maxLon = region.center.longitude + halfLon
-
-        return coordinate.latitude >= minLat &&
-            coordinate.latitude <= maxLat &&
-            coordinate.longitude >= minLon &&
-            coordinate.longitude <= maxLon
     }
 
     nonisolated private static func placeSortPredicate(_ lhs: Place, _ rhs: Place) -> Bool {

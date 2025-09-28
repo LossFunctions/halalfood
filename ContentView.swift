@@ -508,8 +508,9 @@ private extension ContentView {
     func focus(on place: Place) {
         searchFieldIsFocused = false
         let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        let targetRegion = adjustedRegion(centeredOn: place.coordinate, span: span)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            mapRegion = MKCoordinateRegion(center: place.coordinate, span: span)
+            mapRegion = targetRegion
         }
         selectedPlace = place
     }
@@ -519,11 +520,50 @@ private extension ContentView {
         let coordinate = mapItem.halalCoordinate
         guard coordinate.latitude != 0 || coordinate.longitude != 0 else { return }
         let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        let targetRegion = adjustedRegion(centeredOn: coordinate, span: span)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            mapRegion = MKCoordinateRegion(center: coordinate, span: span)
+            mapRegion = targetRegion
         }
         selectedPlace = nil
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+    }
+
+    private func adjustedRegion(centeredOn coordinate: CLLocationCoordinate2D, span: MKCoordinateSpan) -> MKCoordinateRegion {
+        var center = coordinate
+        let verticalOffset = span.latitudeDelta * verticalOffsetMultiplier()
+        center.latitude = clampedLatitude(center.latitude - verticalOffset, span: span)
+        return MKCoordinateRegion(center: center, span: span)
+    }
+
+    private func verticalOffsetMultiplier() -> Double {
+        if keyboardHeight > 0 {
+            let screenHeight = max(currentScreenHeight(), 1)
+            let ratio = min(1.0, Double(keyboardHeight) / screenHeight)
+            return 0.28 + (0.32 * ratio)
+        }
+        return isBottomSheetExpanded ? 0.22 : 0.15
+    }
+
+    private func clampedLatitude(_ latitude: Double, span: MKCoordinateSpan) -> Double {
+        let halfSpan = span.latitudeDelta / 2
+        let minLatitude = max(-90.0 + halfSpan, -90.0)
+        let maxLatitude = min(90.0 - halfSpan, 90.0)
+        return min(maxLatitude, max(minLatitude, latitude))
+    }
+
+    private func currentScreenHeight() -> Double {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+
+        if let activeScene = scenes.first(where: { $0.activationState == .foregroundActive }) {
+            return Double(activeScene.screen.bounds.height)
+        }
+
+        if let anyScene = scenes.first {
+            return Double(anyScene.screen.bounds.height)
+        }
+
+        return 812 // Sensible default for calculations when no screen is available
     }
 }
 
@@ -1017,9 +1057,11 @@ final class MapScreenViewModel: ObservableObject {
 
     private var fetchTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var manualSearchTask: Task<Void, Never>?
     private var lastRequestedRegion: MKCoordinateRegion?
     private var cache = PlaceCache()
     private var allPlaces: [Place] = []
+    private var manualPlaces: [Place] = []
     private var currentFilter: MapFilter = .topRated
 
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
@@ -1054,6 +1096,8 @@ final class MapScreenViewModel: ObservableObject {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         searchTask?.cancel()
 
+        manualSearchTask?.cancel()
+
         guard !trimmed.isEmpty else {
             searchResults = []
             isSearching = false
@@ -1061,9 +1105,19 @@ final class MapScreenViewModel: ObservableObject {
         }
 
         let localMatches = localMatches(for: trimmed)
-        let manualMatches = PlaceOverrides.searchMatches(for: trimmed, knownPlaces: localMatches)
-        searchResults = PlaceOverrides.sorted(deduplicate(localMatches + manualMatches))
+        let initialManualMatches = manualMatches(for: trimmed, excluding: localMatches)
+        searchResults = PlaceOverrides.sorted(deduplicate(localMatches + initialManualMatches))
         isSearching = true
+
+        manualSearchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let current = self.searchResults
+            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: current + self.allPlaces)
+            guard !Task.isCancelled else { return }
+            guard !additionalManual.isEmpty else { return }
+            let merged = self.deduplicate(current + additionalManual)
+            self.searchResults = PlaceOverrides.sorted(merged)
+        }
 
         searchTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1073,8 +1127,11 @@ final class MapScreenViewModel: ObservableObject {
                 let dtos = try await PlaceAPI.searchPlaces(matching: trimmed, limit: 60)
                 try Task.checkCancellation()
                 let remotePlaces = dtos.compactMap(Place.init(dto:))
-                let supplementalManual = PlaceOverrides.searchMatches(for: trimmed, knownPlaces: remotePlaces + self.allPlaces)
-                let merged = self.deduplicate(remotePlaces + self.allPlacesMatches(for: trimmed) + supplementalManual)
+                let baselineExisting = remotePlaces + self.allPlaces
+                let cachedManual = self.manualMatches(for: trimmed, excluding: baselineExisting)
+                let supplementalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: baselineExisting + cachedManual)
+                try Task.checkCancellation()
+                let merged = self.deduplicate(remotePlaces + self.allPlacesMatches(for: trimmed) + cachedManual + supplementalManual)
                 self.searchResults = PlaceOverrides.sorted(merged)
                 self.isSearching = false
             } catch is CancellationError {
@@ -1228,6 +1285,21 @@ private extension MapScreenViewModel {
         return allPlaces.filter { place in
             place.name.localizedCaseInsensitiveContains(trimmed) ||
             (place.address?.localizedCaseInsensitiveContains(trimmed) ?? false)
+        }
+    }
+
+    func manualMatches(for query: String, excluding existing: [Place]) -> [Place] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        let existingKeys = Set(existing.map { PlaceOverrides.normalizedName(for: $0.name) })
+
+        return manualPlaces.filter { place in
+            let key = PlaceOverrides.normalizedName(for: place.name)
+            guard !existingKeys.contains(key) else { return false }
+            if place.name.localizedCaseInsensitiveContains(trimmed) { return true }
+            if place.address?.localizedCaseInsensitiveContains(trimmed) == true { return true }
+            return false
         }
     }
 

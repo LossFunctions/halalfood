@@ -6,6 +6,24 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7ED499816768FCDCC1EB81D0 /* ApplePlaceDetailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */; };
+		B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */; };
+		B505B9DC2E7CC7FA008D2917 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9DB2E7CC7FA008D2917 /* ContentView.swift */; };
+		B505B9DE2E7CC7FC008D2917 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B505B9DD2E7CC7FC008D2917 /* Assets.xcassets */; };
+		B505BA1C2E7CE233008D2917 /* PlaceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA182E7CE233008D2917 /* PlaceAPI.swift */; };
+		B505BA1D2E7CE233008D2917 /* PlaceDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA162E7CE233008D2917 /* PlaceDTO.swift */; };
+		B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA192E7CE233008D2917 /* SupabaseManager.swift */; };
+		B505BA1F2E7CE233008D2917 /* Place.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA152E7CE233008D2917 /* Place.swift */; };
+		B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */; };
+		B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA212E7CE283008D2917 /* HalalMapView.swift */; };
+		B505BA262E7CF000008D2917 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B505BA272E7CF000008D2917 /* Supabase */; };
+		B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA2A2E7CF100008D2917 /* LocationProvider.swift */; };
+		F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */; };
+		A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */; };
+		762002FF4B461690F93A6E1C /* ManualPlaceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B505B9E42E7CC7FC008D2917 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,17 +42,27 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapItemDetailCardView.swift; sourceTree = "<group>"; };
+		7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlaceDetailService.swift; sourceTree = "<group>"; };
+		9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKMapItem+Compat.swift"; sourceTree = "<group>"; };
+		D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPlaceResolver.swift; sourceTree = "<group>"; };
 		B505B9D62E7CC7FA008D2917 /* HalalFood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HalalFood.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalalFoodApp.swift; sourceTree = "<group>"; };
+		B505B9DB2E7CC7FA008D2917 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B505B9DD2E7CC7FC008D2917 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B505B9E32E7CC7FC008D2917 /* HalalFoodTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HalalFoodTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B505B9ED2E7CC7FC008D2917 /* HalalFoodUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HalalFoodUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKCoordinateRegion+BBox.swift"; sourceTree = "<group>"; };
+		B505BA152E7CE233008D2917 /* Place.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Place.swift; sourceTree = "<group>"; };
+		B505BA162E7CE233008D2917 /* PlaceDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDTO.swift; sourceTree = "<group>"; };
+		B505BA182E7CE233008D2917 /* PlaceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceAPI.swift; sourceTree = "<group>"; };
+		B505BA192E7CE233008D2917 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		B505BA212E7CE283008D2917 /* HalalMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalalMapView.swift; sourceTree = "<group>"; };
+		B505BA252E7CE741008D2917 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; name = Info.plist; path = HalalFood/Info.plist; sourceTree = "<group>"; };
+		B505BA2A2E7CF100008D2917 /* LocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		B505B9D82E7CC7FA008D2917 /* HalalFood */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = HalalFood;
-			sourceTree = "<group>";
-		};
 		B505B9E62E7CC7FC008D2917 /* HalalFoodTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = HalalFoodTests;
@@ -52,6 +80,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B505BA262E7CF000008D2917 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,13 +101,35 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		63D0CF215B7650CC4BA52C5F /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		6A34C28283D9ED5A558210E7 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */,
+				D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		B505B9CD2E7CC7FA008D2917 = {
 			isa = PBXGroup;
 			children = (
-				B505B9D82E7CC7FA008D2917 /* HalalFood */,
+				B505BA252E7CE741008D2917 /* Info.plist */,
+				B505BA1B2E7CE233008D2917 /* Core */,
 				B505B9E62E7CC7FC008D2917 /* HalalFoodTests */,
 				B505B9F02E7CC7FC008D2917 /* HalalFoodUITests */,
 				B505B9D72E7CC7FA008D2917 /* Products */,
+				B505BA212E7CE283008D2917 /* HalalMapView.swift */,
+				B505B9DD2E7CC7FC008D2917 /* Assets.xcassets */,
+				B505B9DB2E7CC7FA008D2917 /* ContentView.swift */,
+				B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -90,6 +141,54 @@
 				B505B9ED2E7CC7FC008D2917 /* HalalFoodUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B505BA142E7CE233008D2917 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */,
+				9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		B505BA172E7CE233008D2917 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B505BA152E7CE233008D2917 /* Place.swift */,
+				B505BA162E7CE233008D2917 /* PlaceDTO.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		B505BA1A2E7CE233008D2917 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				B505BA182E7CE233008D2917 /* PlaceAPI.swift */,
+				B505BA192E7CE233008D2917 /* SupabaseManager.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		B505BA1B2E7CE233008D2917 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				B505BA142E7CE233008D2917 /* Extensions */,
+				B505BA172E7CE233008D2917 /* Models */,
+				B505BA1A2E7CE233008D2917 /* Networking */,
+				B505BA2C2E7CF100008D2917 /* Location */,
+				6A34C28283D9ED5A558210E7 /* Services */,
+				63D0CF215B7650CC4BA52C5F /* UI */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		B505BA2C2E7CF100008D2917 /* Location */ = {
+			isa = PBXGroup;
+			children = (
+				B505BA2A2E7CF100008D2917 /* LocationProvider.swift */,
+			);
+			path = Location;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -107,11 +206,9 @@
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				B505B9D82E7CC7FA008D2917 /* HalalFood */,
-			);
 			name = HalalFood;
 			packageProductDependencies = (
+				B505BA272E7CF000008D2917 /* Supabase */,
 			);
 			productName = HalalFood;
 			productReference = B505B9D62E7CC7FA008D2917 /* HalalFood.app */;
@@ -195,6 +292,9 @@
 			);
 			mainGroup = B505B9CD2E7CC7FA008D2917;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B505BA122E7CE19C008D2917 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B505B9D72E7CC7FA008D2917 /* Products */;
 			projectDirPath = "";
@@ -212,6 +312,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B505B9DE2E7CC7FC008D2917 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +337,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				762002FF4B461690F93A6E1C /* ManualPlaceResolver.swift in Sources */,
+				B505B9DC2E7CC7FA008D2917 /* ContentView.swift in Sources */,
+				B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */,
+				B505BA1C2E7CE233008D2917 /* PlaceAPI.swift in Sources */,
+				B505BA1D2E7CE233008D2917 /* PlaceDTO.swift in Sources */,
+				B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */,
+				B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */,
+				7ED499816768FCDCC1EB81D0 /* ApplePlaceDetailService.swift in Sources */,
+				F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */,
+				A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */,
+				B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */,
+				B505BA1F2E7CE233008D2917 /* Place.swift in Sources */,
+				B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,11 +509,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 583C6A358V;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HalalFood/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Halal Map";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show nearby halal restaurants and mosques.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -410,9 +528,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalFood;
+				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalMap;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -427,11 +549,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 583C6A358V;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HalalFood/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Halal Map";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show nearby halal restaurants and mosques.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -442,9 +568,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalFood;
+				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalMap;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -578,6 +708,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B505BA122E7CE19C008D2917 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B505BA272E7CF000008D2917 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B505BA122E7CE19C008D2917 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B505B9CE2E7CC7FA008D2917 /* Project object */;
 }
