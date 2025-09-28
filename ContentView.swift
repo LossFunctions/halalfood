@@ -512,6 +512,7 @@ private extension ContentView {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             mapRegion = targetRegion
         }
+        collapseBottomSheet()
         selectedPlace = place
     }
 
@@ -524,6 +525,7 @@ private extension ContentView {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             mapRegion = targetRegion
         }
+        collapseBottomSheet()
         selectedPlace = nil
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
     }
@@ -1036,7 +1038,7 @@ private enum BottomSheetState {
 }
 
 @MainActor
-final class MapScreenViewModel: ObservableObject {
+final class MapScreenViewModel: @MainActor ObservableObject {
     @Published private(set) var places: [Place] = []
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
@@ -1058,10 +1060,11 @@ final class MapScreenViewModel: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
     private var manualSearchTask: Task<Void, Never>?
+    private var globalIndexTask: Task<Void, Never>?
     private var lastRequestedRegion: MKCoordinateRegion?
     private var cache = PlaceCache()
     private var allPlaces: [Place] = []
-    private var manualPlaces: [Place] = []
+    private var globalSearchIndex: [Place] = []
     private var currentFilter: MapFilter = .topRated
 
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
@@ -1070,6 +1073,7 @@ final class MapScreenViewModel: ObservableObject {
             apply(filter: filter)
             return
         }
+        prefetchGlobalSearchIndexIfNeeded()
         fetch(region: region, filter: filter, eager: true)
     }
 
@@ -1104,18 +1108,20 @@ final class MapScreenViewModel: ObservableObject {
             return
         }
 
-        let localMatches = localMatches(for: trimmed)
-        let initialManualMatches = manualMatches(for: trimmed, excluding: localMatches)
-        searchResults = PlaceOverrides.sorted(deduplicate(localMatches + initialManualMatches))
+        prefetchGlobalSearchIndexIfNeeded()
+
+        let seededMatches = combinedMatches(for: trimmed)
+        searchResults = PlaceOverrides.sorted(seededMatches)
         isSearching = true
 
         manualSearchTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let current = self.searchResults
-            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: current + self.allPlaces)
+            let exclusion = self.searchResults + self.allPlaces + self.globalSearchIndex
+            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: exclusion)
             guard !Task.isCancelled else { return }
             guard !additionalManual.isEmpty else { return }
-            let merged = self.deduplicate(current + additionalManual)
+            self.mergeIntoGlobalSearchIndex(additionalManual)
+            let merged = self.deduplicate(self.searchResults + additionalManual)
             self.searchResults = PlaceOverrides.sorted(merged)
         }
 
@@ -1127,12 +1133,12 @@ final class MapScreenViewModel: ObservableObject {
                 let dtos = try await PlaceAPI.searchPlaces(matching: trimmed, limit: 60)
                 try Task.checkCancellation()
                 let remotePlaces = dtos.compactMap(Place.init(dto:))
-                let baselineExisting = remotePlaces + self.allPlaces
-                let cachedManual = self.manualMatches(for: trimmed, excluding: baselineExisting)
-                let supplementalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: baselineExisting + cachedManual)
-                try Task.checkCancellation()
-                let merged = self.deduplicate(remotePlaces + self.allPlacesMatches(for: trimmed) + cachedManual + supplementalManual)
-                self.searchResults = PlaceOverrides.sorted(merged)
+                guard !Task.isCancelled else { return }
+                if !remotePlaces.isEmpty {
+                    self.mergeIntoGlobalSearchIndex(remotePlaces)
+                    let merged = self.deduplicate(self.searchResults + remotePlaces)
+                    self.searchResults = PlaceOverrides.sorted(merged)
+                }
                 self.isSearching = false
             } catch is CancellationError {
                 self.isSearching = false
@@ -1167,7 +1173,8 @@ final class MapScreenViewModel: ObservableObject {
         presentingError = false
         lastRequestedRegion = region
 
-        fetchTask = Task {
+        fetchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             if !eager {
                 try? await Task.sleep(nanoseconds: 350_000_000)
             }
@@ -1176,30 +1183,24 @@ final class MapScreenViewModel: ObservableObject {
                 let results = dtos.compactMap(Place.init(dto:))
                 let overridden = PlaceOverrides.apply(overridesTo: results, in: region)
                 try Task.checkCancellation()
-                await MainActor.run {
-#if DEBUG
-                    print("Supabase returned", results.count, "places")
-#endif
-                    self.allPlaces = overridden
-                    self.apply(filter: self.currentFilter)
-                    self.isLoading = false
-                    self.cache.store(overridden, region: region)
-                }
+                self.allPlaces = overridden
+                self.mergeIntoGlobalSearchIndex(overridden)
+                self.apply(filter: self.currentFilter)
+                self.isLoading = false
+                self.cache.store(overridden, region: region)
             } catch is CancellationError {
                 // Swallow cancellation; any inflight request will manage loading state.
             } catch {
                 if let urlError = error as? URLError, urlError.code == .cancelled {
                     return
                 }
-                await MainActor.run {
-                    self.errorMessage = Self.message(for: error)
-                    self.presentingError = true
-                    if self.places.isEmpty, let cachedPlaces = cachedOverride {
-                        self.allPlaces = cachedPlaces
-                        self.apply(filter: self.currentFilter)
-                    }
-                    self.isLoading = false
+                self.errorMessage = Self.message(for: error)
+                self.presentingError = true
+                if self.places.isEmpty, let cachedPlaces = cachedOverride {
+                    self.allPlaces = cachedPlaces
+                    self.apply(filter: self.currentFilter)
                 }
+                self.isLoading = false
             }
         }
     }
@@ -1271,36 +1272,56 @@ final class MapScreenViewModel: ObservableObject {
     deinit {
         fetchTask?.cancel()
         searchTask?.cancel()
+        manualSearchTask?.cancel()
+        globalIndexTask?.cancel()
     }
 }
 
 private extension MapScreenViewModel {
-    func localMatches(for query: String) -> [Place] {
-        allPlacesMatches(for: query)
-    }
-
-    func allPlacesMatches(for query: String) -> [Place] {
+    func combinedMatches(for query: String) -> [Place] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        return allPlaces.filter { place in
-            place.name.localizedCaseInsensitiveContains(trimmed) ||
-            (place.address?.localizedCaseInsensitiveContains(trimmed) ?? false)
+        let local = matches(in: allPlaces, query: trimmed)
+        let global = matches(in: globalSearchIndex, query: trimmed)
+        return deduplicate(local + global)
+    }
+
+    func matches(in source: [Place], query: String) -> [Place] {
+        source.filter { place in
+            place.name.localizedCaseInsensitiveContains(query) ||
+            (place.address?.localizedCaseInsensitiveContains(query) ?? false)
         }
     }
 
-    func manualMatches(for query: String, excluding existing: [Place]) -> [Place] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-
-        let existingKeys = Set(existing.map { PlaceOverrides.normalizedName(for: $0.name) })
-
-        return manualPlaces.filter { place in
-            let key = PlaceOverrides.normalizedName(for: place.name)
-            guard !existingKeys.contains(key) else { return false }
-            if place.name.localizedCaseInsensitiveContains(trimmed) { return true }
-            if place.address?.localizedCaseInsensitiveContains(trimmed) == true { return true }
-            return false
+    func prefetchGlobalSearchIndexIfNeeded() {
+        guard globalSearchIndex.isEmpty, globalIndexTask == nil else { return }
+        globalIndexTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let world = BBox(west: -179.9, south: -80.0, east: 179.9, north: 83.0)
+                let dtos = try await PlaceAPI.getPlaces(bbox: world, limit: 750)
+                let places = dtos.compactMap(Place.init(dto:))
+                try Task.checkCancellation()
+                self.mergeIntoGlobalSearchIndex(places)
+            } catch is CancellationError {
+#if DEBUG
+                print("[MapScreenViewModel] Global search index prefetch cancelled")
+#endif
+            } catch {
+#if DEBUG
+                print("[MapScreenViewModel] Failed to prefetch global search index:", error)
+#endif
+            }
+            self.globalIndexTask = nil
         }
+    }
+
+    func mergeIntoGlobalSearchIndex(_ newPlaces: [Place]) {
+        guard !newPlaces.isEmpty else { return }
+        let combined = deduplicate(globalSearchIndex + newPlaces)
+        let sorted = PlaceOverrides.sorted(combined)
+        let cap = 2000
+        globalSearchIndex = sorted.count > cap ? Array(sorted.prefix(cap)) : sorted
     }
 
     func deduplicate(_ places: [Place]) -> [Place] {
