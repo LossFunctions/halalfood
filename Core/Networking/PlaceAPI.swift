@@ -71,20 +71,27 @@ enum PlaceAPI {
         guard !trimmed.isEmpty else { return [] }
 
         let resolvedLimit = max(1, min(limit, supabaseHardLimit))
-        let encodedQuery = trimmed.replacingOccurrences(of: "*", with: "")
-        let likePattern = "*\(encodedQuery)*"
+        let normalized = normalizedSearchQuery(trimmed)
 
-        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id"
+        do {
+            return try await searchPlacesViaRPC(query: trimmed, normalizedQuery: normalized, limit: resolvedLimit)
+        } catch let error as PlaceAPIError {
+            switch error {
+            case let .server(statusCode, body) where shouldFallbackToLegacySearch(statusCode: statusCode, body: body):
+                return try await searchPlacesViaLegacy(query: trimmed, normalizedQuery: normalized, limit: resolvedLimit)
+            case .invalidResponse:
+                return try await searchPlacesViaLegacy(query: trimmed, normalizedQuery: normalized, limit: resolvedLimit)
+            default:
+                throw error
+            }
+        }
+    }
 
-        let queryItems = [
-            URLQueryItem(name: "select", value: selectColumns),
-            URLQueryItem(name: "status", value: "eq.published"),
-            URLQueryItem(name: "order", value: "rating.desc.nullslast"),
-            URLQueryItem(name: "limit", value: "\(resolvedLimit)"),
-            URLQueryItem(name: "or", value: "(name.ilike.\(likePattern),address.ilike.\(likePattern))")
-        ]
+    static func upsertApplePlace(_ payload: ApplePlaceUpsertPayload) async throws -> PlaceDTO {
+        let encoder = JSONEncoder()
+        let body = try encoder.encode(payload)
 
-        let request = try makeGETRequest(path: "rest/v1/place", queryItems: queryItems)
+        let request = try makeRequest(body: body, endpoint: "rest/v1/rpc/upsert_apple_place")
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -92,18 +99,64 @@ enum PlaceAPI {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-#if DEBUG
-            if let bodyString = String(data: data, encoding: .utf8) {
-                print("Supabase search error", httpResponse.statusCode, bodyString)
-            } else {
-                print("Supabase search error", httpResponse.statusCode)
-            }
-#endif
             throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
         }
 
         let decoder = JSONDecoder()
-        return try decoder.decode([PlaceDTO].self, from: data)
+        let rows = try decoder.decode([PlaceDTO].self, from: data)
+        if let first = rows.first {
+            return first
+        }
+        throw PlaceAPIError.invalidResponse
+    }
+
+    static func fetchAllPlaces(limit: Int = 3000, pageSize: Int = 800) async throws -> [PlaceDTO] {
+        let desired = max(1, min(limit, 10_000))
+        let size = max(1, min(pageSize, 1000))
+        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id"
+        let baseQueryItems = [
+            URLQueryItem(name: "select", value: selectColumns),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "category", value: "eq.restaurant"),
+            URLQueryItem(name: "order", value: "rating.desc.nullslast")
+        ]
+
+        var collected: [PlaceDTO] = []
+        var start = 0
+        let decoder = JSONDecoder()
+
+        while start < desired {
+            let end = min(start + size - 1, desired - 1)
+            var request = try makeGETRequest(path: "rest/v1/place", queryItems: baseQueryItems)
+            request.setValue("items", forHTTPHeaderField: "Range-Unit")
+            request.setValue("\(start)-\(end)", forHTTPHeaderField: "Range")
+            request.setValue("count=exact", forHTTPHeaderField: "Prefer")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw PlaceAPIError.invalidResponse
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) || httpResponse.statusCode == 206 else {
+#if DEBUG
+                if let bodyString = String(data: data, encoding: .utf8) {
+                    print("Supabase fetchAllPlaces error", httpResponse.statusCode, bodyString)
+                } else {
+                    print("Supabase fetchAllPlaces error", httpResponse.statusCode)
+                }
+#endif
+                throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+            }
+
+            let page = try decoder.decode([PlaceDTO].self, from: data)
+            collected.append(contentsOf: page)
+
+            if page.count < size { break }
+            start += size
+        }
+
+        return collected
     }
 
     private static func collectPlaces(
@@ -172,6 +225,72 @@ enum PlaceAPI {
     private static func sanitize(_ requested: Int) -> Int {
         let clamped = min(max(requested, minimumRequestedLimit), supabaseHardLimit)
         return max(1, clamped)
+    }
+
+    private static func normalizedSearchQuery(_ query: String) -> String {
+        let folded = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        let scalars = folded.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
+        return String(scalars.map(Character.init)).lowercased()
+    }
+
+    private static func searchPlacesViaRPC(query: String, normalizedQuery: String, limit: Int) async throws -> [PlaceDTO] {
+        let params = SearchPlacesParams(query: query, normalizedQuery: normalizedQuery, limit: limit)
+        let encoder = JSONEncoder()
+        let body = try encoder.encode(params)
+
+        let request = try makeRequest(body: body, endpoint: "rest/v1/rpc/search_places")
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([PlaceDTO].self, from: data)
+    }
+
+    private static func searchPlacesViaLegacy(query: String, normalizedQuery: String, limit: Int) async throws -> [PlaceDTO] {
+        let sanitizedLimit = max(1, min(limit, supabaseHardLimit))
+        let encodedQuery = query.replacingOccurrences(of: "*", with: "")
+        let likePattern = "*\(encodedQuery)*"
+
+        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id"
+
+        let queryItems = [
+            URLQueryItem(name: "select", value: selectColumns),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "order", value: "rating.desc.nullslast"),
+            URLQueryItem(name: "limit", value: "\(sanitizedLimit)"),
+            URLQueryItem(name: "or", value: "(name.ilike.\(likePattern),address.ilike.\(likePattern))")
+        ]
+
+        let request = try makeGETRequest(path: "rest/v1/place", queryItems: queryItems)
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([PlaceDTO].self, from: data)
+    }
+
+    private static func shouldFallbackToLegacySearch(statusCode: Int, body: String?) -> Bool {
+        if statusCode == 404 { return true }
+        if statusCode == 400 || statusCode == 500 {
+            if let body, body.lowercased().contains("search_places") {
+                return true
+            }
+        }
+        return false
     }
 
     private static func sortPlaces(_ places: [PlaceDTO]) -> [PlaceDTO] {
@@ -274,6 +393,18 @@ private struct GetPlacesParams: Encodable, Sendable {
         case west, south, east, north
         case cat
         case maxCount = "max_count"
+    }
+}
+
+private struct SearchPlacesParams: Encodable, Sendable {
+    let query: String
+    let normalizedQuery: String
+    let limit: Int
+
+    enum CodingKeys: String, CodingKey {
+        case query = "p_query"
+        case normalizedQuery = "p_normalized_query"
+        case limit = "p_limit"
     }
 }
 

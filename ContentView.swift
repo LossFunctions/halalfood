@@ -44,6 +44,8 @@ struct ContentView: View {
 
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let normalizedQuery = PlaceOverrides.normalizedName(for: trimmed)
+
         return appleHalalSearch.results.filter { item in
             guard let coordinate = mapItemCoordinate(item) else { return false }
             let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -54,9 +56,16 @@ struct ContentView: View {
 
             if matchesExisting { return false }
 
-            if !trimmed.isEmpty {
-                let nameMatches = item.name?.localizedCaseInsensitiveContains(trimmed) ?? false
-                return nameMatches
+            if !normalizedQuery.isEmpty {
+                let nameMatches = item.name.map { PlaceOverrides.normalizedName(for: $0).contains(normalizedQuery) } ?? false
+                if nameMatches { return true }
+
+                if let shortAddress = item.halalShortAddress, !shortAddress.isEmpty {
+                    let normalizedAddress = PlaceOverrides.normalizedName(for: shortAddress)
+                    if normalizedAddress.contains(normalizedQuery) { return true }
+                }
+
+                return false
             }
 
             return true
@@ -141,6 +150,10 @@ struct ContentView: View {
             if isFocused && !isBottomSheetExpanded {
                 expandBottomSheet()
             }
+        }
+        .onChange(of: selectedApplePlace) { _, selection in
+            guard let mapItem = selection?.mapItem else { return }
+            viewModel.ingestApplePlaceIfNeeded(mapItem)
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
@@ -657,14 +670,22 @@ struct PlaceDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                headerSection
-                halalSection
-                Divider().opacity(0.4)
-                appleSection
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    switch viewModel.loadingState {
+                    case .loaded(let details):
+                        appleLoadedSection(details, availableHeight: proxy.size.height)
+                    default:
+                        headerSection
+                        halalSection
+                        Divider().opacity(0.4)
+                        appleStatusSection
+                    }
+                }
+                .padding(24)
+                .frame(minHeight: proxy.size.height, alignment: .top)
             }
-            .padding(24)
         }
         .task(id: place.id) {
             await viewModel.load(place: place)
@@ -698,20 +719,25 @@ struct PlaceDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var halalSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(place.halalStatus.label, systemImage: "checkmark.seal")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        if place.source?.lowercased() == "apple" {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(place.halalStatus.label, systemImage: "checkmark.seal")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-            Text("Our halal classification comes from our own Supabase dataset.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("Our halal classification comes from our own Supabase dataset.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     @ViewBuilder
-    private var appleSection: some View {
+    private var appleStatusSection: some View {
         switch viewModel.loadingState {
         case .idle, .loading:
             VStack(alignment: .leading, spacing: 12) {
@@ -734,12 +760,20 @@ struct PlaceDetailView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-        case .loaded(let details):
-            if #available(iOS 18.0, *) {
-                applePlaceCard(details)
-            } else {
-                appleDetailsSection(details)
-            }
+        case .loaded:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
+        if #available(iOS 18.0, *) {
+            applePlaceCard(details)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: availableHeight, alignment: .top)
+        } else {
+            appleDetailsSection(details)
+                .frame(minHeight: availableHeight, alignment: .top)
         }
     }
 
@@ -840,6 +874,7 @@ struct PlaceDetailView: View {
         return false
     }
 
+
     @ViewBuilder
     private func applePlaceCard(_ details: ApplePlaceDetails) -> some View {
         MapItemDetailCardView(mapItem: details.mapItem, showsInlineMap: false) {
@@ -849,12 +884,21 @@ struct PlaceDetailView: View {
         .frame(minHeight: 520)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+        .overlay(alignment: .topLeading) {
+        }
     }
+
 }
 
 private struct ApplePlaceSelection: Identifiable {
     let id = UUID()
     let mapItem: MKMapItem
+}
+
+extension ApplePlaceSelection: Equatable {
+    static func == (lhs: ApplePlaceSelection, rhs: ApplePlaceSelection) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 private struct AppleFallbackDetailView: View {
@@ -1058,14 +1102,18 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     }
 
     private var fetchTask: Task<Void, Never>?
-    private var searchTask: Task<Void, Never>?
     private var manualSearchTask: Task<Void, Never>?
-    private var globalIndexTask: Task<Void, Never>?
+    private var globalDatasetTask: Task<Void, Never>?
+    private var remoteSearchTask: Task<Void, Never>?
+    private var appleFallbackTask: Task<Void, Never>?
     private var lastRequestedRegion: MKCoordinateRegion?
     private var cache = PlaceCache()
     private var allPlaces: [Place] = []
-    private var globalSearchIndex: [Place] = []
+    private var globalDataset: [Place] = []
+    private var lastSearchQuery: String?
     private var currentFilter: MapFilter = .topRated
+    private var appleIngestTasks: [String: Task<Void, Never>] = [:]
+    private var ingestedApplePlaceIDs: Set<String> = []
 
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter
@@ -1073,7 +1121,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             apply(filter: filter)
             return
         }
-        prefetchGlobalSearchIndexIfNeeded()
+        ensureGlobalDataset()
         fetch(region: region, filter: filter, eager: true)
     }
 
@@ -1098,53 +1146,70 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     func search(query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        searchTask?.cancel()
-
+        remoteSearchTask?.cancel()
+        remoteSearchTask = nil
         manualSearchTask?.cancel()
+        manualSearchTask = nil
+        appleFallbackTask?.cancel()
+        appleFallbackTask = nil
+
+        lastSearchQuery = trimmed
 
         guard !trimmed.isEmpty else {
             searchResults = []
             isSearching = false
+            updateSearchActivityIndicator()
             return
         }
 
-        prefetchGlobalSearchIndexIfNeeded()
+        ensureGlobalDataset()
 
         let seededMatches = combinedMatches(for: trimmed)
         searchResults = PlaceOverrides.sorted(seededMatches)
         isSearching = true
 
+        remoteSearchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.remoteSearchTask = nil
+                self.updateSearchActivityIndicator()
+                self.triggerAppleFallbackIfNecessary(for: trimmed)
+            }
+
+            do {
+                let dtos = try await PlaceAPI.searchPlaces(matching: trimmed, limit: 80)
+                guard !Task.isCancelled else { return }
+                let remotePlaces = dtos.compactMap(Place.init(dto:))
+                guard !remotePlaces.isEmpty else { return }
+
+                let referenceCoordinate = remotePlaces.first?.coordinate ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
+                let region = MKCoordinateRegion(center: referenceCoordinate, span: MKCoordinateSpan(latitudeDelta: 1.0, longitudeDelta: 1.0))
+                let cleaned = PlaceOverrides.apply(overridesTo: remotePlaces, in: region)
+                self.mergeIntoGlobalDataset(cleaned)
+                let merged = self.deduplicate(self.searchResults + cleaned)
+                self.searchResults = PlaceOverrides.sorted(merged)
+            } catch is CancellationError {
+                // Ignore cancellations
+            } catch {
+#if DEBUG
+                print("[MapScreenViewModel] Remote search failed for query \(trimmed):", error)
+#endif
+            }
+        }
+
         manualSearchTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let exclusion = self.searchResults + self.allPlaces + self.globalSearchIndex
+            defer {
+                self.manualSearchTask = nil
+                self.updateSearchActivityIndicator()
+            }
+            let exclusion = self.searchResults + self.allPlaces + self.globalDataset
             let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: exclusion)
             guard !Task.isCancelled else { return }
             guard !additionalManual.isEmpty else { return }
-            self.mergeIntoGlobalSearchIndex(additionalManual)
+            self.mergeIntoGlobalDataset(additionalManual)
             let merged = self.deduplicate(self.searchResults + additionalManual)
             self.searchResults = PlaceOverrides.sorted(merged)
-        }
-
-        searchTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                try await Task.sleep(nanoseconds: 250_000_000)
-                try Task.checkCancellation()
-                let dtos = try await PlaceAPI.searchPlaces(matching: trimmed, limit: 60)
-                try Task.checkCancellation()
-                let remotePlaces = dtos.compactMap(Place.init(dto:))
-                guard !Task.isCancelled else { return }
-                if !remotePlaces.isEmpty {
-                    self.mergeIntoGlobalSearchIndex(remotePlaces)
-                    let merged = self.deduplicate(self.searchResults + remotePlaces)
-                    self.searchResults = PlaceOverrides.sorted(merged)
-                }
-                self.isSearching = false
-            } catch is CancellationError {
-                self.isSearching = false
-            } catch {
-                self.isSearching = false
-            }
         }
     }
 
@@ -1179,15 +1244,18 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 try? await Task.sleep(nanoseconds: 350_000_000)
             }
             do {
-                let dtos = try await PlaceAPI.getPlaces(bbox: region.bbox)
+                let dtos = try await Task.detached(priority: .userInitiated) {
+                    try await PlaceAPI.getPlaces(bbox: region.bbox)
+                }.value
                 let results = dtos.compactMap(Place.init(dto:))
                 let overridden = PlaceOverrides.apply(overridesTo: results, in: region)
+                let cleaned = overridden.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 try Task.checkCancellation()
-                self.allPlaces = overridden
-                self.mergeIntoGlobalSearchIndex(overridden)
+                self.allPlaces = cleaned
+                self.mergeIntoGlobalDataset(cleaned)
                 self.apply(filter: self.currentFilter)
                 self.isLoading = false
-                self.cache.store(overridden, region: region)
+                self.cache.store(cleaned, region: region)
             } catch is CancellationError {
                 // Swallow cancellation; any inflight request will manage loading state.
             } catch {
@@ -1197,7 +1265,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.errorMessage = Self.message(for: error)
                 self.presentingError = true
                 if self.places.isEmpty, let cachedPlaces = cachedOverride {
-                    self.allPlaces = cachedPlaces
+                    self.allPlaces = cachedPlaces.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     self.apply(filter: self.currentFilter)
                 }
                 self.isLoading = false
@@ -1271,57 +1339,170 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     deinit {
         fetchTask?.cancel()
-        searchTask?.cancel()
         manualSearchTask?.cancel()
-        globalIndexTask?.cancel()
+        globalDatasetTask?.cancel()
+        remoteSearchTask?.cancel()
+        appleFallbackTask?.cancel()
+        appleIngestTasks.values.forEach { $0.cancel() }
     }
 }
 
 private extension MapScreenViewModel {
+    static let appleFallbackRegion: MKCoordinateRegion = {
+        let center = CLLocationCoordinate2D(latitude: 40.789142, longitude: -73.13496)
+        let span = MKCoordinateSpan(latitudeDelta: 3.5, longitudeDelta: 3.8)
+        return MKCoordinateRegion(center: center, span: span)
+    }()
+
+    func ingestApplePlaceIfNeeded(_ mapItem: MKMapItem) {
+        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .yes, confidence: 0.6) else { return }
+        let identifier = payload.applePlaceID
+        guard !ingestedApplePlaceIDs.contains(identifier) else { return }
+        ingestedApplePlaceIDs.insert(identifier)
+
+        if let existing = appleIngestTasks[identifier] {
+            existing.cancel()
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.appleIngestTasks.removeValue(forKey: identifier)
+            }
+
+            do {
+                let dto = try await PlaceAPI.upsertApplePlace(payload)
+                guard !Task.isCancelled else { return }
+                guard let place = Place(dto: dto) else { return }
+                self.mergeIntoGlobalDataset([place])
+                self.insertOrUpdatePlace(place)
+                self.refreshSearchResultsIfNeeded(with: place)
+            } catch is CancellationError {
+                self.ingestedApplePlaceIDs.remove(identifier)
+            } catch {
+#if DEBUG
+                print("[MapScreenViewModel] Failed to upsert Apple-sourced place:", error)
+#endif
+                self.ingestedApplePlaceIDs.remove(identifier)
+            }
+        }
+
+        appleIngestTasks[identifier] = task
+    }
+
+    func triggerAppleFallbackIfNecessary(for query: String) {
+        guard appleFallbackTask == nil else { return }
+        guard searchResults.isEmpty else { return }
+        guard !query.isEmpty else { return }
+
+        appleFallbackTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.appleFallbackTask = nil
+                self.updateSearchActivityIndicator()
+            }
+
+            self.isSearching = true
+
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = query
+            request.resultTypes = [.pointOfInterest]
+            request.region = Self.appleFallbackRegion
+
+            let search = MKLocalSearch(request: request)
+            do {
+                let response = try await search.start()
+                let items = response.mapItems
+                guard !items.isEmpty else { return }
+
+                var fallbackPlaces: [Place] = []
+                for item in items {
+                    if let place = makePlace(from: item, halalStatus: Place.HalalStatus.yes, confidence: 0.4) {
+                        fallbackPlaces.append(place)
+                    }
+                    self.ingestApplePlaceIfNeeded(item)
+                }
+
+                guard !fallbackPlaces.isEmpty else { return }
+                self.mergeIntoGlobalDataset(fallbackPlaces)
+                for place in fallbackPlaces {
+                    self.insertOrUpdatePlace(place)
+                }
+                let merged = self.deduplicate(self.searchResults + fallbackPlaces)
+                self.searchResults = PlaceOverrides.sorted(merged)
+            } catch is CancellationError {
+                // Ignore cancellation
+            } catch {
+#if DEBUG
+                print("[MapScreenViewModel] Apple fallback search failed for query \(query):", error)
+#endif
+            }
+        }
+    }
+
     func combinedMatches(for query: String) -> [Place] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         let local = matches(in: allPlaces, query: trimmed)
-        let global = matches(in: globalSearchIndex, query: trimmed)
+        let global = matches(in: globalDataset, query: trimmed)
         return deduplicate(local + global)
     }
 
     func matches(in source: [Place], query: String) -> [Place] {
-        source.filter { place in
-            place.name.localizedCaseInsensitiveContains(query) ||
-            (place.address?.localizedCaseInsensitiveContains(query) ?? false)
+        let normalizedQuery = PlaceOverrides.normalizedName(for: query)
+        guard !normalizedQuery.isEmpty else { return [] }
+
+        return source.filter { place in
+            let normalizedName = PlaceOverrides.normalizedName(for: place.name)
+            if normalizedName.contains(normalizedQuery) { return true }
+
+            if let address = place.address {
+                let normalizedAddress = PlaceOverrides.normalizedName(for: address)
+                if normalizedAddress.contains(normalizedQuery) { return true }
+            }
+
+            return false
         }
     }
 
-    func prefetchGlobalSearchIndexIfNeeded() {
-        guard globalSearchIndex.isEmpty, globalIndexTask == nil else { return }
-        globalIndexTask = Task { @MainActor [weak self] in
+    func ensureGlobalDataset() {
+        guard globalDataset.isEmpty, globalDatasetTask == nil else { return }
+        globalDatasetTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let world = BBox(west: -179.9, south: -80.0, east: 179.9, north: 83.0)
-                let dtos = try await PlaceAPI.getPlaces(bbox: world, limit: 750)
-                let places = dtos.compactMap(Place.init(dto:))
+                let dtos = try await Task.detached(priority: .utility) {
+                    try await PlaceAPI.fetchAllPlaces(limit: 3500)
+                }.value
+                let places = dtos
+                    .compactMap(Place.init(dto:))
+                    .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 try Task.checkCancellation()
-                self.mergeIntoGlobalSearchIndex(places)
+                self.mergeIntoGlobalDataset(places)
+                if let query = self.lastSearchQuery, !query.isEmpty {
+                    let seeded = self.combinedMatches(for: query)
+                    self.searchResults = PlaceOverrides.sorted(seeded)
+                }
             } catch is CancellationError {
 #if DEBUG
-                print("[MapScreenViewModel] Global search index prefetch cancelled")
+                print("[MapScreenViewModel] Global dataset fetch cancelled")
 #endif
             } catch {
 #if DEBUG
-                print("[MapScreenViewModel] Failed to prefetch global search index:", error)
+                print("[MapScreenViewModel] Failed to load global dataset:", error)
 #endif
             }
-            self.globalIndexTask = nil
+            self.globalDatasetTask = nil
+            self.updateSearchActivityIndicator()
         }
     }
 
-    func mergeIntoGlobalSearchIndex(_ newPlaces: [Place]) {
+    func mergeIntoGlobalDataset(_ newPlaces: [Place]) {
         guard !newPlaces.isEmpty else { return }
-        let combined = deduplicate(globalSearchIndex + newPlaces)
+        let filtered = newPlaces.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !filtered.isEmpty else { return }
+        let combined = deduplicate(globalDataset + filtered)
         let sorted = PlaceOverrides.sorted(combined)
-        let cap = 2000
-        globalSearchIndex = sorted.count > cap ? Array(sorted.prefix(cap)) : sorted
+        globalDataset = sorted
     }
 
     func deduplicate(_ places: [Place]) -> [Place] {
@@ -1336,6 +1517,58 @@ private extension MapScreenViewModel {
             }
         }
         return result
+    }
+
+    func insertOrUpdatePlace(_ place: Place) {
+        var updated = allPlaces
+        if let existingIndex = updated.firstIndex(where: { $0.id == place.id }) {
+            updated[existingIndex] = place
+        } else {
+            updated.append(place)
+        }
+        let deduped = deduplicate(updated)
+        allPlaces = PlaceOverrides.sorted(deduped)
+        apply(filter: currentFilter)
+    }
+
+    func refreshSearchResultsIfNeeded(with place: Place) {
+        guard let query = lastSearchQuery, !query.isEmpty else { return }
+        guard !matches(in: [place], query: query).isEmpty else { return }
+        let deduped = deduplicate(searchResults + [place])
+        searchResults = PlaceOverrides.sorted(deduped)
+    }
+
+    func updateSearchActivityIndicator() {
+        let active = (remoteSearchTask != nil) || (manualSearchTask != nil) || (globalDatasetTask != nil) || (appleFallbackTask != nil)
+        if active, let query = lastSearchQuery, !query.isEmpty {
+            isSearching = true
+        } else if !active {
+            isSearching = false
+        }
+    }
+
+    func makePlace(from mapItem: MKMapItem,
+                   halalStatus: Place.HalalStatus,
+                   confidence: Double?) -> Place? {
+        let coordinate = mapItem.halalCoordinate
+        guard coordinate.latitude != 0 || coordinate.longitude != 0 else { return nil }
+
+        let trimmedName = mapItem.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedName.isEmpty else { return nil }
+
+        return Place(
+            name: trimmedName,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            category: .restaurant,
+            address: mapItem.halalShortAddress,
+            halalStatus: halalStatus,
+            rating: nil,
+            ratingCount: nil,
+            confidence: confidence,
+            source: "apple",
+            applePlaceID: mapItem.identifier?.rawValue
+        )
     }
 }
 

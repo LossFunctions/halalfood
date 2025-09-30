@@ -39,10 +39,18 @@ private struct ManualPlaceDefinition {
     }
 
     func matches(query: String) -> Bool {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let normalizedQuery = PlaceOverrides.normalizedName(for: trimmed)
         guard !normalizedQuery.isEmpty else { return false }
-        if name.localizedCaseInsensitiveContains(normalizedQuery) { return true }
-        if fallbackAddress?.localizedCaseInsensitiveContains(normalizedQuery) == true { return true }
+
+        let normalizedName = PlaceOverrides.normalizedName(for: name)
+        if normalizedName.contains(normalizedQuery) { return true }
+
+        if let fallbackAddress {
+            let normalizedAddress = PlaceOverrides.normalizedName(for: fallbackAddress)
+            if normalizedAddress.contains(normalizedQuery) { return true }
+        }
         return false
     }
 

@@ -7,23 +7,77 @@
 // can fetch via the `get_places_in_bbox` RPC without hitting OSM at runtime.
 
 type BBox = { west: number; south: number; east: number; north: number };
+type BBoxTask = { bbox: BBox; label?: string };
+
+function parseBBoxString(value: string): BBox {
+  const parts = value.split(',').map((part) => part.trim());
+  if (parts.length !== 4) {
+    throw new Error(`Invalid bbox string "${value}". Expected format west,south,east,north`);
+  }
+  const numbers = parts.map(Number);
+  if (numbers.some((n) => Number.isNaN(n))) {
+    throw new Error(`BBox contains non-numeric values: "${value}"`);
+  }
+  const [west, south, east, north] = numbers;
+  return { west, south, east, north };
+}
 
 function parseArgs() {
-  const args = new Map<string, string>();
-  for (const a of Deno.args) {
-    const [k, v] = a.split("=");
-    if (!v) continue;
-    args.set(k.replace(/^--/, ''), v);
+  const singleArgs = new Map<string, string>();
+  const bboxInputs: Array<{ raw: string; label?: string }> = [];
+
+  for (const arg of Deno.args) {
+    const [rawKey, rawValue] = arg.split('=');
+    if (!rawValue) continue;
+    const key = rawKey.replace(/^--/, '');
+    if (key === 'bbox') {
+      bboxInputs.push({ raw: rawValue });
+      continue;
+    }
+    singleArgs.set(key, rawValue);
   }
-  const bboxStr = args.get('bbox');
-  if (!bboxStr) throw new Error("Missing --bbox=west,south,east,north");
-  const [west, south, east, north] = bboxStr.split(',').map(Number);
-  const category = (args.get('category') ?? 'restaurant') as 'restaurant'|'mosque';
-  const SUPABASE_URL = args.get('supabaseUrl') ?? Deno.env.get('SUPABASE_URL');
-  const SERVICE_KEY = args.get('serviceKey') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!SUPABASE_URL || !SERVICE_KEY) throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars.');
-  const bbox: BBox = { west, south, east, north };
-  return { bbox, category, SUPABASE_URL, SERVICE_KEY };
+
+  const bboxFilePath = singleArgs.get('bboxFile');
+  if (bboxFilePath) {
+    const text = Deno.readTextFileSync(bboxFilePath);
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      const withoutComment = line.split('#')[0]?.trim();
+      if (!withoutComment) continue;
+      const [coordsPart, labelPart] = withoutComment.split('|').map((part) => part.trim());
+      if (!coordsPart) continue;
+      bboxInputs.push({ raw: coordsPart, label: labelPart && labelPart.length ? labelPart : undefined });
+    }
+  }
+
+  if (!bboxInputs.length) {
+    throw new Error('Provide at least one --bbox=west,south,east,north or a --bboxFile=path with bounding boxes.');
+  }
+
+  const seen = new Set<string>();
+  const bboxes: BBoxTask[] = [];
+  bboxInputs.forEach((entry, index) => {
+    const bbox = parseBBoxString(entry.raw);
+    const key = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    bboxes.push({ bbox, label: entry.label ?? `bbox ${index + 1}` });
+  });
+
+  if (!bboxes.length) {
+    throw new Error('No valid bounding boxes provided.');
+  }
+
+  const category = (singleArgs.get('category') ?? 'restaurant') as 'restaurant' | 'mosque';
+  const SUPABASE_URL = singleArgs.get('supabaseUrl') ?? Deno.env.get('SUPABASE_URL');
+  const SERVICE_KEY = singleArgs.get('serviceKey') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars or pass them via --supabaseUrl/--serviceKey.');
+  }
+
+  return { bboxes, category, SUPABASE_URL, SERVICE_KEY };
 }
 
 function overpassQuery(b: BBox, category: 'restaurant'|'mosque') {
@@ -134,41 +188,55 @@ async function upsertToSupabase(url: string, key: string, rows: UpsertRow[]) {
 }
 
 async function main() {
-  const { bbox, category, SUPABASE_URL, SERVICE_KEY } = parseArgs();
-  const query = overpassQuery(bbox, category);
-  console.log('Fetching from Overpass for', category, '…');
-  const json = await fetchOverpass(query);
-  const els = (json.elements ?? []) as OverpassElement[];
-  console.log('Overpass returned', els.length, 'elements');
+  const { bboxes, category, SUPABASE_URL, SERVICE_KEY } = parseArgs();
+  const aggregate = new Map<string, UpsertRow>();
+  let totalElements = 0;
 
-  const rows: UpsertRow[] = [];
-  for (const el of els) {
-    const coord = el.type === 'node' ? { lat: el.lat!, lon: el.lon! } : el.center;
-    if (!coord) continue;
-    const tags = el.tags ?? {};
-    const halal = normalizeHalalStatus(tags);
-    const row: UpsertRow = {
-      external_id: `${el.type}:${el.id}`,
-      source: 'osm',
-      name: tags['name'] ?? '(Unnamed)',
-      category,
-      lat: coord.lat,
-      lon: coord.lon,
-      address: addressFrom(tags),
-      halal_status: halal,
-      rating: null,
-      rating_count: null,
-      confidence: null,
-      source_raw: tags,
-      status: 'published',
-    };
-    rows.push(row);
+  for (const [index, task] of bboxes.entries()) {
+    const label = task.label ?? `bbox ${index + 1}`;
+    console.log(`Fetching from Overpass for ${category} (${index + 1}/${bboxes.length}) — ${label}`);
+
+    try {
+      const query = overpassQuery(task.bbox, category);
+      const json = await fetchOverpass(query);
+      const els = (json.elements ?? []) as OverpassElement[];
+      totalElements += els.length;
+      console.log(`Overpass returned ${els.length} elements for ${label}`);
+
+      for (const el of els) {
+        const coord = el.type === 'node' ? { lat: el.lat!, lon: el.lon! } : el.center;
+        if (!coord) continue;
+        const tags = el.tags ?? {};
+        const halal = normalizeHalalStatus(tags);
+        const row: UpsertRow = {
+          external_id: `${el.type}:${el.id}`,
+          source: 'osm',
+          name: tags['name'] ?? '(Unnamed)',
+          category,
+          lat: coord.lat,
+          lon: coord.lon,
+          address: addressFrom(tags),
+          halal_status: halal,
+          rating: null,
+          rating_count: null,
+          confidence: null,
+          source_raw: tags,
+          status: 'published',
+        };
+        aggregate.set(row.external_id, row);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch Overpass data for ${label}:`, error);
+    }
   }
 
+  const rows = Array.from(aggregate.values());
   if (!rows.length) {
     console.log('Nothing to upsert.');
     return;
   }
+
+  console.log(`Aggregated ${rows.length} unique places from ${totalElements} Overpass elements.`);
   console.log('Upserting', rows.length, 'rows to Supabase…');
   const res = await upsertToSupabase(SUPABASE_URL, SERVICE_KEY, rows);
   console.log('Done. Upserted', res.inserted, 'rows.');
@@ -180,4 +248,3 @@ if (import.meta.main) {
     Deno.exit(1);
   });
 }
-
