@@ -188,15 +188,10 @@ struct ContentView: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $selectedApplePlace) { selection in
-            if #available(iOS 18.0, *) {
-                MapItemDetailCardView(mapItem: selection.mapItem, showsInlineMap: true) {
-                    selectedApplePlace = nil
-                }
-                .presentationDetents([.medium, .large])
-            } else {
-                AppleFallbackDetailView(details: ApplePlaceDetails(mapItem: selection.mapItem))
-                    .presentationDetents([.medium, .large])
+            AppleMapItemSheet(selection: selection) {
+                selectedApplePlace = nil
             }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -671,20 +666,24 @@ struct PlaceDetailView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let loadedDetails = appleLoadedDetails
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    switch viewModel.loadingState {
-                    case .loaded(let details):
-                        appleLoadedSection(details, availableHeight: proxy.size.height)
-                    default:
-                        headerSection
-                        halalSection
-                        Divider().opacity(0.4)
-                        appleStatusSection
-                    }
+                    headerSection
+                    halalSection
+                    Divider().opacity(0.4)
+                    appleStatusSection
                 }
                 .padding(24)
                 .frame(minHeight: proxy.size.height, alignment: .top)
+            }
+            .opacity(loadedDetails == nil ? 1 : 0)
+            .allowsHitTesting(loadedDetails == nil)
+            .overlay(alignment: .top) {
+                if let details = loadedDetails {
+                    appleLoadedSection(details, availableHeight: proxy.size.height)
+                }
             }
         }
         .task(id: place.id) {
@@ -769,7 +768,7 @@ struct PlaceDetailView: View {
     private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
         if #available(iOS 18.0, *) {
             applePlaceCard(details)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .top)
                 .frame(minHeight: availableHeight, alignment: .top)
         } else {
             appleDetailsSection(details)
@@ -888,6 +887,31 @@ struct PlaceDetailView: View {
         }
     }
 
+}
+
+extension PlaceDetailView {
+    private var appleLoadedDetails: ApplePlaceDetails? {
+        if case let .loaded(details) = viewModel.loadingState {
+            return details
+        }
+        return nil
+    }
+}
+
+private struct AppleMapItemSheet: View {
+    let selection: ApplePlaceSelection
+    let onDismiss: () -> Void
+
+    var body: some View {
+        Group {
+            if #available(iOS 18.0, *) {
+                MapItemDetailCardView(mapItem: selection.mapItem, showsInlineMap: true, onFinished: onDismiss)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                AppleFallbackDetailView(details: ApplePlaceDetails(mapItem: selection.mapItem))
+            }
+        }
+    }
 }
 
 private struct ApplePlaceSelection: Identifiable {
