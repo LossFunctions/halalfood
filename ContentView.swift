@@ -152,8 +152,8 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedApplePlace) { _, selection in
-            guard let mapItem = selection?.mapItem else { return }
-            viewModel.ingestApplePlaceIfNeeded(mapItem)
+            // Auto-ingest disabled: selecting an Apple result should not persist or mark halal.
+            _ = selection?.mapItem
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
@@ -1242,12 +1242,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         let cachedOverride = cacheHit.map { PlaceOverrides.apply(overridesTo: $0.places, in: region) }
 
         if let cachedPlaces = cachedOverride {
+            // Show cached results immediately for snappy UI, but do not return early here.
+            // We still evaluate whether to fetch fresh data based on region changes below.
             allPlaces = cachedPlaces
             apply(filter: filter)
-            if cacheHit?.isFresh == true && !eager {
-                isLoading = false
-                return
-            }
+            // Intentionally not returning on fresh cache; fetching decision happens below.
         }
 
         if let last = lastRequestedRegion,
@@ -1274,12 +1273,20 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 let results = dtos.compactMap(Place.init(dto:))
                 let overridden = PlaceOverrides.apply(overridesTo: results, in: region)
                 let cleaned = overridden.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                // Only surface verified halal places by default
+                let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
+
+                // Bring in manual outliers (e.g., venues not tagged halal in OSM/Apple)
+                // so they always appear on the map within the current region.
+                let manual = await ManualPlaceResolver.shared.manualPlaces(in: region, excluding: halalOnly)
+
                 try Task.checkCancellation()
-                self.allPlaces = cleaned
-                self.mergeIntoGlobalDataset(cleaned)
+                let combined = self.deduplicate(halalOnly + manual)
+                self.allPlaces = PlaceOverrides.sorted(combined)
+                self.mergeIntoGlobalDataset(combined)
                 self.apply(filter: self.currentFilter)
                 self.isLoading = false
-                self.cache.store(cleaned, region: region)
+                self.cache.store(combined, region: region)
             } catch is CancellationError {
                 // Swallow cancellation; any inflight request will manage loading state.
             } catch {
@@ -1379,7 +1386,10 @@ private extension MapScreenViewModel {
     }()
 
     func ingestApplePlaceIfNeeded(_ mapItem: MKMapItem) {
-        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .yes, confidence: 0.6) else { return }
+        // Guard against obvious non‑halal chains being marked as halal.
+        guard Self.shouldIngestApplePlace(mapItem) else { return }
+        // Persist as 'unknown' by default. Manual overrides can set 'yes/only'.
+        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .unknown, confidence: 0.3) else { return }
         let identifier = payload.applePlaceID
         guard !ingestedApplePlaceIDs.contains(identifier) else { return }
         ingestedApplePlaceIDs.insert(identifier)
@@ -1398,9 +1408,13 @@ private extension MapScreenViewModel {
                 let dto = try await PlaceAPI.upsertApplePlace(payload)
                 guard !Task.isCancelled else { return }
                 guard let place = Place(dto: dto) else { return }
-                self.mergeIntoGlobalDataset([place])
-                self.insertOrUpdatePlace(place)
-                self.refreshSearchResultsIfNeeded(with: place)
+                // Do not immediately surface unknown/non‑halal ingests on the map.
+                // They will appear after verification or manual override.
+                if place.halalStatus == .yes || place.halalStatus == .only {
+                    self.mergeIntoGlobalDataset([place])
+                    self.insertOrUpdatePlace(place)
+                    self.refreshSearchResultsIfNeeded(with: place)
+                }
             } catch is CancellationError {
                 self.ingestedApplePlaceIDs.remove(identifier)
             } catch {
@@ -1462,6 +1476,25 @@ private extension MapScreenViewModel {
 #endif
             }
         }
+    }
+
+    private static let nonHalalChainBlocklist: Set<String> = {
+        let names = [
+            "Subway", "Taco Bell", "McDonald's", "Burger King", "Wendy's",
+            "KFC", "Chipotle", "Domino's", "Pizza Hut", "Papa John's",
+            "Five Guys", "White Castle", "Panera Bread", "Starbucks",
+            "Dunkin'", "Chick-fil-A", "Popeyes", "Arby's", "Jack in the Box",
+            "Sonic Drive-In", "Little Caesars", "Carl's Jr", "Hardee's"
+        ]
+        return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
+    }()
+
+    private static func shouldIngestApplePlace(_ mapItem: MKMapItem) -> Bool {
+        let name = mapItem.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalized = PlaceOverrides.normalizedName(for: name)
+        if normalized.isEmpty { return false }
+        if nonHalalChainBlocklist.contains(normalized) { return false }
+        return true
     }
 
     func combinedMatches(for query: String) -> [Place] {

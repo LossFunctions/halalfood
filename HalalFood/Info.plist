@@ -6,7 +6,40 @@
 	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlY25udGt5eGJjd3R3eXpscWt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyNDAyNTEsImV4cCI6MjA3MzgxNjI1MX0.lFV8Z5o3OyMoi_UIyrDSuJUdgLWVyd6s6HwPYC-wwl0</string>
 	<key>SUPABASE_URL</key>
 	<string>https://qecnntkyxbcwtwyzlqku.supabase.co</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to show nearby halal restaurants and mosques.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>We use your location to show nearby halal restaurants and mosques.</string>
+    
+    <!-- Manual always-include halal places. Each dict supports:
+         id (String, optional UUID), name (String, required), lat (Number), lon (Number),
+         halal_status (String: yes|only|unknown), address (String, optional),
+         search_query (String, optional), search_span_lat/lon (Number, optional),
+         allows_broad_search (Boolean, optional)
+    -->
+    <key>MANUAL_PLACES</key>
+    <array>
+        <dict>
+            <key>id</key>
+            <string>F2F3C8E4-5F2B-4F0D-BE64-7A1B0E8D2F11</string>
+            <key>name</key>
+            <string>Affy’s</string>
+            <key>lat</key>
+            <real>40.727241</real>
+            <key>lon</key>
+            <real>-73.893434</real>
+            <key>address</key>
+            <string>6967 Grand Ave, Maspeth, NY 11378, United States</string>
+            <key>halal_status</key>
+            <string>yes</string>
+            <key>search_query</key>
+            <string>Affy’s</string>
+            <key>search_span_lat</key>
+            <real>0.18</real>
+            <key>search_span_lon</key>
+            <real>0.18</real>
+            <!-- Keep broad search off until lat/lon are set to avoid wrong matches -->
+            <key>allows_broad_search</key>
+            <false/>
+        </dict>
+    </array>
 </dict>
 </plist>

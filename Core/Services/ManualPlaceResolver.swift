@@ -100,8 +100,50 @@ final class ManualPlaceResolver {
         if let definitions {
             self.definitions = definitions
         } else {
-            self.definitions = Self.defaultDefinitions
+            let plistExtras = Self.loadPlistDefinitions()
+            self.definitions = Self.defaultDefinitions + plistExtras
         }
+    }
+
+    private static func loadPlistDefinitions() -> [ManualPlaceDefinition] {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "MANUAL_PLACES") as? [[String: Any]], !raw.isEmpty else {
+            return []
+        }
+
+        var defs: [ManualPlaceDefinition] = []
+        for entry in raw {
+            guard let name = (entry["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+            guard let lat = entry["lat"] as? Double, let lon = entry["lon"] as? Double else { continue }
+
+            let idString = (entry["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let id = UUID(uuidString: idString ?? "") ?? UUID()
+            let address = (entry["address"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let statusString = (entry["halal_status"] as? String)?.lowercased() ?? "yes"
+            let halalStatus = Place.HalalStatus(rawValue: statusString) ?? .yes
+            let rating = entry["rating"] as? Double
+            let ratingCount = entry["rating_count"] as? Int
+            let confidence = entry["confidence"] as? Double
+            let searchQuery = (entry["search_query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let spanLat = (entry["search_span_lat"] as? Double) ?? 0.18
+            let spanLon = (entry["search_span_lon"] as? Double) ?? 0.18
+            let allowsBroad = (entry["allows_broad_search"] as? Bool) ?? true
+
+            let def = ManualPlaceDefinition(
+                id: id,
+                name: name,
+                anchorCoordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                halalStatus: halalStatus,
+                rating: rating,
+                ratingCount: ratingCount,
+                confidence: confidence,
+                fallbackAddress: address,
+                searchQuery: searchQuery,
+                searchSpan: MKCoordinateSpan(latitudeDelta: spanLat, longitudeDelta: spanLon),
+                allowsBroadSearch: allowsBroad
+            )
+            defs.append(def)
+        }
+        return defs
     }
 
     func manualPlaces(in region: MKCoordinateRegion, excluding existingPlaces: [Place]) async -> [Place] {
@@ -162,6 +204,15 @@ final class ManualPlaceResolver {
 
     private func fetchPlace(for definition: ManualPlaceDefinition) async -> Place? {
         guard let mapItem = await searchMapItem(for: definition) else { return nil }
+
+        // Opportunistically persist the outlier into Supabase via the Apple upsert RPC
+        // so future sessions/devices receive it from the backend.
+        if let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: definition.halalStatus, confidence: definition.confidence) {
+            Task.detached(priority: .utility) {
+                do { _ = try await PlaceAPI.upsertApplePlace(payload) } catch { /* best-effort */ }
+            }
+        }
+
         return makePlace(from: mapItem, definition: definition)
     }
 

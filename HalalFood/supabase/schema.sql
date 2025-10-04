@@ -163,7 +163,16 @@ language sql stable parallel safe as $$
   where p.status = 'published'
     and (cat = 'all' or p.category = cat)
     and ST_Intersects(p.geog::geometry, ST_MakeEnvelope(west, south, east, north, 4326))
-  order by p.rating desc nulls last, p.confidence desc nulls last, p.name asc
+  -- Sort by distance to the viewport center first to prioritize nearby places,
+  -- then by rating/confidence for stability.
+  order by
+    ST_Distance(
+      p.geog,
+      ST_SetSRID(ST_MakePoint((west + east) / 2.0, (south + north) / 2.0), 4326)::geography
+    ) asc,
+    p.rating desc nulls last,
+    p.confidence desc nulls last,
+    p.name asc
   limit greatest(1, least(max_count, 1000));
 $$;
 
