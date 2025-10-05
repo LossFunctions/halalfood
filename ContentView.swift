@@ -671,6 +671,7 @@ struct PlaceDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     headerSection
+                    if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
                     halalSection
                     Divider().opacity(0.4)
                     appleStatusSection
@@ -688,6 +689,7 @@ struct PlaceDetailView: View {
         }
         .task(id: place.id) {
             await viewModel.load(place: place)
+            await viewModel.loadPhotos(for: place)
         }
     }
 
@@ -766,14 +768,16 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
-        if #available(iOS 18.0, *) {
-            applePlaceCard(details)
-                .frame(maxWidth: .infinity, alignment: .top)
-                .frame(minHeight: availableHeight, alignment: .top)
-        } else {
-            appleDetailsSection(details)
-                .frame(minHeight: availableHeight, alignment: .top)
+        VStack(spacing: 16) {
+            if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
+            if #available(iOS 18.0, *) {
+                applePlaceCard(details)
+            } else {
+                appleDetailsSection(details)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(minHeight: availableHeight, alignment: .top)
     }
 
     @ViewBuilder
@@ -895,6 +899,44 @@ extension PlaceDetailView {
             return details
         }
         return nil
+    }
+}
+
+extension PlaceDetailView {
+    @ViewBuilder
+    fileprivate func photoCarousel(_ photos: [PlacePhoto]) -> some View {
+        TabView {
+            ForEach(photos) { ph in
+                if let url = URL(string: ph.imageUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ZStack { Color.secondary.opacity(0.1); ProgressView() }
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure:
+                            Color.secondary.opacity(0.1)
+                        @unknown default:
+                            Color.secondary.opacity(0.1)
+                        }
+                    }
+                    .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                }
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
+        .frame(maxWidth: .infinity)
+        .frame(height: 220)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            Text("Photos: Yelp")
+                .font(.caption2)
+                .padding(6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(8)
+        }
     }
 }
 
@@ -1044,6 +1086,7 @@ final class PlaceDetailViewModel: ObservableObject {
     }
 
     @Published private(set) var loadingState: LoadingState = .idle
+    @Published var photos: [PlacePhoto] = []
 
     private let service: ApplePlaceDetailService
     private var lastSuccessfulPlaceID: UUID?
@@ -1097,6 +1140,109 @@ final class PlaceDetailViewModel: ObservableObject {
         } else {
             return String(digits.filter { $0.isNumber })
         }
+    }
+
+    func loadPhotos(for place: Place) async {
+        do {
+            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            var p = comps.path
+            if !p.hasSuffix("/") { p.append("/") }
+            p.append("rest/v1/place_photo")
+            comps.path = p
+            comps.queryItems = [
+                URLQueryItem(name: "place_id", value: "eq.\(place.id.uuidString)"),
+                URLQueryItem(name: "src", value: "eq.yelp"),
+                URLQueryItem(name: "order", value: "priority.asc"),
+                URLQueryItem(name: "limit", value: "12")
+            ]
+            guard let url = comps.url else { return }
+            var req = URLRequest(url: url)
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+            let key = Env.anonKey
+            req.setValue(key, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            var rows = try decoder.decode([PlacePhoto].self, from: data)
+            if rows.isEmpty {
+                if let yelpPlaceID = try await findNearbyYelpPlaceID(around: place.coordinate, hintName: place.name) {
+                    rows = try await fetchPhotos(for: yelpPlaceID)
+                }
+            }
+            self.photos = rows
+        } catch {
+            // ignore
+        }
+    }
+
+    private func fetchPhotos(for placeID: UUID) async throws -> [PlacePhoto] {
+        var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+        var p = comps.path
+        if !p.hasSuffix("/") { p.append("/") }
+        p.append("rest/v1/place_photo")
+        comps.path = p
+        comps.queryItems = [
+            URLQueryItem(name: "place_id", value: "eq.\(placeID.uuidString)"),
+            URLQueryItem(name: "src", value: "eq.yelp"),
+            URLQueryItem(name: "order", value: "priority.asc"),
+            URLQueryItem(name: "limit", value: "12")
+        ]
+        guard let url = comps.url else { return [] }
+        var req = URLRequest(url: url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let key = Env.anonKey
+        req.setValue(key, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([PlacePhoto].self, from: data)
+    }
+
+    private struct YelpPlaceRow: Decodable { let id: UUID; let lat: Double; let lon: Double; let name: String }
+
+    private func findNearbyYelpPlaceID(around coordinate: CLLocationCoordinate2D, hintName: String) async throws -> UUID? {
+        var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+        var p = comps.path
+        if !p.hasSuffix("/") { p.append("/") }
+        p.append("rest/v1/place")
+        comps.path = p
+        let delta = 0.003 // ~300m
+        comps.queryItems = [
+            URLQueryItem(name: "select", value: "id,lat,lon,name,source"),
+            URLQueryItem(name: "source", value: "eq.yelp"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "lat", value: String(format: "gt.%.6f", coordinate.latitude - delta)),
+            URLQueryItem(name: "lat", value: String(format: "lt.%.6f", coordinate.latitude + delta)),
+            URLQueryItem(name: "lon", value: String(format: "gt.%.6f", coordinate.longitude - delta)),
+            URLQueryItem(name: "lon", value: String(format: "lt.%.6f", coordinate.longitude + delta)),
+            URLQueryItem(name: "limit", value: "10")
+        ]
+        guard let url = comps.url else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let key = Env.anonKey
+        req.setValue(key, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        let decoder = JSONDecoder()
+        let rows = try decoder.decode([YelpPlaceRow].self, from: data)
+        guard !rows.isEmpty else { return nil }
+        // Pick nearest by simple euclidean distance in degrees
+        let target = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let best = rows.min(by: { lhs, rhs in
+            let dl = CLLocation(latitude: lhs.lat, longitude: lhs.lon).distance(from: target)
+            let dr = CLLocation(latitude: rhs.lat, longitude: rhs.lon).distance(from: target)
+            return dl < dr
+        })
+        return best?.id
     }
 }
 

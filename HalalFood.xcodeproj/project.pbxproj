@@ -23,6 +23,7 @@
 		B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA2A2E7CF100008D2917 /* LocationProvider.swift */; };
 		B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */; };
 		F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */; };
+		E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C42E8C000100000001 /* PlacePhoto.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 		B505BA2A2E7CF100008D2917 /* LocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
 		B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlaceUpsertPayload.swift; sourceTree = "<group>"; };
 		D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPlaceResolver.swift; sourceTree = "<group>"; };
+		E1A2B3C42E8C000100000001 /* PlacePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -160,6 +162,7 @@
 				B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */,
 				B505BA152E7CE233008D2917 /* Place.swift */,
 				B505BA162E7CE233008D2917 /* PlaceDTO.swift */,
+				E1A2B3C42E8C000100000001 /* PlacePhoto.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -354,6 +357,7 @@
 				B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */,
 				B505BA1F2E7CE233008D2917 /* Place.swift in Sources */,
 				B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */,
+                E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

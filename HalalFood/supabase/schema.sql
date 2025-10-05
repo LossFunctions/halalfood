@@ -132,6 +132,42 @@ begin
   end if;
 end$$;
 
+-- Optional photo table for external images (Yelp, Apple, user uploads)
+do $$
+begin
+  if to_regclass('public.place_photo') is null then
+    create table public.place_photo (
+      id uuid primary key default gen_random_uuid(),
+      place_id uuid not null references public.place(id) on delete cascade,
+      src text not null check (src in ('yelp','apple','user')),
+      external_id text,
+      image_url text not null,
+      width integer,
+      height integer,
+      priority integer default 0,
+      attribution text,
+      created_at timestamptz default now()
+    );
+  end if;
+end$$;
+
+create unique index if not exists place_photo_src_ext_uidx on public.place_photo (src, external_id) where external_id is not null;
+create index if not exists place_photo_place_idx on public.place_photo (place_id);
+
+alter table public.place_photo enable row level security;
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='place_photo' and policyname='place_photo_read'
+  ) then
+    create policy place_photo_read on public.place_photo for select
+      using (exists (select 1 from public.place p where p.id = place_photo.place_id and p.status = 'published'));
+  end if;
+end$$;
+
+-- Ensure anon/authenticated can SELECT via RLS
+grant select on table public.place_photo to anon, authenticated;
+
 -- Function used by the app: rest/v1/rpc/get_places_in_bbox
 drop function if exists public.get_places_in_bbox(double precision,double precision,double precision,double precision,text,integer);
 create or replace function public.get_places_in_bbox(
