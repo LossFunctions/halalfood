@@ -1709,17 +1709,7 @@ private extension MapScreenViewModel {
     }
 
     func deduplicate(_ places: [Place]) -> [Place] {
-        var seen = Set<String>()
-        var result: [Place] = []
-        for place in places {
-            let latKey = String(format: "%.3f", place.coordinate.latitude)
-            let lonKey = String(format: "%.3f", place.coordinate.longitude)
-            let key = "\(PlaceOverrides.normalizedName(for: place.name)):\(latKey):\(lonKey)"
-            if seen.insert(key).inserted {
-                result.append(place)
-            }
-        }
-        return result
+        PlaceOverrides.deduplicate(places)
     }
 
     func insertOrUpdatePlace(_ place: Place) {

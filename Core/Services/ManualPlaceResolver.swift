@@ -292,7 +292,7 @@ final class ManualPlaceResolver {
             rating: definition.rating,
             ratingCount: definition.ratingCount,
             confidence: definition.confidence,
-            source: "Apple Maps",
+            source: "manual",
             applePlaceID: mapItem.identifier?.rawValue
         )
     }
