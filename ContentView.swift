@@ -5,17 +5,17 @@ import SwiftUI
 import UIKit
 
 enum MapFilter: CaseIterable, Identifiable {
-    case topRated
-    case openNow
-    case new
+    case all
+    case fullyHalal
+    case partialHalal
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .topRated: return "Top Rated"
-        case .openNow: return "Open Now"
-        case .new: return "New"
+        case .all: return "All"
+        case .fullyHalal: return "Fully Halal"
+        case .partialHalal: return "Partial Halal"
         }
     }
 }
@@ -25,17 +25,18 @@ struct ContentView: View {
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
         span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
     )
-    @State private var selectedFilter: MapFilter = .topRated
+    @State private var selectedFilter: MapFilter = .all
+    @State private var bottomTab: BottomTab = .places
     @State private var selectedPlace: Place?
     @StateObject private var viewModel = MapScreenViewModel()
     @StateObject private var locationManager = LocationProvider()
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
-    @State private var bottomSheetState: BottomSheetState = .collapsed
     @State private var hasCenteredOnUser = false
     @State private var selectedApplePlace: ApplePlaceSelection?
     @State private var searchQuery = ""
-    @FocusState private var searchFieldIsFocused: Bool
+    @State private var isSearchOverlayPresented = false
     @State private var keyboardHeight: CGFloat = 0
+    @State private var previousMapRegion: MKCoordinateRegion?
 
     private var appleOverlayItems: [MKMapItem] {
         let supabaseLocations = viewModel.places.map {
@@ -118,25 +119,12 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 0) {
+                searchBar
                 topSegmentedControl
             }
             .padding(.top, 16)
             .padding(.horizontal, 16)
-
-            VStack {
-                Spacer()
-                if keyboardHeight == 0 {
-                    searchAreaButton
-                        .padding(.bottom, bottomOverlayPadding)
-                }
-            }
-
-            VStack(spacing: 0) {
-                Spacer()
-                bottomSheet
-            }
-            .ignoresSafeArea(edges: .bottom)
 
             if viewModel.isLoading && viewModel.places.isEmpty {
                 ProgressView()
@@ -144,6 +132,15 @@ struct ContentView: View {
                     .padding(16)
                     .background(.thinMaterial, in: Capsule())
             }
+        }
+        .overlay(alignment: .topTrailing) {
+            locateMeButton
+                .padding(.top, locateButtonTopPadding)
+                .padding(.trailing, 16)
+        }
+        .overlay(alignment: .bottom) {
+            bottomTabBar
+                .ignoresSafeArea(edges: .bottom)
         }
         .onAppear {
             let effective = RegionGate.enforcedRegion(for: mapRegion)
@@ -155,14 +152,16 @@ struct ContentView: View {
             guard oldValue != newValue else { return }
             viewModel.filterChanged(to: newValue, region: mapRegion)
         }
-        .onChange(of: searchFieldIsFocused) { _, isFocused in
-            if isFocused && !isBottomSheetExpanded {
-                expandBottomSheet()
-            }
+        .onChange(of: selectedPlace) { oldValue, newValue in
+            guard newValue == nil, oldValue != nil else { return }
+            restoreSearchStateAfterDismiss()
         }
-        .onChange(of: selectedApplePlace) { _, selection in
+        .onChange(of: selectedApplePlace) { oldValue, newValue in
             // Auto-ingest disabled: selecting an Apple result should not persist or mark halal.
-            _ = selection?.mapItem
+            _ = newValue?.mapItem
+            if newValue == nil, oldValue != nil {
+                restoreSearchStateAfterDismiss()
+            }
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
@@ -205,6 +204,29 @@ struct ContentView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .fullScreenCover(isPresented: $isSearchOverlayPresented) {
+            SearchOverlayView(
+                isPresented: $isSearchOverlayPresented,
+                query: $searchQuery,
+                isSearching: viewModel.isSearching,
+                supabaseResults: viewModel.searchResults.filteredByCurrentGeoScope(),
+                appleResults: appleOverlayItems,
+                subtitle: viewModel.subtitleMessage,
+                topSafeAreaInset: currentTopSafeAreaInset(),
+                onSelectPlace: { place in
+                    focus(on: place)
+                    isSearchOverlayPresented = false
+                },
+                onSelectApplePlace: { mapItem in
+                    focus(on: mapItem)
+                    isSearchOverlayPresented = false
+                },
+                onClear: {
+                    searchQuery = ""
+                }
+            )
+            .ignoresSafeArea()
+        }
     }
 
     private var topSegmentedControl: some View {
@@ -214,57 +236,86 @@ struct ContentView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(12)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private var searchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.secondary)
-            TextField("Search Halal Restaurants", text: $searchQuery)
-                .focused($searchFieldIsFocused)
-                .textInputAutocapitalization(.words)
-                .disableAutocorrection(true)
-                .submitLabel(.search)
-            if !searchQuery.isEmpty {
+    private enum BottomTab: CaseIterable, Identifiable { case places, topRated, newSpots; var id: Self { self }
+        var title: String { switch self { case .places: return "Places"; case .topRated: return "Top Rated"; case .newSpots: return "New Spots" } }
+    }
+
+    private var bottomTabBar: some View {
+        let selectedGradient = LinearGradient(
+            colors: [Color.orange, Color.orange.opacity(0.7)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
+        return HStack(spacing: 12) {
+            ForEach(BottomTab.allCases) { tab in
                 Button {
-                    searchQuery = ""
+                    bottomTab = tab
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                    tabLabel(for: tab, gradient: selectedGradient)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 18)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 0)
+        .offset(y: currentBottomSafeAreaInset() > 0 ? currentBottomSafeAreaInset() - 16 : -4)
     }
 
-    private var searchAreaButton: some View {
-            Button {
-                let effective = RegionGate.enforcedRegion(for: mapRegion)
-                viewModel.forceRefresh(region: effective, filter: selectedFilter)
-                appleHalalSearch.search(in: effective)
-            } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.7))
-                Text("Search this area")
-                    .font(.system(size: 15, weight: .semibold))
-            }
+    private func tabLabel(for tab: BottomTab, gradient: LinearGradient) -> some View {
+        let isSelected = bottomTab == tab
+        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.7)
+        let borderColor: Color = isSelected ? .clear : Color.orange.opacity(0.25)
+        let shadowColor: Color = isSelected ? Color.orange.opacity(0.25) : .clear
+
+        return Text(tab.title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(textColor)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .padding(.horizontal, 20)
-            .background(Color(.systemBackground), in: Capsule())
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? AnyShapeStyle(gradient) : AnyShapeStyle(Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+            .shadow(color: shadowColor, radius: 8, y: 4)
+    }
+
+    private var searchBar: some View {
+        Button {
+            isSearchOverlayPresented = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(searchQuery.isEmpty ? "Search Halal Restaurants" : searchQuery)
+                    .font(.body)
+                    .foregroundStyle(searchQuery.isEmpty ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isLoading)
-        .opacity(viewModel.isLoading ? 0.7 : 1)
-        .shadow(color: .black.opacity(0.1), radius: 12, y: 6)
     }
 
     private var locateMeButton: some View {
@@ -305,199 +356,19 @@ struct ContentView: View {
         .accessibilityLabel("Center on your location")
     }
 
-    private var isBottomSheetExpanded: Bool { bottomSheetState == .expanded }
-
-    private var bottomOverlayPadding: CGFloat {
-        bottomSheetState == .collapsed ? 150 : 320
+    private var locateButtonTopPadding: CGFloat {
+        let safeTop = currentTopSafeAreaInset()
+        let safeBottom = currentBottomSafeAreaInset()
+        let screenHeight = currentScreenHeight()
+        let desiredGap: Double = 200
+        let keyboardOffset = keyboardHeight > 0 ? Double(keyboardHeight) : 0
+        let calculated = screenHeight - (Double(safeBottom) + desiredGap + keyboardOffset)
+        return CGFloat(max(Double(safeTop) + 24, calculated))
     }
 
-    private var locationButtonOpacity: Double {
-        isBottomSheetExpanded ? 0 : 1
-    }
-
-    private var bottomSheet: some View {
-        VStack(alignment: .leading, spacing: isBottomSheetExpanded ? 18 : 12) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.22))
-                .frame(width: 40, height: 5)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    toggleBottomSheet()
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 10)
-                        .onEnded { value in
-                            let threshold: CGFloat = 60
-                            if value.translation.height > threshold {
-                                collapseBottomSheet()
-                            } else if value.translation.height < -threshold {
-                                expandBottomSheet()
-                            }
-                        }
-                )
-
-            searchSection
-
-            if isBottomSheetExpanded {
-                recommendationsSection
-            }
-        }
-        .padding(.horizontal, isBottomSheetExpanded ? 22 : 18)
-        .padding(.top, isBottomSheetExpanded ? 20 : 14)
-        .padding(.bottom, isBottomSheetExpanded ? 26 : 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: isBottomSheetExpanded ? 28 : 42, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
-        )
-        .overlay(alignment: .topTrailing) {
-            locateMeButton
-                .padding(.trailing, isBottomSheetExpanded ? 22 : 18)
-                .offset(y: isBottomSheetExpanded ? -6 : -22)
-                .opacity(locationButtonOpacity)
-                .allowsHitTesting(!isBottomSheetExpanded)
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 20 + (keyboardHeight > 0 ? keyboardHeight : 0))
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: bottomSheetState)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: keyboardHeight)
-    }
 }
 
 private extension ContentView {
-    var searchSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            searchBar
-            if isBottomSheetExpanded && !viewModel.errorDescription.isEmpty {
-                Text(viewModel.errorDescription)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-        }
-    }
-
-    @ViewBuilder
-    var recommendationsSection: some View {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let recommendationPlaces = Array(viewModel.places.prefix(20))
-        let searchPlaces = viewModel.searchResults
-        let appleMatches = trimmedQuery.isEmpty ? [] : appleOverlayItems
-
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                if trimmedQuery.isEmpty {
-                    recommendationsHeader
-                    placeList(places: recommendationPlaces)
-                    if let message = viewModel.subtitleMessage, recommendationPlaces.isEmpty {
-                        Text(message)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    searchResultsHeader
-                    if viewModel.isSearching && searchPlaces.isEmpty && appleMatches.isEmpty {
-                        Text("Searching for \"\(trimmedQuery)\"…")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else if searchPlaces.isEmpty && appleMatches.isEmpty {
-                        Text("No matches for \"\(trimmedQuery)\".")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        if !searchPlaces.isEmpty {
-                            placeList(places: Array(searchPlaces.prefix(40)))
-                        }
-                        if !appleMatches.isEmpty {
-                            appleResultsHeader
-                            applePlaceList(items: Array(appleMatches.prefix(15)))
-                        }
-                    }
-
-                    if !recommendationPlaces.isEmpty {
-                        Divider()
-                            .padding(.vertical, 4)
-                        recommendationsHeader
-                        placeList(places: Array(recommendationPlaces.prefix(10)))
-                    }
-                }
-            }
-            .padding(.bottom, 8)
-        }
-        .frame(height: trimmedQuery.isEmpty ? 220 : 320)
-    }
-
-    private var recommendationsHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("Recommendations near you")
-                .font(.headline)
-                .fontWeight(.semibold)
-
-            Spacer()
-
-            headerTrailingControl
-        }
-    }
-
-    private var searchResultsHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("Search results")
-                .font(.headline)
-                .fontWeight(.semibold)
-
-            Spacer()
-
-            if viewModel.isSearching {
-                ProgressView()
-                    .progressViewStyle(.circular)
-            }
-        }
-    }
-
-    private var appleResultsHeader: some View {
-        Text("Apple Maps results")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-    }
-
-    @ViewBuilder
-    private func placeList(places: [Place]) -> some View {
-        ForEach(places, id: \.id) { place in
-            Button {
-                focus(on: place)
-            } label: {
-                PlaceRow(place: place)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private func applePlaceList(items: [MKMapItem]) -> some View {
-        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-            Button {
-                focus(on: item)
-            } label: {
-                ApplePlaceRow(mapItem: item)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private var headerTrailingControl: some View {
-        if viewModel.isLoading {
-            ProgressView()
-                .progressViewStyle(.circular)
-        } else {
-            Button("Refresh") {
-                viewModel.forceRefresh(region: mapRegion, filter: selectedFilter)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
     private func currentBottomSafeAreaInset() -> CGFloat {
         guard let windowScene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
@@ -508,50 +379,55 @@ private extension ContentView {
         return window.safeAreaInsets.bottom
     }
 
-    func toggleBottomSheet() {
-        if isBottomSheetExpanded {
-            collapseBottomSheet()
-        } else {
-            expandBottomSheet()
+    private func currentTopSafeAreaInset() -> CGFloat {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
+            return 0
         }
+        return window.safeAreaInsets.top
     }
 
-    func collapseBottomSheet() {
-        searchFieldIsFocused = false
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            bottomSheetState = .collapsed
+    func restoreSearchStateAfterDismiss() {
+        if let previous = previousMapRegion {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                mapRegion = previous
+            }
+            previousMapRegion = nil
         }
-    }
-
-    func expandBottomSheet() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            bottomSheetState = .expanded
+        if !searchQuery.isEmpty {
+            searchQuery = ""
         }
     }
 
     func focus(on place: Place) {
-        searchFieldIsFocused = false
+        if previousMapRegion == nil {
+            previousMapRegion = mapRegion
+        }
         let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
         let targetRegion = adjustedRegion(centeredOn: place.coordinate, span: span)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             mapRegion = targetRegion
         }
-        collapseBottomSheet()
         selectedPlace = place
+        isSearchOverlayPresented = false
     }
 
     func focus(on mapItem: MKMapItem) {
-        searchFieldIsFocused = false
         let coordinate = mapItem.halalCoordinate
         guard coordinate.latitude != 0 || coordinate.longitude != 0 else { return }
+        if previousMapRegion == nil {
+            previousMapRegion = mapRegion
+        }
         let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
         let targetRegion = adjustedRegion(centeredOn: coordinate, span: span)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             mapRegion = targetRegion
         }
-        collapseBottomSheet()
         selectedPlace = nil
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+        isSearchOverlayPresented = false
     }
 
     private func adjustedRegion(centeredOn coordinate: CLLocationCoordinate2D, span: MKCoordinateSpan) -> MKCoordinateRegion {
@@ -567,7 +443,7 @@ private extension ContentView {
             let ratio = min(1.0, Double(keyboardHeight) / screenHeight)
             return 0.28 + (0.32 * ratio)
         }
-        return isBottomSheetExpanded ? 0.22 : 0.15
+        return 0.15
     }
 
     private func clampedLatitude(_ latitude: Double, span: MKCoordinateSpan) -> Double {
@@ -590,6 +466,158 @@ private extension ContentView {
         }
 
         return 812 // Sensible default for calculations when no screen is available
+    }
+}
+
+private struct SearchOverlayView: View {
+    @Binding var isPresented: Bool
+    @Binding var query: String
+    let isSearching: Bool
+    let supabaseResults: [Place]
+    let appleResults: [MKMapItem]
+    let subtitle: String?
+    let topSafeAreaInset: CGFloat
+    let onSelectPlace: (Place) -> Void
+    let onSelectApplePlace: (MKMapItem) -> Void
+    let onClear: () -> Void
+
+    @FocusState private var searchFieldIsFocused: Bool
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: topSafeAreaInset + 12)
+            header
+            Divider()
+            content
+        }
+        .background(Color(.systemBackground))
+        .ignoresSafeArea()
+        .onAppear {
+            DispatchQueue.main.async {
+                searchFieldIsFocused = true
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Button {
+                isPresented = false
+            } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 12)
+                    .background(Color(.secondarySystemBackground), in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search Halal Restaurants", text: $query)
+                    .focused($searchFieldIsFocused)
+                    .textInputAutocapitalization(.words)
+                    .disableAutocorrection(true)
+                    .submitLabel(.search)
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                        onClear()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 18)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if trimmedQuery.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 44, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Text("Search halal restaurants near you")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                if let message = subtitle, !message.isEmpty {
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(24)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    if !supabaseResults.isEmpty {
+                        Text("Halal Food matches")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(supabaseResults, id: \.id) { place in
+                            Button {
+                                onSelectPlace(place)
+                            } label: {
+                                PlaceRow(place: place)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if !appleResults.isEmpty {
+                        if !supabaseResults.isEmpty {
+                            Divider()
+                        }
+                        Text("Apple Maps results")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(Array(appleResults.enumerated()), id: \.offset) { _, item in
+                            Button {
+                                onSelectApplePlace(item)
+                            } label: {
+                                ApplePlaceRow(mapItem: item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if supabaseResults.isEmpty && appleResults.isEmpty {
+                        if isSearching {
+                            HStack {
+                                ProgressView()
+                                Text("Searching…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("No matches for \"\(trimmedQuery)\".")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
     }
 }
 
@@ -1268,11 +1296,6 @@ final class PlaceDetailViewModel: ObservableObject {
     }
 }
 
-private enum BottomSheetState {
-    case collapsed
-    case expanded
-}
-
 @MainActor
 final class MapScreenViewModel: @MainActor ObservableObject {
     @Published private(set) var places: [Place] = []
@@ -1284,7 +1307,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     var subtitleMessage: String? {
         guard !isLoading else { return "We're looking for new halal spots." }
-        guard !places.isEmpty else { return "Pan the map, then tap \"Search this area\"." }
+        guard !places.isEmpty else { return "Pan the map to explore more halal spots." }
         return nil
     }
 
@@ -1303,7 +1326,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var allPlaces: [Place] = []
     private var globalDataset: [Place] = []
     private var lastSearchQuery: String?
-    private var currentFilter: MapFilter = .topRated
+    private var currentFilter: MapFilter = .all
     private var appleIngestTasks: [String: Task<Void, Never>] = [:]
     private var ingestedApplePlaceIDs: Set<String> = []
 
@@ -1476,18 +1499,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private func apply(filter: MapFilter) {
         let filtered: [Place]
         switch filter {
-        case .topRated:
+        case .all:
             filtered = allPlaces
-        case .openNow:
-            let candidates = allPlaces.filter { ($0.ratingCount ?? 0) >= 5 }
-            filtered = candidates.isEmpty ? allPlaces : candidates
-        case .new:
-            let candidates = allPlaces.filter { ($0.ratingCount ?? 0) < 5 }
-            if candidates.isEmpty {
-                filtered = allPlaces
-            } else {
-                filtered = candidates.sorted { ($0.ratingCount ?? Int.max) < ($1.ratingCount ?? Int.max) }
-            }
+        case .fullyHalal:
+            filtered = allPlaces.filter { $0.halalStatus == .only }
+        case .partialHalal:
+            filtered = allPlaces.filter { $0.halalStatus == .yes }
         }
         places = filtered
     }
