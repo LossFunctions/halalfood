@@ -126,19 +126,20 @@ struct HalalMapView: UIViewRepresentable {
         mapView.showsUserLocation = true
         mapView.isRotateEnabled = false
         mapView.showsBuildings = true
-        mapView.pitchEnabled = true
+        mapView.isPitchEnabled = true
 
         // Make the map look more vibrant and closer to the Apple Maps app
         if #available(iOS 15.0, *) {
             var config = MKStandardMapConfiguration(elevationStyle: .realistic)
-            config.emphasisStyle = .vibrant
-            // Show a tasteful subset of POIs to keep the map lively without clutter
-            config.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe, .bakery, .foodMarket, .park])
+            // Use default emphasis (more vibrant than muted)
+            config.emphasisStyle = .default
+            // Keep POIs hidden; your app overlays restaurants via your own logic
+            config.pointOfInterestFilter = .excludingAll
             mapView.preferredConfiguration = config
         } else {
             mapView.mapType = .standard
             if #available(iOS 13.0, *) {
-                mapView.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe, .bakery, .foodMarket, .park])
+                mapView.pointOfInterestFilter = .excludingAll
             }
         }
         mapView.setRegion(region, animated: false)
