@@ -1,0 +1,4 @@
+/* Base English localizations */
+"app.title" = "Halal Food";
+"location.permission" = "We use your location to show nearby halal places.";
+

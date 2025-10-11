@@ -50,6 +50,12 @@ struct ContentView: View {
             guard let coordinate = mapItemCoordinate(item) else { return false }
             let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
 
+            // Enforce NYC + Long Island scope for Apple items
+            guard RegionGate.allows(mapItem: item) else { return false }
+
+            // Exclude known closed venues by name
+            if let name = item.name, PlaceOverrides.isMarkedClosed(name: name) { return false }
+
             let matchesExisting = supabaseLocations.contains { existing in
                 existing.distance(from: location) < 80
             }
@@ -74,11 +80,11 @@ struct ContentView: View {
 
     private var filteredPlaces: [Place] {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return viewModel.places }
+        guard !trimmed.isEmpty else { return viewModel.places.filteredByCurrentGeoScope() }
 
-        let matches = viewModel.searchResults
+        let matches = viewModel.searchResults.filteredByCurrentGeoScope()
         if matches.isEmpty, viewModel.isSearching {
-            return viewModel.places
+            return viewModel.places.filteredByCurrentGeoScope()
         }
         return matches
     }
@@ -98,8 +104,10 @@ struct ContentView: View {
                 places: filteredPlaces,
                 appleMapItems: appleOverlayItems,
                 onRegionChange: { region in
-                    viewModel.regionDidChange(to: region, filter: selectedFilter)
-                    appleHalalSearch.search(in: region)
+                    // Enforce search/data fetch region to NYC + Long Island
+                    let effective = RegionGate.enforcedRegion(for: region)
+                    viewModel.regionDidChange(to: effective, filter: selectedFilter)
+                    appleHalalSearch.search(in: effective)
                 },
                 onPlaceSelected: { place in
                     selectedPlace = place
@@ -138,9 +146,10 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
+            let effective = RegionGate.enforcedRegion(for: mapRegion)
+            viewModel.initialLoad(region: effective, filter: selectedFilter)
             locationManager.requestAuthorizationIfNeeded()
-            appleHalalSearch.search(in: mapRegion)
+            appleHalalSearch.search(in: effective)
         }
         .onChange(of: selectedFilter) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -159,10 +168,13 @@ struct ContentView: View {
             guard !hasCenteredOnUser else { return }
             let span = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
             let region = MKCoordinateRegion(center: location.coordinate, span: span)
+            // Keep the camera focused tightly on the user's actual location
             mapRegion = region
-            viewModel.forceRefresh(region: region, filter: selectedFilter)
+            // But fetch/search using the enforced NYC/LI scope
+            let effective = RegionGate.enforcedRegion(for: region)
+            viewModel.forceRefresh(region: effective, filter: selectedFilter)
             hasCenteredOnUser = true
-            appleHalalSearch.search(in: region)
+            appleHalalSearch.search(in: effective)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
             guard let info = notification.userInfo,
@@ -233,10 +245,11 @@ struct ContentView: View {
     }
 
     private var searchAreaButton: some View {
-        Button {
-            viewModel.forceRefresh(region: mapRegion, filter: selectedFilter)
-            appleHalalSearch.search(in: mapRegion)
-        } label: {
+            Button {
+                let effective = RegionGate.enforcedRegion(for: mapRegion)
+                viewModel.forceRefresh(region: effective, filter: selectedFilter)
+                appleHalalSearch.search(in: effective)
+            } label: {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 15, weight: .semibold))
@@ -265,9 +278,12 @@ struct ContentView: View {
                         center: location.coordinate,
                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                     )
+                    // Keep the camera tight on the user's location
                     mapRegion = targetRegion
-                    viewModel.forceRefresh(region: targetRegion, filter: selectedFilter)
-                    appleHalalSearch.search(in: targetRegion)
+                    // Fetch/search within enforced NYC/LI scope
+                    let effective = RegionGate.enforcedRegion(for: targetRegion)
+                    viewModel.forceRefresh(region: effective, filter: selectedFilter)
+                    appleHalalSearch.search(in: effective)
                 } else {
                     locationManager.requestCurrentLocation()
                 }
@@ -1043,7 +1059,8 @@ final class AppleHalalSearchService: ObservableObject {
 
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = "halal restaurant"
-            request.region = region
+            // Enforce NYC + Long Island region if limiting is enabled
+            request.region = RegionGate.enforcedRegion(for: region)
             request.resultTypes = [.pointOfInterest]
             if #available(iOS 13.0, *) {
                 request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant])
@@ -1053,8 +1070,13 @@ final class AppleHalalSearchService: ObservableObject {
             do {
                 let response = try await search.start()
                 await MainActor.run {
-                    self.results = response.mapItems
-                    self.lastRegion = region
+                    // Post-filter just in case MapKit returns items outside the requested region
+                    self.results = response.mapItems.filter { item in
+                        guard RegionGate.allows(mapItem: item) else { return false }
+                        if let name = item.name, PlaceOverrides.isMarkedClosed(name: name) { return false }
+                        return true
+                    }
+                    self.lastRegion = RegionGate.enforcedRegion(for: region)
                 }
             } catch is CancellationError {
                 // Ignore cancellations
@@ -1292,7 +1314,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             return
         }
         ensureGlobalDataset()
-        fetch(region: region, filter: filter, eager: true)
+        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: true)
     }
 
     func filterChanged(to filter: MapFilter, region: MKCoordinateRegion) {
@@ -1306,12 +1328,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     func regionDidChange(to region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter
-        fetch(region: region, filter: filter, eager: false)
+        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: false)
     }
 
     func forceRefresh(region: MKCoordinateRegion, filter: MapFilter) {
         lastRequestedRegion = nil
-        fetch(region: region, filter: filter, eager: true)
+        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: true)
     }
 
     func search(query: String) {
@@ -1349,12 +1371,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             do {
                 let dtos = try await PlaceAPI.searchPlaces(matching: trimmed, limit: 80)
                 guard !Task.isCancelled else { return }
-                let remotePlaces = dtos.compactMap(Place.init(dto:))
+                let remotePlaces = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
                 guard !remotePlaces.isEmpty else { return }
 
                 let referenceCoordinate = remotePlaces.first?.coordinate ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
                 let region = MKCoordinateRegion(center: referenceCoordinate, span: MKCoordinateSpan(latitudeDelta: 1.0, longitudeDelta: 1.0))
-                let cleaned = PlaceOverrides.apply(overridesTo: remotePlaces, in: region)
+                let cleaned = PlaceOverrides.apply(overridesTo: remotePlaces, in: region).filteredByCurrentGeoScope()
                 self.mergeIntoGlobalDataset(cleaned)
                 let merged = self.deduplicate(self.searchResults + cleaned)
                 self.searchResults = PlaceOverrides.sorted(merged)
@@ -1374,12 +1396,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.updateSearchActivityIndicator()
             }
             let exclusion = self.searchResults + self.allPlaces + self.globalDataset
-            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: exclusion)
+            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: exclusion).filteredByCurrentGeoScope()
             guard !Task.isCancelled else { return }
             guard !additionalManual.isEmpty else { return }
             self.mergeIntoGlobalDataset(additionalManual)
             let merged = self.deduplicate(self.searchResults + additionalManual)
-            self.searchResults = PlaceOverrides.sorted(merged)
+            self.searchResults = PlaceOverrides.sorted(merged.filteredByCurrentGeoScope())
         }
     }
 
@@ -1416,7 +1438,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 let dtos = try await Task.detached(priority: .userInitiated) {
                     try await PlaceAPI.getPlaces(bbox: region.bbox)
                 }.value
-                let results = dtos.compactMap(Place.init(dto:))
+                // Convert and enforce NYC + Long Island scope
+                let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
                 let overridden = PlaceOverrides.apply(overridesTo: results, in: region)
                 let cleaned = overridden.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 // Only surface verified halal places by default
@@ -1424,10 +1447,10 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
                 // Bring in manual outliers (e.g., venues not tagged halal in OSM/Apple)
                 // so they always appear on the map within the current region.
-                let manual = await ManualPlaceResolver.shared.manualPlaces(in: region, excluding: halalOnly)
+                let manual = await ManualPlaceResolver.shared.manualPlaces(in: RegionGate.enforcedRegion(for: region), excluding: halalOnly).filteredByCurrentGeoScope()
 
                 try Task.checkCancellation()
-                let combined = self.deduplicate(halalOnly + manual)
+                let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
                 self.allPlaces = PlaceOverrides.sorted(combined)
                 self.mergeIntoGlobalDataset(combined)
                 self.apply(filter: self.currentFilter)
@@ -1678,11 +1701,12 @@ private extension MapScreenViewModel {
                 }.value
                 let places = dtos
                     .compactMap(Place.init(dto:))
+                    .filteredByCurrentGeoScope()
                     .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 try Task.checkCancellation()
                 self.mergeIntoGlobalDataset(places)
                 if let query = self.lastSearchQuery, !query.isEmpty {
-                    let seeded = self.combinedMatches(for: query)
+                    let seeded = self.combinedMatches(for: query).filteredByCurrentGeoScope()
                     self.searchResults = PlaceOverrides.sorted(seeded)
                 }
             } catch is CancellationError {

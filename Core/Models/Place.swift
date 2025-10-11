@@ -68,6 +68,14 @@ struct Place: Identifiable, Hashable {
     }
 }
 
+// RegionGate integration: provide coordinates to the geofilter
+extension Place: Geolocated {
+    var latitude: Double { coordinate.latitude }
+    var longitude: Double { coordinate.longitude }
+    var state: String? { nil }
+    var country: String? { nil }
+}
+
 
 extension Place {
     static func == (lhs: Place, rhs: Place) -> Bool { lhs.id == rhs.id }
@@ -109,7 +117,9 @@ enum PlaceOverrides {
     private static let permanentlyClosedNames: Set<String> = {
         let names = [
             "Sofra Mediterranean Grill",
-            "Sofra Mediterranean Grill (Permanently Closed)"
+            "Sofra Mediterranean Grill (Permanently Closed)",
+            "Habibi Rooftop the Restaurant",
+            "Habibi Rooftop Restaurant"
         ]
         return Set(names.map { normalizedName(for: $0) })
     }()
@@ -127,7 +137,7 @@ enum PlaceOverrides {
         return String(scalars.map(Character.init)).lowercased()
     }
 
-    private static func isMarkedClosed(name: String) -> Bool {
+    static func isMarkedClosed(name: String) -> Bool {
         if permanentlyClosedNames.contains(normalizedName(for: name)) { return true }
         let lowercased = name.lowercased()
         if lowercased.contains("permanently closed") { return true }

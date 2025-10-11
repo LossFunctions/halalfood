@@ -24,6 +24,7 @@
 		B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */; };
 		F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */; };
 		E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C42E8C000100000001 /* PlacePhoto.swift */; };
+		F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +54,7 @@
 		B505B9DD2E7CC7FC008D2917 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B505B9E32E7CC7FC008D2917 /* HalalFoodTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HalalFoodTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B505B9ED2E7CC7FC008D2917 /* HalalFoodUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HalalFoodUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoScope.swift; sourceTree = "<group>"; };
 		B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKCoordinateRegion+BBox.swift"; sourceTree = "<group>"; };
 		B505BA152E7CE233008D2917 /* Place.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Place.swift; sourceTree = "<group>"; };
 		B505BA162E7CE233008D2917 /* PlaceDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDTO.swift; sourceTree = "<group>"; };
@@ -159,6 +161,7 @@
 		B505BA172E7CE233008D2917 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */,
 				B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */,
 				B505BA152E7CE233008D2917 /* Place.swift */,
 				B505BA162E7CE233008D2917 /* PlaceDTO.swift */,
@@ -357,6 +360,7 @@
 				B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */,
 				B505BA1F2E7CE233008D2917 /* Place.swift in Sources */,
 				B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */,
+                F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */,
                 E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
