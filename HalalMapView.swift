@@ -124,9 +124,23 @@ struct HalalMapView: UIViewRepresentable {
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.appleReuseIdentifier)
         mapView.register(HalalDotAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.dotReuseIdentifier)
         mapView.showsUserLocation = true
-        mapView.pointOfInterestFilter = .excludingAll
-        mapView.mapType = .mutedStandard
         mapView.isRotateEnabled = false
+        mapView.showsBuildings = true
+        mapView.pitchEnabled = true
+
+        // Make the map look more vibrant and closer to the Apple Maps app
+        if #available(iOS 15.0, *) {
+            var config = MKStandardMapConfiguration(elevationStyle: .realistic)
+            config.emphasisStyle = .vibrant
+            // Show a tasteful subset of POIs to keep the map lively without clutter
+            config.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe, .bakery, .foodMarket, .park])
+            mapView.preferredConfiguration = config
+        } else {
+            mapView.mapType = .standard
+            if #available(iOS 13.0, *) {
+                mapView.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe, .bakery, .foodMarket, .park])
+            }
+        }
         mapView.setRegion(region, animated: false)
         context.coordinator.configureDisplayMode(using: region)
         context.coordinator.mapView = mapView
