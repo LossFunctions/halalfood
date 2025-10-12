@@ -930,6 +930,7 @@ struct PlaceDetailView: View {
     let place: Place
 
     @StateObject private var viewModel = PlaceDetailViewModel()
+    @State private var expandedPhotoSelection: PhotoSelection?
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var favoritesStore: FavoritesStore
@@ -946,7 +947,11 @@ struct PlaceDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
-                        if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
+                        if !viewModel.photos.isEmpty {
+                            PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                                expandedPhotoSelection = PhotoSelection(index: index)
+                            }
+                        }
                         halalSection
                         Divider().opacity(0.4)
                         appleStatusSection
@@ -963,6 +968,14 @@ struct PlaceDetailView: View {
                 }
             }
         }
+        .fullScreenCover(item: $expandedPhotoSelection) { selection in
+            FullscreenPhotoView(
+                photos: viewModel.photos,
+                initialIndex: selection.index
+            ) {
+                expandedPhotoSelection = nil
+            }
+        }
         .task(id: place.id) {
             await viewModel.load(place: place)
             await viewModel.loadPhotos(for: place)
@@ -970,6 +983,18 @@ struct PlaceDetailView: View {
         }
         .onReceive(viewModel.$loadingState) { _ in
             refreshFavoriteSnapshot()
+        }
+        .onReceive(viewModel.$photos) { photos in
+            if let selection = expandedPhotoSelection,
+               !photos.indices.contains(selection.index) {
+                expandedPhotoSelection = nil
+            }
+        }
+        .onChange(of: expandedPhotoSelection) { newValue in
+            if let selection = newValue,
+               viewModel.photos.indices.contains(selection.index) {
+                _ = viewModel.photos[selection.index]
+            }
         }
     }
 
@@ -1175,7 +1200,11 @@ struct PlaceDetailView: View {
     @ViewBuilder
     private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
         VStack(spacing: 16) {
-            if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
+            if !viewModel.photos.isEmpty {
+                PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                    expandedPhotoSelection = PhotoSelection(index: index)
+                }
+            }
             if #available(iOS 18.0, *) {
                 applePlaceCard(details)
             } else {
@@ -1236,40 +1265,226 @@ extension PlaceDetailView {
     }
 }
 
-extension PlaceDetailView {
-    @ViewBuilder
-    fileprivate func photoCarousel(_ photos: [PlacePhoto]) -> some View {
-        TabView {
-            ForEach(photos) { ph in
-                if let url = URL(string: ph.imageUrl) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            ZStack { Color.secondary.opacity(0.1); ProgressView() }
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        case .failure:
-                            Color.secondary.opacity(0.1)
-                        @unknown default:
-                            Color.secondary.opacity(0.1)
+private struct PhotoSelection: Identifiable, Equatable {
+    let id = UUID()
+    let index: Int
+}
+
+private struct FullscreenPhotoView: View {
+    let photos: [PlacePhoto]
+    let onDismiss: () -> Void
+
+    @State private var currentIndex: Int
+    @State private var dragOffset: CGFloat = 0
+
+    init(photos: [PlacePhoto], initialIndex: Int, onDismiss: @escaping () -> Void) {
+        self.photos = photos
+        self.onDismiss = onDismiss
+        let clamped = photos.indices.contains(initialIndex) ? initialIndex : 0
+        _currentIndex = State(initialValue: clamped)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black
+                .opacity(backgroundOpacity)
+                .ignoresSafeArea()
+
+            Group {
+                if photos.isEmpty {
+                    emptyPlaceholder
+                } else {
+                    TabView(selection: $currentIndex) {
+                        ForEach(Array(photos.enumerated()), id: \.element.id) { pair in
+                            let index = pair.offset
+                            let photo = pair.element
+                            ZStack {
+                                if let url = URL(string: photo.imageUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                                .progressViewStyle(.circular)
+                                                .tint(.white)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        case .failure:
+                                            tilePlaceholder
+                                        @unknown default:
+                                            tilePlaceholder
+                                        }
+                                    }
+                                } else {
+                                    tilePlaceholder
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color.black)
+                            .tag(index)
                         }
                     }
-                    .frame(height: 220)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                    .tabViewStyle(.page(indexDisplayMode: .automatic))
                 }
+            }
+            .offset(y: dragOffset)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+            }
+            .padding()
+            .accessibilityLabel("Close photo")
+            .offset(y: dragOffset)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !photos.isEmpty {
+                Text("Photos: Yelp")
+                    .font(.caption2)
+                    .padding(8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding()
+                    .offset(y: dragOffset)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Expanded restaurant photo")
+        .accessibilityAddTraits(.isModal)
+        .gesture(dismissDragGesture)
+        .onChange(of: photos.count) { _ in
+            clampIndexIfNeeded()
+        }
+        .onAppear {
+            clampIndexIfNeeded()
+        }
+    }
+
+    private var backgroundOpacity: Double {
+        let progress = min(max(dragOffset / 400, 0), 1)
+        return Double(1 - (progress * 0.6))
+    }
+
+    private var dismissDragGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                dragOffset = max(value.translation.height, 0)
+            }
+            .onEnded { value in
+                let translation = value.translation.height
+                let predicted = value.predictedEndTranslation.height
+                let threshold: CGFloat = 160
+                if max(translation, predicted) > threshold {
+                    onDismiss()
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                        dragOffset = 0
+                    }
+                }
+            }
+    }
+
+    private func clampIndexIfNeeded() {
+        if let last = photos.indices.last {
+            currentIndex = min(currentIndex, last)
+        } else {
+            currentIndex = 0
+            onDismiss()
+        }
+    }
+
+    private var tilePlaceholder: some View {
+        Image(systemName: "photo")
+            .font(.system(size: 64))
+            .foregroundStyle(.white.opacity(0.6))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+    }
+
+    private var emptyPlaceholder: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo")
+                .font(.system(size: 52))
+                .foregroundStyle(.white.opacity(0.7))
+            Text("Photo unavailable")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
+}
+
+
+private struct PhotoCarouselView: View {
+    let photos: [PlacePhoto]
+    let onPhotoSelected: (Int, PlacePhoto) -> Void
+
+    @State private var selectedIndex = 0
+
+    var body: some View {
+        TabView(selection: $selectedIndex) {
+            ForEach(Array(photos.enumerated()), id: \.element.id) { pair in
+                let index = pair.offset
+                let photo = pair.element
+                ZStack {
+                    if let url = URL(string: photo.imageUrl) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                ZStack { Color.secondary.opacity(0.1); ProgressView() }
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            case .failure:
+                                Color.secondary.opacity(0.1)
+                            @unknown default:
+                                Color.secondary.opacity(0.1)
+                            }
+                        }
+                    } else {
+                        Color.secondary.opacity(0.1)
+                    }
+                }
+                .frame(height: 220)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .contentShape(Rectangle())
+                .tag(index)
+                .onTapGesture {
+                    onPhotoSelected(index, photo)
+                }
+                .accessibilityAddTraits(.isButton)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .automatic))
         .frame(maxWidth: .infinity)
         .frame(height: 220)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onChange(of: photos) { newValue in
+            if let lastIndex = newValue.indices.last {
+                selectedIndex = min(selectedIndex, lastIndex)
+            } else {
+                selectedIndex = 0
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             Text("Photos: Yelp")
                 .font(.caption2)
                 .padding(6)
                 .background(.ultraThinMaterial, in: Capsule())
                 .padding(8)
+        }
+        .onAppear {
+            if let lastIndex = photos.indices.last {
+                selectedIndex = min(selectedIndex, lastIndex)
+            } else {
+                selectedIndex = 0
+            }
         }
     }
 }
