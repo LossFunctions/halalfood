@@ -134,6 +134,17 @@ struct ContentView: View {
         }
     }
 
+    private var mapPlaces: [Place] {
+        if bottomTab == .favorites {
+            return favoritesDisplay.map { resolvedPlace(for: $0) }
+        }
+        return filteredPlaces
+    }
+
+    private var mapAppleItems: [MKMapItem] {
+        bottomTab == .favorites ? [] : appleOverlayItems
+    }
+
     private func matchesAppleQuery(item: MKMapItem, normalizedQuery: String) -> Bool {
         guard !normalizedQuery.isEmpty else { return true }
 
@@ -163,8 +174,8 @@ struct ContentView: View {
             HalalMapView(
                 region: $mapRegion,
                 selectedPlace: $selectedPlace,
-                places: filteredPlaces,
-                appleMapItems: appleOverlayItems,
+                places: mapPlaces,
+                appleMapItems: mapAppleItems,
                 onRegionChange: { region in
                     // Enforce search/data fetch region to NYC + Long Island
                     let effective = RegionGate.enforcedRegion(for: region)
@@ -296,6 +307,15 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(2)
+            }
+        }
+        .onChange(of: bottomTab) { tab in
+            if tab == .favorites {
+                selectedApplePlace = nil
+                if let selected = selectedPlace,
+                   !favoritesStore.contains(id: selected.id) {
+                    selectedPlace = nil
+                }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
