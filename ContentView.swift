@@ -31,6 +31,7 @@ struct ContentView: View {
     @StateObject private var viewModel = MapScreenViewModel()
     @StateObject private var locationManager = LocationProvider()
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
+    @StateObject private var favoritesStore = FavoritesStore()
     @State private var hasCenteredOnUser = false
     @State private var selectedApplePlace: ApplePlaceSelection?
     @State private var searchQuery = ""
@@ -40,44 +41,36 @@ struct ContentView: View {
 
     private var appleOverlayItems: [MKMapItem] {
         guard selectedFilter == .all else { return [] }
+
         let supabaseLocations = viewModel.places.map {
             CLLocation(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
         }
 
-        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery = PlaceOverrides.normalizedName(for: trimmedQuery)
 
-        let normalizedQuery = PlaceOverrides.normalizedName(for: trimmed)
-
-        return appleHalalSearch.results.filter { item in
-            guard let coordinate = mapItemCoordinate(item) else { return false }
-            let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        var filtered: [MKMapItem] = []
+        for item in appleHalalSearch.results {
+            guard let coordinate = mapItemCoordinate(item) else { continue }
 
             // Enforce NYC + Long Island scope for Apple items
-            guard RegionGate.allows(mapItem: item) else { return false }
+            guard RegionGate.allows(mapItem: item) else { continue }
 
             // Exclude known closed venues by name
-            if let name = item.name, PlaceOverrides.isMarkedClosed(name: name) { return false }
+            if let name = item.name, PlaceOverrides.isMarkedClosed(name: name) { continue }
 
+            let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             let matchesExisting = supabaseLocations.contains { existing in
                 existing.distance(from: location) < 80
             }
 
-            if matchesExisting { return false }
-
-            if !normalizedQuery.isEmpty {
-                let nameMatches = item.name.map { PlaceOverrides.normalizedName(for: $0).contains(normalizedQuery) } ?? false
-                if nameMatches { return true }
-
-                if let shortAddress = item.halalShortAddress, !shortAddress.isEmpty {
-                    let normalizedAddress = PlaceOverrides.normalizedName(for: shortAddress)
-                    if normalizedAddress.contains(normalizedQuery) { return true }
-                }
-
-                return false
+            if matchesExisting { continue }
+            if matchesAppleQuery(item: item, normalizedQuery: normalizedQuery) {
+                filtered.append(item)
             }
-
-            return true
         }
+
+        return filtered
     }
 
     private var filteredPlaces: [Place] {
@@ -89,6 +82,22 @@ struct ContentView: View {
             return viewModel.places.filteredByCurrentGeoScope()
         }
         return matches
+    }
+
+    private func matchesAppleQuery(item: MKMapItem, normalizedQuery: String) -> Bool {
+        guard !normalizedQuery.isEmpty else { return true }
+
+        if let name = item.name {
+            let normalizedName = PlaceOverrides.normalizedName(for: name)
+            if normalizedName.contains(normalizedQuery) { return true }
+        }
+
+        if let shortAddress = item.halalShortAddress, !shortAddress.isEmpty {
+            let normalizedAddress = PlaceOverrides.normalizedName(for: shortAddress)
+            if normalizedAddress.contains(normalizedQuery) { return true }
+        }
+
+        return false
     }
 
     private func mapItemCoordinate(_ mapItem: MKMapItem) -> CLLocationCoordinate2D? {
@@ -117,6 +126,12 @@ struct ContentView: View {
                 },
                 onAppleItemSelected: { mapItem in
                     selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+                },
+                onMapTap: {
+                    guard bottomTab == .favorites else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        bottomTab = .places
+                    }
                 }
             )
             .ignoresSafeArea()
@@ -141,8 +156,7 @@ struct ContentView: View {
                 .padding(.trailing, 16)
         }
         .overlay(alignment: .bottom) {
-            bottomTabBar
-                .ignoresSafeArea(edges: .bottom)
+            bottomOverlay
         }
         .onAppear {
             let effective = RegionGate.enforcedRegion(for: mapRegion)
@@ -198,6 +212,7 @@ struct ContentView: View {
         }
         .sheet(item: $selectedPlace) { place in
             PlaceDetailView(place: place)
+                .environmentObject(favoritesStore)
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $selectedApplePlace) { selection in
@@ -229,7 +244,7 @@ struct ContentView: View {
                     }
                 )
                 .ignoresSafeArea()
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(2)
             }
         }
@@ -248,8 +263,22 @@ struct ContentView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private enum BottomTab: CaseIterable, Identifiable { case places, topRated, newSpots; var id: Self { self }
-        var title: String { switch self { case .places: return "Places"; case .topRated: return "Top Rated"; case .newSpots: return "New Spots" } }
+    private enum BottomTab: CaseIterable, Identifiable {
+        case places
+        case topRated
+        case newSpots
+        case favorites
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .places: return "Places"
+            case .topRated: return "Top Rated"
+            case .newSpots: return "New Spots"
+            case .favorites: return "Favorites"
+            }
+        }
     }
 
     private var bottomTabBar: some View {
@@ -269,16 +298,37 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
-        )
         .padding(.horizontal, 16)
-        .padding(.bottom, 0)
-        .offset(y: currentBottomSafeAreaInset() > 0 ? currentBottomSafeAreaInset() - 16 : -4)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+    }
+
+    private var bottomOverlay: some View {
+        VStack(spacing: bottomTab == .favorites ? 16 : 0) {
+            if bottomTab == .favorites {
+                FavoritesPanel(favorites: favoritesStore.favorites) { snapshot in
+                    focus(on: resolvedPlace(for: snapshot))
+                }
+                .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
+                .padding(.horizontal, 16)
+            }
+            bottomTabBar
+        }
+        .padding(.bottom, bottomOverlayPadding)
+        .frame(maxWidth: .infinity)
+        .ignoresSafeArea(edges: .bottom)
+        .animation(.easeInOut(duration: 0.2), value: bottomTab)
+    }
+
+    private var bottomOverlayPadding: CGFloat {
+        let safeInset = currentBottomSafeAreaInset()
+        return 6
     }
 
     private func tabLabel(for tab: BottomTab, gradient: LinearGradient) -> some View {
@@ -288,6 +338,8 @@ struct ContentView: View {
         let shadowColor: Color = isSelected ? Color.orange.opacity(0.25) : .clear
 
         return Text(tab.title)
+            .lineLimit(1)
+            .minimumScaleFactor(0.9)
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(textColor)
             .frame(maxWidth: .infinity)
@@ -430,6 +482,16 @@ private extension ContentView {
         selectedPlace = nil
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
         isSearchOverlayPresented = false
+    }
+
+    func resolvedPlace(for snapshot: FavoritePlaceSnapshot) -> Place {
+        if let existing = viewModel.places.first(where: { $0.id == snapshot.id }) {
+            return existing
+        }
+        if let searchMatch = viewModel.searchResults.first(where: { $0.id == snapshot.id }) {
+            return searchMatch
+        }
+        return snapshot.toPlace()
     }
 
     private func adjustedRegion(centeredOn coordinate: CLLocationCoordinate2D, span: MKCoordinateSpan) -> MKCoordinateRegion {
@@ -626,6 +688,8 @@ private struct SearchOverlayView: View {
 private struct PlaceRow: View {
     let place: Place
 
+    private let detailColor = Color.primary.opacity(0.75)
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             let iconName = place.category == .restaurant ? "fork.knife.circle.fill" : "mappin.circle.fill"
@@ -652,11 +716,11 @@ private struct PlaceRow: View {
                 if let address = place.address {
                     Text(address)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(detailColor)
                 }
                 Text(place.halalStatus.label.localizedCapitalized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(detailColor)
                 if let rating = place.rating {
                     let count = place.ratingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
@@ -671,11 +735,11 @@ private struct PlaceRow: View {
                         }
                     }
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(detailColor)
                 } else if let source = place.source, !source.isEmpty {
                     Text(readableSource(source))
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(detailColor)
                 }
             }
             Spacer()
@@ -739,47 +803,230 @@ private struct ApplePlaceRow: View {
     }
 }
 
+private struct FavoritesPanel: View {
+    let favorites: [FavoritePlaceSnapshot]
+    let onSelect: (FavoritePlaceSnapshot) -> Void
+
+    private let detailColor = Color.primary.opacity(0.65)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Text("Favorites")
+                    .font(.headline)
+                if !favorites.isEmpty {
+                    Text("\(favorites.count)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(detailColor)
+                }
+                Spacer()
+            }
+
+            if favorites.isEmpty {
+                Text("Tap the heart on a place to keep it handy here.")
+                    .font(.footnote)
+                    .foregroundStyle(detailColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 12) {
+                        ForEach(favorites) { snapshot in
+                            Button {
+                                onSelect(snapshot)
+                            } label: {
+                                FavoriteRow(snapshot: snapshot)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .frame(maxHeight: 240)
+            }
+        }
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 18, y: 10)
+    }
+}
+
+private struct FavoriteRow: View {
+    let snapshot: FavoritePlaceSnapshot
+
+    private let detailColor = Color.primary.opacity(0.75)
+
+    private var iconName: String {
+        snapshot.category == .restaurant ? "fork.knife.circle.fill" : "mappin.circle.fill"
+    }
+
+    private var iconColor: Color {
+        switch snapshot.halalStatus {
+        case .only:
+            return .green
+        case .yes:
+            return .orange
+        case .unknown:
+            return .gray
+        case .no:
+            return .red
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(iconColor)
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(snapshot.name)
+                    .font(.headline)
+
+                if let address = snapshot.address, !address.isEmpty {
+                    Text(address)
+                        .font(.footnote)
+                        .foregroundStyle(detailColor)
+                }
+
+                Text(snapshot.halalStatus.label.localizedCapitalized)
+                    .font(.caption)
+                    .foregroundStyle(detailColor)
+
+                if let rating = snapshot.rating {
+                    let count = snapshot.ratingCount ?? 0
+                    let ratingLabel = count == 1 ? "rating" : "ratings"
+                    HStack(spacing: 4) {
+                        Text(String(format: "%.1f", rating))
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text("(\(count) \(ratingLabel))")
+                        if let source = snapshot.source, !source.isEmpty {
+                            Text("- \(readableSource(source))")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(detailColor)
+                } else if let source = snapshot.source, !source.isEmpty {
+                    Text(readableSource(source))
+                        .font(.caption2)
+                        .foregroundStyle(detailColor)
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
 struct PlaceDetailView: View {
     let place: Place
 
     @StateObject private var viewModel = PlaceDetailViewModel()
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var favoritesStore: FavoritesStore
+
+    private var isFavorite: Bool {
+        favoritesStore.isFavorite(place)
+    }
 
     var body: some View {
         GeometryReader { proxy in
             let loadedDetails = appleLoadedDetails
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    headerSection
-                    if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
-                    halalSection
-                    Divider().opacity(0.4)
-                    appleStatusSection
+            ZStack(alignment: .top) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerSection
+                        if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
+                        halalSection
+                        Divider().opacity(0.4)
+                        appleStatusSection
+                    }
+                    .padding(24)
+                    .frame(minHeight: proxy.size.height, alignment: .top)
                 }
-                .padding(24)
-                .frame(minHeight: proxy.size.height, alignment: .top)
-            }
-            .opacity(loadedDetails == nil ? 1 : 0)
-            .allowsHitTesting(loadedDetails == nil)
-            .overlay(alignment: .top) {
-                if let details = loadedDetails {
-                    appleLoadedSection(details, availableHeight: proxy.size.height)
+                .opacity(loadedDetails == nil ? 1 : 0)
+                .allowsHitTesting(loadedDetails == nil)
+                .overlay(alignment: .top) {
+                    if let details = loadedDetails {
+                        appleLoadedSection(details, availableHeight: proxy.size.height)
+                    }
                 }
             }
         }
         .task(id: place.id) {
             await viewModel.load(place: place)
             await viewModel.loadPhotos(for: place)
+            refreshFavoriteSnapshot()
         }
+        .onReceive(viewModel.$loadingState) { _ in
+            refreshFavoriteSnapshot()
+        }
+    }
+
+    private var favoriteButton: some View {
+        Button(action: toggleFavorite) {
+            Image(systemName: isFavorite ? "heart.fill" : "heart")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isFavorite ? Color.red : Color.white)
+                .padding(6)
+                .background(Color(.systemGray), in: Circle())
+                .shadow(color: .black.opacity(0.12), radius: 5, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
+    }
+
+    private func toggleFavorite() {
+        let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            favoritesStore.toggleFavorite(
+                for: place,
+                name: displayName,
+                address: displayAddress,
+                rating: place.rating,
+                ratingCount: place.ratingCount,
+                source: place.source,
+                applePlaceID: appleID
+            )
+        }
+    }
+
+    private func refreshFavoriteSnapshot() {
+        guard favoritesStore.contains(id: place.id) else { return }
+        let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
+        favoritesStore.updateFavoriteIfNeeded(
+            for: place,
+            name: displayName,
+            address: displayAddress,
+            rating: place.rating,
+            ratingCount: place.ratingCount,
+            source: place.source,
+            applePlaceID: appleID
+        )
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(displayName)
-                .font(.title2)
-                .fontWeight(.semibold)
+            HStack(alignment: .center, spacing: 12) {
+                Text(displayName)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .multilineTextAlignment(.leading)
+                Spacer()
+                if !hasAppleDetails {
+                    favoriteButton
+                }
+            }
 
             if let address = displayAddress, !address.isEmpty {
                 Label(address, systemImage: "mappin.circle")
@@ -849,23 +1096,9 @@ struct PlaceDetailView: View {
     }
 
     @ViewBuilder
-    private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
-        VStack(spacing: 16) {
-            if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
-            if #available(iOS 18.0, *) {
-                applePlaceCard(details)
-            } else {
-                appleDetailsSection(details)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .frame(minHeight: availableHeight, alignment: .top)
-    }
-
-    @ViewBuilder
     private func appleDetailsSection(_ details: ApplePlaceDetails) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "apple.logo")
                     .font(.title3)
                     .foregroundStyle(.primary)
@@ -881,6 +1114,10 @@ struct PlaceDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Spacer()
+
+                favoriteButton
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -935,6 +1172,20 @@ struct PlaceDetailView: View {
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    @ViewBuilder
+    private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
+        VStack(spacing: 16) {
+            if !viewModel.photos.isEmpty { photoCarousel(viewModel.photos) }
+            if #available(iOS 18.0, *) {
+                applePlaceCard(details)
+            } else {
+                appleDetailsSection(details)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(minHeight: availableHeight, alignment: .top)
+    }
+
     private var displayName: String {
         if case let .loaded(details) = viewModel.loadingState, !details.displayName.isEmpty {
             return details.displayName
@@ -959,7 +1210,6 @@ struct PlaceDetailView: View {
         return false
     }
 
-
     @ViewBuilder
     private func applePlaceCard(_ details: ApplePlaceDetails) -> some View {
         MapItemDetailCardView(mapItem: details.mapItem, showsInlineMap: false) {
@@ -968,11 +1218,13 @@ struct PlaceDetailView: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 520)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
-        .overlay(alignment: .topLeading) {
+        .shadow(color: .black.opacity(0.08), radius: 11, y: 6)
+        .overlay(alignment: .topTrailing) {
+            favoriteButton
+                .padding(.trailing, 16)
+                .padding(.top, 58)
         }
     }
-
 }
 
 extension PlaceDetailView {

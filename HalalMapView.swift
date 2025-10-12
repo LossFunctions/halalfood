@@ -113,6 +113,7 @@ struct HalalMapView: UIViewRepresentable {
     var onRegionChange: ((MKCoordinateRegion) -> Void)?
     var onPlaceSelected: ((Place) -> Void)?
     var onAppleItemSelected: ((MKMapItem) -> Void)?
+    var onMapTap: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -146,6 +147,7 @@ struct HalalMapView: UIViewRepresentable {
         mapView.setRegion(region, animated: false)
         context.coordinator.configureDisplayMode(using: region)
         context.coordinator.mapView = mapView
+        context.coordinator.addTapRecognizer(to: mapView)
         context.coordinator.syncSelection(in: mapView)
         return mapView
     }
@@ -158,7 +160,7 @@ struct HalalMapView: UIViewRepresentable {
         context.coordinator.update(parent: self)
     }
 
-    final class Coordinator: NSObject, MKMapViewDelegate {
+    final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         static let reuseIdentifier = "PlaceMarker"
         static let appleReuseIdentifier = "ApplePlaceMarker"
         static let dotReuseIdentifier = "PlaceDot"
@@ -176,6 +178,13 @@ struct HalalMapView: UIViewRepresentable {
 
         init(parent: HalalMapView) {
             self.parent = parent
+        }
+
+        func addTapRecognizer(to mapView: MKMapView) {
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleMapTap(_:)))
+            tap.cancelsTouchesInView = false
+            tap.delegate = self
+            mapView.addGestureRecognizer(tap)
         }
 
         func configureDisplayMode(using region: MKCoordinateRegion) {
@@ -363,6 +372,26 @@ struct HalalMapView: UIViewRepresentable {
             if parent.selectedPlace?.id == annotation.place.id {
                 parent.selectedPlace = nil
             }
+        }
+
+        @objc private func handleMapTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            guard let mapView else { return }
+            let location = recognizer.location(in: mapView)
+            if mapView.hitTest(location, with: nil) is MKAnnotationView {
+                return
+            }
+            parent.onMapTap?()
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            if touch.view is MKAnnotationView { return false }
+            if let superview = touch.view?.superview, superview is MKAnnotationView { return false }
+            return true
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
         }
 
         private func updateAnnotationDisplayMode(for mapView: MKMapView, region: MKCoordinateRegion) {
