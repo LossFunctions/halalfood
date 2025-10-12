@@ -107,6 +107,7 @@ final class HalalDotAnnotationView: MKAnnotationView {
 
 struct HalalMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
+    @Binding var selectedPlace: Place?
     var places: [Place]
     var appleMapItems: [MKMapItem] = []
     var onRegionChange: ((MKCoordinateRegion) -> Void)?
@@ -145,6 +146,7 @@ struct HalalMapView: UIViewRepresentable {
         mapView.setRegion(region, animated: false)
         context.coordinator.configureDisplayMode(using: region)
         context.coordinator.mapView = mapView
+        context.coordinator.syncSelection(in: mapView)
         return mapView
     }
 
@@ -187,6 +189,7 @@ struct HalalMapView: UIViewRepresentable {
 
             if let mapView, let region = mapView.safeRegion ?? lastRenderedRegion {
                 updateAnnotationDisplayMode(for: mapView, region: region)
+                syncSelection(in: mapView)
             }
         }
 
@@ -304,7 +307,7 @@ struct HalalMapView: UIViewRepresentable {
             if let placeAnnotation = annotation as? PlaceAnnotation {
                 if usesDotAnnotations {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.dotReuseIdentifier, for: annotation) as! HalalDotAnnotationView
-                    view.apply(color: .systemOrange)
+                    view.apply(color: tintColor(for: placeAnnotation.place))
                     return view
                 } else {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.reuseIdentifier, for: annotation) as! MKMarkerAnnotationView
@@ -312,7 +315,7 @@ struct HalalMapView: UIViewRepresentable {
                     view.collisionMode = .circle
                     view.displayPriority = .required
                     view.canShowCallout = true
-                    view.markerTintColor = tintColor(for: placeAnnotation.place.category)
+                    view.markerTintColor = tintColor(for: placeAnnotation.place)
                     view.glyphImage = glyph(for: placeAnnotation.place.category)
                     view.titleVisibility = .visible
                     view.subtitleVisibility = .adaptive
@@ -348,9 +351,17 @@ struct HalalMapView: UIViewRepresentable {
             }
 
             if let annotation = view.annotation as? PlaceAnnotation {
+                parent.selectedPlace = annotation.place
                 parent.onPlaceSelected?(annotation.place)
             } else if let appleAnnotation = view.annotation as? AppleMapItemAnnotation {
                 parent.onAppleItemSelected?(appleAnnotation.mapItem)
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
+            guard let annotation = view.annotation as? PlaceAnnotation else { return }
+            if parent.selectedPlace?.id == annotation.place.id {
+                parent.selectedPlace = nil
             }
         }
 
@@ -370,8 +381,27 @@ struct HalalMapView: UIViewRepresentable {
             max(region.span.latitudeDelta, region.span.longitudeDelta) >= dotSpanThreshold
         }
 
-        private func tintColor(for category: PlaceCategory) -> UIColor {
-            .systemOrange
+        fileprivate func syncSelection(in mapView: MKMapView) {
+            guard !usesDotAnnotations else { return }
+
+            let selectedAnnotations = mapView.selectedAnnotations.compactMap { $0 as? PlaceAnnotation }
+
+            if let target = parent.selectedPlace {
+                let alreadySelected = selectedAnnotations.contains { $0.place.id == target.id }
+                if !alreadySelected,
+                   let annotation = currentAnnotations.first(where: { $0.place.id == target.id }) {
+                    mapView.selectAnnotation(annotation, animated: true)
+                }
+            } else if !selectedAnnotations.isEmpty {
+                selectedAnnotations.forEach { mapView.deselectAnnotation($0, animated: true) }
+            }
+        }
+
+        private func tintColor(for place: Place) -> UIColor {
+            if place.halalStatus == .only {
+                return .systemGreen
+            }
+            return .systemOrange
         }
 
         private func glyph(for category: PlaceCategory) -> UIImage? {

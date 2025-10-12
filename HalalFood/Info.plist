@@ -37,7 +37,7 @@
             <key>address</key>
             <string>6967 Grand Ave, Maspeth, NY 11378, United States</string>
             <key>halal_status</key>
-            <string>yes</string>
+            <string>only</string>
             <key>search_query</key>
             <string>Affy’s</string>
             <key>search_span_lat</key>

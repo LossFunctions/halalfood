@@ -39,6 +39,7 @@ struct ContentView: View {
     @State private var previousMapRegion: MKCoordinateRegion?
 
     private var appleOverlayItems: [MKMapItem] {
+        guard selectedFilter == .all else { return [] }
         let supabaseLocations = viewModel.places.map {
             CLLocation(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
         }
@@ -102,6 +103,7 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             HalalMapView(
                 region: $mapRegion,
+                selectedPlace: $selectedPlace,
                 places: filteredPlaces,
                 appleMapItems: appleOverlayItems,
                 onRegionChange: { region in
@@ -204,29 +206,34 @@ struct ContentView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .fullScreenCover(isPresented: $isSearchOverlayPresented) {
-            SearchOverlayView(
-                isPresented: $isSearchOverlayPresented,
-                query: $searchQuery,
-                isSearching: viewModel.isSearching,
-                supabaseResults: viewModel.searchResults.filteredByCurrentGeoScope(),
-                appleResults: appleOverlayItems,
-                subtitle: viewModel.subtitleMessage,
-                topSafeAreaInset: currentTopSafeAreaInset(),
-                onSelectPlace: { place in
-                    focus(on: place)
-                    isSearchOverlayPresented = false
-                },
-                onSelectApplePlace: { mapItem in
-                    focus(on: mapItem)
-                    isSearchOverlayPresented = false
-                },
-                onClear: {
-                    searchQuery = ""
-                }
-            )
-            .ignoresSafeArea()
+        .overlay {
+            if isSearchOverlayPresented {
+                SearchOverlayView(
+                    isPresented: $isSearchOverlayPresented,
+                    query: $searchQuery,
+                    isSearching: viewModel.isSearching,
+                    supabaseResults: viewModel.searchResults.filteredByCurrentGeoScope(),
+                    appleResults: appleOverlayItems,
+                    subtitle: viewModel.subtitleMessage,
+                    topSafeAreaInset: currentTopSafeAreaInset(),
+                    onSelectPlace: { place in
+                        focus(on: place)
+                        isSearchOverlayPresented = false
+                    },
+                    onSelectApplePlace: { mapItem in
+                        focus(on: mapItem)
+                        isSearchOverlayPresented = false
+                    },
+                    onClear: {
+                        searchQuery = ""
+                    }
+                )
+                .ignoresSafeArea()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(2)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
     }
 
     private var topSegmentedControl: some View {
@@ -390,12 +397,7 @@ private extension ContentView {
     }
 
     func restoreSearchStateAfterDismiss() {
-        if let previous = previousMapRegion {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                mapRegion = previous
-            }
-            previousMapRegion = nil
-        }
+        previousMapRegion = nil
         if !searchQuery.isEmpty {
             searchQuery = ""
         }
@@ -497,15 +499,15 @@ private struct SearchOverlayView: View {
         .background(Color(.systemBackground))
         .ignoresSafeArea()
         .onAppear {
-            DispatchQueue.main.async {
-                searchFieldIsFocused = true
-            }
+            searchFieldIsFocused = true
         }
     }
 
     private var header: some View {
         HStack(spacing: 12) {
             Button {
+                query = ""
+                onClear()
                 isPresented = false
             } label: {
                 Image(systemName: "chevron.backward")
@@ -627,7 +629,18 @@ private struct PlaceRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             let iconName = place.category == .restaurant ? "fork.knife.circle.fill" : "mappin.circle.fill"
-            let iconColor: Color = place.category == .restaurant ? .orange : .yellow
+            let iconColor: Color = {
+                switch place.halalStatus {
+                case .only:
+                    return .green
+                case .yes:
+                    return .orange
+                case .unknown:
+                    return .gray
+                case .no:
+                    return .red
+                }
+            }()
             Image(systemName: iconName)
                 .font(.title3)
                 .foregroundStyle(iconColor)
@@ -641,17 +654,26 @@ private struct PlaceRow: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text(place.halalStatus.label)
+                Text(place.halalStatus.label.localizedCapitalized)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let rating = place.rating {
                     let count = place.ratingCount ?? 0
-                    Text(String(format: "%.1f★ (%d)", rating, count))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                if let source = place.source {
-                    Text("Source: \(source.uppercased())")
+                    let ratingLabel = count == 1 ? "rating" : "ratings"
+                    HStack(spacing: 4) {
+                        Text(String(format: "%.1f", rating))
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text("(\(count) \(ratingLabel))")
+                        if let source = place.source, !source.isEmpty {
+                            Text("- \(readableSource(source))")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                } else if let source = place.source, !source.isEmpty {
+                    Text(readableSource(source))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -664,6 +686,22 @@ private struct PlaceRow: View {
         .padding(12)
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
+}
+
+private func readableSource(_ raw: String) -> String {
+    raw
+        .replacingOccurrences(of: "_", with: " ")
+        .split(separator: " ")
+        .map { component -> String in
+            let lower = component.lowercased()
+            switch lower {
+            case "yelp": return "Yelp"
+            case "apple": return "Apple"
+            case "manual": return "Manual"
+            default: return lower.capitalized
+            }
+        }
+        .joined(separator: " ")
 }
 
 private struct ApplePlaceRow: View {
@@ -1574,8 +1612,8 @@ private extension MapScreenViewModel {
     func ingestApplePlaceIfNeeded(_ mapItem: MKMapItem) {
         // Guard against obvious non‑halal chains being marked as halal.
         guard Self.shouldIngestApplePlace(mapItem) else { return }
-        // Persist as 'unknown' by default. Manual overrides can set 'yes/only'.
-        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .unknown, confidence: 0.3) else { return }
+        // Persist Apple-provided halal venues as fully halal by default.
+        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .only, confidence: 0.3) else { return }
         let identifier = payload.applePlaceID
         guard !ingestedApplePlaceIDs.contains(identifier) else { return }
         ingestedApplePlaceIDs.insert(identifier)
@@ -1594,8 +1632,7 @@ private extension MapScreenViewModel {
                 let dto = try await PlaceAPI.upsertApplePlace(payload)
                 guard !Task.isCancelled else { return }
                 guard let place = Place(dto: dto) else { return }
-                // Do not immediately surface unknown/non‑halal ingests on the map.
-                // They will appear after verification or manual override.
+                // Only surface places that came back as halal after the upsert.
                 if place.halalStatus == .yes || place.halalStatus == .only {
                     self.mergeIntoGlobalDataset([place])
                     self.insertOrUpdatePlace(place)
@@ -1641,7 +1678,7 @@ private extension MapScreenViewModel {
 
                 var fallbackPlaces: [Place] = []
                 for item in items {
-                    if let place = makePlace(from: item, halalStatus: Place.HalalStatus.yes, confidence: 0.4) {
+                    if let place = makePlace(from: item, halalStatus: .only, confidence: 0.4) {
                         fallbackPlaces.append(place)
                     }
                     self.ingestApplePlaceIfNeeded(item)

@@ -119,7 +119,8 @@ enum PlaceOverrides {
             "Sofra Mediterranean Grill",
             "Sofra Mediterranean Grill (Permanently Closed)",
             "Habibi Rooftop the Restaurant",
-            "Habibi Rooftop Restaurant"
+            "Habibi Rooftop Restaurant",
+            "Blue Hour"
         ]
         return Set(names.map { normalizedName(for: $0) })
     }()

@@ -15,6 +15,35 @@
 
 const fs = require('fs');
 
+function normalizeName(name) {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+const forcedFullyHalalPrefixes = [
+  'affys',
+  'affysgrill',
+  'atomicwings',
+  'fevyschicken',
+  'nurthai',
+  'halalmunchies',
+  'pattanianthai',
+  'melindashalalmeatmarket',
+  'bakhterhalalfood',
+  'zatar',
+  'birdieshotchicken',
+  'marrakechrestaurant',
+  'afghankabab',
+  'terryandyaki',
+  'shawarmaspot',
+  'duzan',
+  'kababish',
+  'momocrave'
+];
+
 function parseArgs() {
   const args = new Map();
   for (const raw of process.argv.slice(2)) {
@@ -40,7 +69,10 @@ function mapRow(item) {
   if (typeof lat !== 'number' || typeof lon !== 'number') return null;
 
   const address = (item.address || '').trim();
-  const halalStatus = 'yes'; // Yelp halal discovery ⇒ treat as has halal options
+  const match = String(item.match || '').toLowerCase();
+  const normalized = normalizeName(item.name || '');
+  const forcedOnly = forcedFullyHalalPrefixes.some(prefix => normalized.startsWith(prefix));
+  const halalStatus = forcedOnly || match.includes('category') ? 'only' : 'yes';
   const rating = typeof item.rating === 'number' ? item.rating : null;
   const ratingCount = typeof item.review_count === 'number' ? item.review_count : null;
   const confidence = 0.7; // heuristic default
