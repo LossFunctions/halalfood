@@ -20,6 +20,22 @@ enum MapFilter: CaseIterable, Identifiable {
     }
 }
 
+private enum FavoritesSortOption: String, CaseIterable, Identifiable {
+    case recentlySaved
+    case alphabetical
+    case rating
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .recentlySaved: return "Recent"
+        case .alphabetical: return "A–Z"
+        case .rating: return "Rating"
+        }
+    }
+}
+
 struct ContentView: View {
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
@@ -32,6 +48,7 @@ struct ContentView: View {
     @StateObject private var locationManager = LocationProvider()
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
     @StateObject private var favoritesStore = FavoritesStore()
+    @State private var favoritesSort: FavoritesSortOption = .recentlySaved
     @State private var hasCenteredOnUser = false
     @State private var selectedApplePlace: ApplePlaceSelection?
     @State private var searchQuery = ""
@@ -82,6 +99,39 @@ struct ContentView: View {
             return viewModel.places.filteredByCurrentGeoScope()
         }
         return matches
+    }
+
+    private var favoritesDisplay: [FavoritePlaceSnapshot] {
+        let base = favoritesStore.favorites
+        switch favoritesSort {
+        case .recentlySaved:
+            return base.sorted { lhs, rhs in
+                if lhs.savedAt != rhs.savedAt {
+                    return lhs.savedAt > rhs.savedAt
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        case .alphabetical:
+            return base.sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        case .rating:
+            return base.sorted { lhs, rhs in
+                switch (lhs.rating, rhs.rating) {
+                case let (l?, r?) where l != r:
+                    return l > r
+                case (.some, nil):
+                    return true
+                case (nil, .some):
+                    return false
+                default:
+                    let lhsCount = lhs.ratingCount ?? 0
+                    let rhsCount = rhs.ratingCount ?? 0
+                    if lhsCount != rhsCount { return lhsCount > rhsCount }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+            }
+        }
     }
 
     private func matchesAppleQuery(item: MKMapItem, normalizedQuery: String) -> Bool {
@@ -312,9 +362,14 @@ struct ContentView: View {
     private var bottomOverlay: some View {
         VStack(spacing: bottomTab == .favorites ? 16 : 0) {
             if bottomTab == .favorites {
-                FavoritesPanel(favorites: favoritesStore.favorites) { snapshot in
-                    focus(on: resolvedPlace(for: snapshot))
-                }
+                FavoritesPanel(
+                    favorites: favoritesDisplay,
+                    sortOption: favoritesSort,
+                    onSelect: { snapshot in
+                        focus(on: resolvedPlace(for: snapshot))
+                    },
+                    onSortChange: { favoritesSort = $0 }
+                )
                 .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
                 .padding(.horizontal, 16)
             }
@@ -805,7 +860,9 @@ private struct ApplePlaceRow: View {
 
 private struct FavoritesPanel: View {
     let favorites: [FavoritePlaceSnapshot]
+    let sortOption: FavoritesSortOption
     let onSelect: (FavoritePlaceSnapshot) -> Void
+    let onSortChange: (FavoritesSortOption) -> Void
 
     private let detailColor = Color.primary.opacity(0.65)
 
@@ -820,6 +877,14 @@ private struct FavoritesPanel: View {
                         .foregroundStyle(detailColor)
                 }
                 Spacer()
+            }
+
+            if !favorites.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(FavoritesSortOption.allCases) { option in
+                        sortButton(for: option)
+                    }
+                }
             }
 
             if favorites.isEmpty {
@@ -847,6 +912,24 @@ private struct FavoritesPanel: View {
         .padding(18)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 18, y: 10)
+    }
+
+    private func sortButton(for option: FavoritesSortOption) -> some View {
+        let isSelected = option == sortOption
+        return Button {
+            onSortChange(option)
+        } label: {
+            Text(option.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.white : detailColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -992,8 +1075,8 @@ struct PlaceDetailView: View {
         }
         .onChange(of: expandedPhotoSelection) { newValue in
             if let selection = newValue,
-               viewModel.photos.indices.contains(selection.index) {
-                _ = viewModel.photos[selection.index]
+               !viewModel.photos.indices.contains(selection.index) {
+                expandedPhotoSelection = nil
             }
         }
     }
