@@ -980,7 +980,7 @@ struct PlaceDetailView: View {
                 .foregroundStyle(isFavorite ? Color.red : Color.white)
                 .padding(6)
                 .background(Color(.systemGray), in: Circle())
-                .shadow(color: .black.opacity(0.12), radius: 5, y: 4)
+                .shadow(color: .black.opacity(0.12), radius: 4.5, y: 4)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
@@ -1221,7 +1221,7 @@ struct PlaceDetailView: View {
         .shadow(color: .black.opacity(0.08), radius: 11, y: 6)
         .overlay(alignment: .topTrailing) {
             favoriteButton
-                .padding(.trailing, 16)
+                .padding(.trailing, 15.5)
                 .padding(.top, 58)
         }
     }
