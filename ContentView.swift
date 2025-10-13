@@ -2411,7 +2411,9 @@ final class PlaceDetailViewModel: ObservableObject {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             var rows = try decoder.decode([PlacePhoto].self, from: data)
-            if rows.isEmpty {
+            // Avoid pulling photos from a nearby Yelp place for manual entries,
+            // which can lead to incorrect images. Stick to known photos only.
+            if rows.isEmpty, (place.source?.lowercased() ?? "") != "manual" {
                 if let yelpPlaceID = try await findNearbyYelpPlaceID(around: place.coordinate, hintName: place.name) {
                     rows = try await fetchPhotos(for: yelpPlaceID)
                 }
@@ -2664,7 +2666,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
                 // Bring in manual outliers (e.g., venues not tagged halal in OSM/Apple)
                 // so they always appear on the map within the current region.
-                let manual = await ManualPlaceResolver.shared.manualPlaces(in: RegionGate.enforcedRegion(for: region), excluding: halalOnly).filteredByCurrentGeoScope()
+                // Always evaluate manual places across the broader NYC + Long Island scope
+                // so outliers (e.g., LIC while viewing Manhattan) still appear on the map.
+                let manual = await ManualPlaceResolver.shared.manualPlaces(in: Self.appleFallbackRegion, excluding: halalOnly).filteredByCurrentGeoScope()
 
                 try Task.checkCancellation()
                 let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
