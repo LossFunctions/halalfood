@@ -96,6 +96,7 @@ struct ContentView: View {
     @State private var isSearchOverlayPresented = false
     @State private var keyboardHeight: CGFloat = 0
     @State private var previousMapRegion: MKCoordinateRegion?
+    @State private var communityCache: [TopRatedRegion: [Place]] = [:]
 
     private var appleOverlayItems: [MKMapItem] {
         guard selectedFilter == .all else { return [] }
@@ -186,6 +187,7 @@ struct ContentView: View {
     }
 
     private func communityTopRated(for region: TopRatedRegion) -> [Place] {
+        if let cached = communityCache[region], !cached.isEmpty { return cached }
         // Curated names per region
         let curated: [TopRatedRegion: [String]] = [
             .manhattan: [
@@ -266,6 +268,7 @@ struct ContentView: View {
             }
         }
 
+        let result: [Place]
         if region == .all {
             // Concatenate 5 from each region to ~30 results
             let regions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .bronx, .statenIsland, .longIsland]
@@ -279,10 +282,12 @@ struct ContentView: View {
                 seen.insert(key)
                 return true
             }
-            return unique
+            result = unique
         } else {
-            return list(for: region)
+            result = list(for: region)
         }
+        communityCache[region] = result
+        return result
     }
 
     private var mapPlaces: [Place] {

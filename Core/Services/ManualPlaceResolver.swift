@@ -203,17 +203,18 @@ final class ManualPlaceResolver {
     }
 
     private func fetchPlace(for definition: ManualPlaceDefinition) async -> Place? {
-        guard let mapItem = await searchMapItem(for: definition) else { return nil }
-
-        // Opportunistically persist the outlier into Supabase via the Apple upsert RPC
-        // so future sessions/devices receive it from the backend.
-        if let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: definition.halalStatus, confidence: definition.confidence) {
-            Task.detached(priority: .utility) {
-                do { _ = try await PlaceAPI.upsertApplePlace(payload) } catch { /* best-effort */ }
+        if let mapItem = await searchMapItem(for: definition) {
+            // Opportunistically persist the outlier into Supabase via the Apple upsert RPC
+            if let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: definition.halalStatus, confidence: definition.confidence) {
+                Task.detached(priority: .utility) {
+                    do { _ = try await PlaceAPI.upsertApplePlace(payload) } catch { /* best-effort */ }
+                }
             }
+            return makePlace(from: mapItem, definition: definition)
         }
 
-        return makePlace(from: mapItem, definition: definition)
+        // Fallback: create a place directly from the definition so it still shows on the map.
+        return makePlace(definition: definition)
     }
 
     private func searchMapItem(for definition: ManualPlaceDefinition) async -> MKMapItem? {
@@ -294,6 +295,23 @@ final class ManualPlaceResolver {
             confidence: definition.confidence,
             source: "manual",
             applePlaceID: mapItem.identifier?.rawValue
+        )
+    }
+
+    private func makePlace(definition: ManualPlaceDefinition) -> Place {
+        Place(
+            id: definition.id,
+            name: definition.name,
+            latitude: definition.anchorCoordinate.latitude,
+            longitude: definition.anchorCoordinate.longitude,
+            category: .restaurant,
+            address: definition.fallbackAddress,
+            halalStatus: definition.halalStatus,
+            rating: definition.rating,
+            ratingCount: definition.ratingCount,
+            confidence: definition.confidence,
+            source: "manual",
+            applePlaceID: nil
         )
     }
 }
