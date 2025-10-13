@@ -209,35 +209,53 @@ struct ContentView: View {
 
     private func matchesTopRatedRegion(_ place: Place, region: TopRatedRegion) -> Bool {
         let coord = place.coordinate
-        let addr = address(of: place)
-
-        let inManhattan = isWithin(coord, lat: 40.70...40.88, lon: (-74.03)...(-73.91)) || addr.contains("manhattan") || addr.contains("new york, ny")
-        let inBrooklyn = isWithin(coord, lat: 40.55...40.73, lon: (-74.05)...(-73.83)) || addr.contains("brooklyn")
-        let inQueens = isWithin(coord, lat: 40.54...40.81, lon: (-73.96)...(-73.70)) || addr.contains("queens")
-        let inBronx = isWithin(coord, lat: 40.79...40.93, lon: (-73.93)...(-73.76)) || addr.contains("bronx")
-        let inStaten = isWithin(coord, lat: 40.48...40.65, lon: (-74.27)...(-74.05)) || addr.contains("staten island")
-        let inLongIslandBox = isWithin(coord, lat: 40.55...41.20, lon: (-73.95)...(-71.75))
-
         switch region {
         case .all:
             return true
-        case .manhattan:
-            return inManhattan && !(inBrooklyn || inQueens || inBronx || inStaten)
-        case .brooklyn:
-            return inBrooklyn && !(inManhattan || inQueens || inBronx || inStaten)
-        case .queens:
-            return inQueens && !(inManhattan || inBrooklyn || inBronx || inStaten)
-        case .bronx:
-            return inBronx && !(inManhattan || inBrooklyn || inQueens || inStaten)
-        case .statenIsland:
-            return inStaten && !(inManhattan || inBrooklyn || inQueens || inBronx)
         case .longIsland:
-            if inLongIslandBox {
-                return !(inBrooklyn || inQueens || inManhattan)
-            }
-            let keywords = ["long island", "nassau", "suffolk"]
-            return keywords.contains { addr.contains($0) } && !addr.contains("long island city")
+            return regionForCoordinate(coord) == .longIsland
+        default:
+            return regionForCoordinate(coord) == region
         }
+    }
+
+    // Assign each coordinate to exactly one region using bounding boxes and centroid tie‑breakers.
+    private func regionForCoordinate(_ coordinate: CLLocationCoordinate2D) -> TopRatedRegion? {
+        struct RegionBox { let region: TopRatedRegion; let lat: ClosedRange<Double>; let lon: ClosedRange<Double>; let centroid: CLLocationCoordinate2D }
+
+        let boxes: [RegionBox] = [
+            .init(region: .manhattan,    lat: 40.68...40.90, lon: (-74.03)...(-73.92), centroid: .init(latitude: 40.7831, longitude: -73.9712)),
+            .init(region: .brooklyn,     lat: 40.56...40.74, lon: (-74.05)...(-73.83), centroid: .init(latitude: 40.6500, longitude: -73.9496)),
+            .init(region: .queens,       lat: 40.54...40.81, lon: (-73.96)...(-73.70), centroid: .init(latitude: 40.7282, longitude: -73.7949)),
+            .init(region: .bronx,        lat: 40.79...40.93, lon: (-73.93)...(-73.76), centroid: .init(latitude: 40.8448, longitude: -73.8648)),
+            .init(region: .statenIsland, lat: 40.48...40.65, lon: (-74.27)...(-74.05), centroid: .init(latitude: 40.5795, longitude: -74.1502))
+        ]
+
+        let candidates = boxes.filter { box in
+            isWithin(coordinate, lat: box.lat, lon: box.lon)
+        }
+
+        if let only = candidates.first, candidates.count == 1 {
+            return only.region
+        }
+        if candidates.count > 1 {
+            // Break ties by selecting nearest centroid.
+            let best = candidates.min(by: { a, b in
+                squaredDistance(coordinate, a.centroid) < squaredDistance(coordinate, b.centroid)
+            })
+            return best?.region
+        }
+
+        // Long Island (exclude NYC boroughs):
+        let inLongIslandBox = isWithin(coordinate, lat: 40.55...41.20, lon: (-73.95)...(-71.75))
+        if inLongIslandBox { return .longIsland }
+        return nil
+    }
+
+    private func squaredDistance(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let dx = a.latitude - b.latitude
+        let dy = a.longitude - b.longitude
+        return dx*dx + dy*dy
     }
 
     private func isWithin(_ coordinate: CLLocationCoordinate2D, lat: ClosedRange<Double>, lon: ClosedRange<Double>) -> Bool {
