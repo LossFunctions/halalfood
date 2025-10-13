@@ -36,6 +36,44 @@ private enum FavoritesSortOption: String, CaseIterable, Identifiable {
     }
 }
 
+private enum TopRatedSortOption: String, CaseIterable, Identifiable {
+    case rating
+    case alphabetical
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .rating: return "Rating"
+        case .alphabetical: return "A–Z"
+        }
+    }
+}
+
+private enum TopRatedRegion: String, CaseIterable, Identifiable {
+    case all
+    case manhattan
+    case brooklyn
+    case queens
+    case bronx
+    case statenIsland
+    case longIsland
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .all: return "All Boroughs"
+        case .manhattan: return "Manhattan"
+        case .brooklyn: return "Brooklyn"
+        case .queens: return "Queens"
+        case .bronx: return "Bronx"
+        case .statenIsland: return "Staten Island"
+        case .longIsland: return "Long Island"
+        }
+    }
+}
+
 struct ContentView: View {
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
@@ -49,6 +87,8 @@ struct ContentView: View {
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
     @StateObject private var favoritesStore = FavoritesStore()
     @State private var favoritesSort: FavoritesSortOption = .recentlySaved
+    @State private var topRatedSort: TopRatedSortOption = .rating
+    @State private var topRatedRegion: TopRatedRegion = .all
     @State private var hasCenteredOnUser = false
     @State private var selectedApplePlace: ApplePlaceSelection?
     @State private var searchQuery = ""
@@ -134,15 +174,78 @@ struct ContentView: View {
         }
     }
 
-    private var mapPlaces: [Place] {
-        if bottomTab == .favorites {
-            return favoritesDisplay.map { resolvedPlace(for: $0) }
+    private var topRatedDisplay: [Place] {
+        let base = viewModel.topRatedPlaces(limit: 50, minimumReviews: 10)
+        let filtered = base.filter { matchesTopRatedRegion($0, region: topRatedRegion) }
+        switch topRatedSort {
+        case .rating:
+            return filtered
+        case .alphabetical:
+            return filtered.sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
         }
-        return filteredPlaces
+    }
+
+    private var mapPlaces: [Place] {
+        switch bottomTab {
+        case .favorites:
+            return favoritesDisplay.map { resolvedPlace(for: $0) }
+        case .topRated:
+            return topRatedDisplay
+        default:
+            return filteredPlaces
+        }
     }
 
     private var mapAppleItems: [MKMapItem] {
-        bottomTab == .favorites ? [] : appleOverlayItems
+        switch bottomTab {
+        case .favorites, .topRated:
+            return []
+        default:
+            return appleOverlayItems
+        }
+    }
+
+    private func matchesTopRatedRegion(_ place: Place, region: TopRatedRegion) -> Bool {
+        let coord = place.coordinate
+        let addr = address(of: place)
+
+        let inManhattan = isWithin(coord, lat: 40.70...40.88, lon: (-74.03)...(-73.91)) || addr.contains("manhattan") || addr.contains("new york, ny")
+        let inBrooklyn = isWithin(coord, lat: 40.55...40.73, lon: (-74.05)...(-73.83)) || addr.contains("brooklyn")
+        let inQueens = isWithin(coord, lat: 40.54...40.81, lon: (-73.96)...(-73.70)) || addr.contains("queens")
+        let inBronx = isWithin(coord, lat: 40.79...40.93, lon: (-73.93)...(-73.76)) || addr.contains("bronx")
+        let inStaten = isWithin(coord, lat: 40.48...40.65, lon: (-74.27)...(-74.05)) || addr.contains("staten island")
+        let inLongIslandBox = isWithin(coord, lat: 40.55...41.20, lon: (-73.95)...(-71.75))
+
+        switch region {
+        case .all:
+            return true
+        case .manhattan:
+            return inManhattan
+        case .brooklyn:
+            return inBrooklyn
+        case .queens:
+            return inQueens
+        case .bronx:
+            return inBronx
+        case .statenIsland:
+            return inStaten
+        case .longIsland:
+            if inLongIslandBox {
+                return !(inBrooklyn || inQueens || inManhattan)
+            }
+            let keywords = ["long island", "nassau", "suffolk"]
+            return keywords.contains { addr.contains($0) } && !addr.contains("long island city")
+        }
+    }
+
+    private func isWithin(_ coordinate: CLLocationCoordinate2D, lat: ClosedRange<Double>, lon: ClosedRange<Double>) -> Bool {
+        lat.contains(coordinate.latitude) && lon.contains(coordinate.longitude)
+    }
+
+    private func address(of place: Place) -> String {
+        place.address?.lowercased() ?? ""
     }
 
     private func matchesAppleQuery(item: MKMapItem, normalizedQuery: String) -> Bool {
@@ -210,11 +313,30 @@ struct ContentView: View {
                     .padding(16)
                     .background(.thinMaterial, in: Capsule())
             }
+
+            if bottomTab == .topRated {
+                TopRatedScreen(
+                    places: topRatedDisplay,
+                    sortOption: topRatedSort,
+                    region: topRatedRegion,
+                    topInset: currentTopSafeAreaInset(),
+                    bottomInset: currentBottomSafeAreaInset(),
+                    onSelect: { place in
+                        focus(on: place)
+                    },
+                    onSortChange: { topRatedSort = $0 },
+                    onRegionChange: { topRatedRegion = $0 }
+                )
+                .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+                .ignoresSafeArea()
+            }
         }
         .overlay(alignment: .topTrailing) {
-            locateMeButton
-                .padding(.top, locateButtonTopPadding)
-                .padding(.trailing, 16)
+            if bottomTab != .topRated {
+                locateMeButton
+                    .padding(.top, locateButtonTopPadding)
+                    .padding(.trailing, 16)
+            }
         }
         .overlay(alignment: .bottom) {
             bottomOverlay
@@ -310,12 +432,35 @@ struct ContentView: View {
             }
         }
         .onChange(of: bottomTab) { tab in
-            if tab == .favorites {
+            switch tab {
+            case .favorites:
                 selectedApplePlace = nil
                 if let selected = selectedPlace,
                    !favoritesStore.contains(id: selected.id) {
                     selectedPlace = nil
                 }
+            case .topRated:
+                selectedApplePlace = nil
+                if let selected = selectedPlace,
+                   !topRatedDisplay.contains(where: { $0.id == selected.id }) {
+                    selectedPlace = nil
+                }
+            default:
+                break
+            }
+        }
+        .onChange(of: topRatedSort) { _, _ in
+            if bottomTab == .topRated,
+               let selected = selectedPlace,
+               !topRatedDisplay.contains(where: { $0.id == selected.id }) {
+                selectedPlace = nil
+            }
+        }
+        .onChange(of: topRatedRegion) { _, _ in
+            if bottomTab == .topRated,
+               let selected = selectedPlace,
+               !topRatedDisplay.contains(where: { $0.id == selected.id }) {
+                selectedPlace = nil
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
@@ -380,8 +525,9 @@ struct ContentView: View {
     }
 
     private var bottomOverlay: some View {
-        VStack(spacing: bottomTab == .favorites ? 16 : 0) {
-            if bottomTab == .favorites {
+        let showFavorites = bottomTab == .favorites
+        return VStack(spacing: showFavorites ? 16 : 0) {
+            if showFavorites {
                 FavoritesPanel(
                     favorites: favoritesDisplay,
                     sortOption: favoritesSort,
@@ -875,6 +1021,291 @@ private struct ApplePlaceRow: View {
         }
         .padding(12)
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct TopRatedScreen: View {
+    let places: [Place]
+    let sortOption: TopRatedSortOption
+    let region: TopRatedRegion
+    let topInset: CGFloat
+    let bottomInset: CGFloat
+    let onSelect: (Place) -> Void
+    let onSortChange: (TopRatedSortOption) -> Void
+    let onRegionChange: (TopRatedRegion) -> Void
+
+    private let detailColor = Color.primary.opacity(0.65)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Top Rated")
+                        .font(.title3.weight(.semibold))
+                    if !places.isEmpty {
+                        Text("\(places.count) places")
+                            .font(.caption)
+                            .foregroundStyle(detailColor)
+                    }
+                }
+
+                Spacer()
+
+                Menu {
+                    ForEach(TopRatedRegion.allCases) { option in
+                        Button(option.title) {
+                            onRegionChange(option)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Text("Borough")
+                        if region != .all {
+                            Text(region.title)
+                                .font(.caption2)
+                                .foregroundStyle(Color.secondary)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(TopRatedSortOption.allCases) { option in
+                    sortButton(for: option)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if places.isEmpty {
+                Text("No matches yet. Try a different borough.")
+                    .font(.footnote)
+                    .foregroundStyle(detailColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 12) {
+                        ForEach(places) { place in
+                            Button {
+                                onSelect(place)
+                            } label: {
+                                TopRatedRow(place: place)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+        }
+        .padding(.top, topInset + 24)
+        .padding(.horizontal, 20)
+        .padding(.bottom, bottomInset + 120)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(.systemBackground))
+    }
+
+    private func sortButton(for option: TopRatedSortOption) -> some View {
+        let isSelected = option == sortOption
+        return Button {
+            onSortChange(option)
+        } label: {
+            Text(option.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.white : detailColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TopRatedRow: View {
+    let place: Place
+
+    private let detailColor = Color.primary.opacity(0.75)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: "star.circle.fill")
+                .font(.title3)
+                .foregroundStyle(Color.orange)
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(place.name)
+                    .font(.headline)
+
+                if let address = place.address, !address.isEmpty {
+                    Text(address)
+                        .font(.footnote)
+                        .foregroundStyle(detailColor)
+                }
+
+                Text(place.halalStatus.label.localizedCapitalized)
+                    .font(.caption)
+                    .foregroundStyle(detailColor)
+            }
+
+            Spacer(minLength: 8)
+
+            if let rating = place.rating {
+                ratingBadge(rating: rating, count: place.ratingCount)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func ratingBadge(rating: Double, count: Int?) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Text(String(format: "%.1f", rating))
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.orange)
+            }
+            Text(countText(count))
+                .font(.caption2)
+                .foregroundStyle(detailColor)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func countText(_ count: Int?) -> String {
+        guard let count else { return "No reviews" }
+        return count == 1 ? "1 review" : "\(count) reviews"
+    }
+}
+
+
+private struct ZoomableAsyncImage<Placeholder: View, Failure: View>: View {
+    let url: URL
+    let resetID: UUID
+    let placeholder: Placeholder
+    let failure: Failure
+
+    init(url: URL, resetID: UUID, @ViewBuilder placeholder: () -> Placeholder, @ViewBuilder failure: () -> Failure) {
+        self.url = url
+        self.resetID = resetID
+        self.placeholder = placeholder()
+        self.failure = failure()
+    }
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .empty:
+                placeholder
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .success(let image):
+                ZoomableScrollView(resetID: resetID) {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black)
+                }
+            case .failure:
+                failure
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            @unknown default:
+                failure
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}
+
+private struct ZoomableScrollView<Content: View>: UIViewRepresentable {
+    let resetID: UUID
+    let content: Content
+
+    init(resetID: UUID, @ViewBuilder content: () -> Content) {
+        self.resetID = resetID
+        self.content = content()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(content: content, resetID: resetID)
+    }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = 1
+        scrollView.maximumZoomScale = 4
+        scrollView.bouncesZoom = true
+        scrollView.alwaysBounceVertical = false
+        scrollView.alwaysBounceHorizontal = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentInsetAdjustmentBehavior = .never
+
+        let hostedView = context.coordinator.hostingController.view!
+        hostedView.backgroundColor = .clear
+        hostedView.translatesAutoresizingMaskIntoConstraints = true
+        hostedView.frame = scrollView.bounds
+        hostedView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.addSubview(hostedView)
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.hostingController.rootView = content
+        if context.coordinator.lastResetID != resetID {
+            scrollView.setZoomScale(1, animated: false)
+            scrollView.contentOffset = .zero
+            context.coordinator.lastResetID = resetID
+        }
+        context.coordinator.centerContent(scrollView)
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var hostingController: UIHostingController<Content>
+        var lastResetID: UUID
+
+        init(content: Content, resetID: UUID) {
+            hostingController = UIHostingController(rootView: content)
+            hostingController.view.backgroundColor = .clear
+            lastResetID = resetID
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            hostingController.view
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            centerContent(scrollView)
+        }
+
+        func centerContent(_ scrollView: UIScrollView) {
+            guard let view = hostingController.view else { return }
+            let boundsSize = scrollView.bounds.size
+            let contentSize = scrollView.contentSize
+
+            let horizontalInset = max(0, (boundsSize.width - contentSize.width) / 2)
+            let verticalInset = max(0, (boundsSize.height - contentSize.height) / 2)
+            scrollView.contentInset = UIEdgeInsets(top: verticalInset, left: horizontalInset, bottom: verticalInset, right: horizontalInset)
+        }
     }
 }
 
@@ -1401,24 +1832,14 @@ private struct FullscreenPhotoView: View {
                         ForEach(Array(photos.enumerated()), id: \.element.id) { pair in
                             let index = pair.offset
                             let photo = pair.element
-                            ZStack {
+                            Group {
                                 if let url = URL(string: photo.imageUrl) {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            ProgressView()
-                                                .progressViewStyle(.circular)
-                                                .tint(.white)
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        case .failure:
-                                            tilePlaceholder
-                                        @unknown default:
-                                            tilePlaceholder
-                                        }
+                                    ZoomableAsyncImage(url: url, resetID: photo.id) {
+                                        ProgressView()
+                                            .progressViewStyle(.circular)
+                                            .tint(.white)
+                                    } failure: {
+                                        tilePlaceholder
                                     }
                                 } else {
                                     tilePlaceholder
@@ -2115,6 +2536,32 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             filtered = allPlaces.filter { $0.halalStatus == .yes }
         }
         places = filtered
+    }
+
+    func topRatedPlaces(limit: Int = 50, minimumReviews: Int = 10) -> [Place] {
+        let candidates = allPlaces.filter { place in
+            guard let rating = place.rating, rating > 0 else { return false }
+            return (place.ratingCount ?? 0) >= minimumReviews
+        }
+
+        let sorted = candidates.sorted { lhs, rhs in
+            switch (lhs.rating, rhs.rating) {
+            case let (l?, r?) where l != r:
+                return l > r
+            case (.some, nil):
+                return true
+            case (nil, .some):
+                return false
+            default:
+                let lhsCount = lhs.ratingCount ?? 0
+                let rhsCount = rhs.ratingCount ?? 0
+                if lhsCount != rhsCount { return lhsCount > rhsCount }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+        }
+
+        if sorted.count <= limit { return sorted }
+        return Array(sorted.prefix(limit))
     }
 
     private func regionIsSimilar(lhs: MKCoordinateRegion, rhs: MKCoordinateRegion) -> Bool {
