@@ -48,6 +48,50 @@
             <key>allows_broad_search</key>
             <false/>
         </dict>
+        <dict>
+            <key>id</key>
+            <string>7D1F5E3B-3D1E-4C2C-9A8E-6C8F4C1B9F11</string>
+            <key>name</key>
+            <string>Little Flower Cafe</string>
+            <key>lat</key>
+            <real>40.7440</real>
+            <key>lon</key>
+            <real>-73.9480</real>
+            <key>address</key>
+            <string>Long Island City, Queens, NY</string>
+            <key>halal_status</key>
+            <string>only</string>
+            <key>search_query</key>
+            <string>Little Flower Cafe</string>
+            <key>search_span_lat</key>
+            <real>0.18</real>
+            <key>search_span_lon</key>
+            <real>0.18</real>
+            <key>allows_broad_search</key>
+            <true/>
+        </dict>
+        <dict>
+            <key>id</key>
+            <string>2B3C4D5E-6F70-41A2-8345-9C1D2E3F4A5B</string>
+            <key>name</key>
+            <string>Butter Smashburgers</string>
+            <key>lat</key>
+            <real>40.7560</real>
+            <key>lon</key>
+            <real>-73.9860</real>
+            <key>address</key>
+            <string>New York, NY</string>
+            <key>halal_status</key>
+            <string>only</string>
+            <key>search_query</key>
+            <string>Butter Smashburgers</string>
+            <key>search_span_lat</key>
+            <real>0.18</real>
+            <key>search_span_lon</key>
+            <real>0.18</real>
+            <key>allows_broad_search</key>
+            <true/>
+        </dict>
     </array>
 </dict>
 </plist>
