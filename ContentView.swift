@@ -2395,7 +2395,6 @@ final class PlaceDetailViewModel: ObservableObject {
             comps.path = p
             comps.queryItems = [
                 URLQueryItem(name: "place_id", value: "eq.\(place.id.uuidString)"),
-                URLQueryItem(name: "src", value: "eq.yelp"),
                 URLQueryItem(name: "order", value: "priority.asc"),
                 URLQueryItem(name: "limit", value: "12")
             ]
@@ -2410,85 +2409,11 @@ final class PlaceDetailViewModel: ObservableObject {
             guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            var rows = try decoder.decode([PlacePhoto].self, from: data)
-            // Avoid pulling photos from a nearby Yelp place for manual entries,
-            // which can lead to incorrect images. Stick to known photos only.
-            if rows.isEmpty, (place.source?.lowercased() ?? "") != "manual" {
-                if let yelpPlaceID = try await findNearbyYelpPlaceID(around: place.coordinate, hintName: place.name) {
-                    rows = try await fetchPhotos(for: yelpPlaceID)
-                }
-            }
+            let rows = try decoder.decode([PlacePhoto].self, from: data)
             self.photos = rows
         } catch {
             // ignore
         }
-    }
-
-    private func fetchPhotos(for placeID: UUID) async throws -> [PlacePhoto] {
-        var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
-        var p = comps.path
-        if !p.hasSuffix("/") { p.append("/") }
-        p.append("rest/v1/place_photo")
-        comps.path = p
-        comps.queryItems = [
-            URLQueryItem(name: "place_id", value: "eq.\(placeID.uuidString)"),
-            URLQueryItem(name: "src", value: "eq.yelp"),
-            URLQueryItem(name: "order", value: "priority.asc"),
-            URLQueryItem(name: "limit", value: "12")
-        ]
-        guard let url = comps.url else { return [] }
-        var req = URLRequest(url: url)
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        let key = Env.anonKey
-        req.setValue(key, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        req.setValue("public", forHTTPHeaderField: "Accept-Profile")
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([PlacePhoto].self, from: data)
-    }
-
-    private struct YelpPlaceRow: Decodable { let id: UUID; let lat: Double; let lon: Double; let name: String }
-
-    private func findNearbyYelpPlaceID(around coordinate: CLLocationCoordinate2D, hintName: String) async throws -> UUID? {
-        var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
-        var p = comps.path
-        if !p.hasSuffix("/") { p.append("/") }
-        p.append("rest/v1/place")
-        comps.path = p
-        let delta = 0.003 // ~300m
-        comps.queryItems = [
-            URLQueryItem(name: "select", value: "id,lat,lon,name,source"),
-            URLQueryItem(name: "source", value: "eq.yelp"),
-            URLQueryItem(name: "status", value: "eq.published"),
-            URLQueryItem(name: "lat", value: String(format: "gt.%.6f", coordinate.latitude - delta)),
-            URLQueryItem(name: "lat", value: String(format: "lt.%.6f", coordinate.latitude + delta)),
-            URLQueryItem(name: "lon", value: String(format: "gt.%.6f", coordinate.longitude - delta)),
-            URLQueryItem(name: "lon", value: String(format: "lt.%.6f", coordinate.longitude + delta)),
-            URLQueryItem(name: "limit", value: "10")
-        ]
-        guard let url = comps.url else { return nil }
-        var req = URLRequest(url: url)
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        let key = Env.anonKey
-        req.setValue(key, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        req.setValue("public", forHTTPHeaderField: "Accept-Profile")
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
-        let decoder = JSONDecoder()
-        let rows = try decoder.decode([YelpPlaceRow].self, from: data)
-        guard !rows.isEmpty else { return nil }
-        // Pick nearest by simple euclidean distance in degrees
-        let target = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        let best = rows.min(by: { lhs, rhs in
-            let dl = CLLocation(latitude: lhs.lat, longitude: lhs.lon).distance(from: target)
-            let dr = CLLocation(latitude: rhs.lat, longitude: rhs.lon).distance(from: target)
-            return dl < dr
-        })
-        return best?.id
     }
 }
 
