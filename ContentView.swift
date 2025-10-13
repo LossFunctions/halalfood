@@ -494,34 +494,49 @@ struct ContentView: View {
             case .favorites: return "Favorites"
             }
         }
+
+        var systemImage: String {
+            switch self {
+            case .places: return "map"
+            case .topRated: return "star.fill"
+            case .newSpots: return "mappin.and.ellipse" // distinct; suggests new pins/places
+            case .favorites: return "heart.fill"
+            }
+        }
     }
 
     private var bottomTabBar: some View {
-        let selectedGradient = LinearGradient(
-            colors: [Color.orange, Color.orange.opacity(0.7)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-
-        return HStack(spacing: 12) {
-            ForEach(BottomTab.allCases) { tab in
-                Button {
-                    bottomTab = tab
-                } label: {
-                    tabLabel(for: tab, gradient: selectedGradient)
+        // Off‑white bar; keep original height but visually center content by nudging it down.
+        let barHeight = max(52, currentScreenHeight() / 20)
+        let safe = currentBottomSafeAreaInset()
+        let contentOffset = CGFloat(min(12, max(4, safe * 0.22)))
+        return VStack(spacing: 0) {
+            Divider().background(Color.black.opacity(0.06))
+            HStack(spacing: 0) {
+                ForEach(BottomTab.allCases) { tab in
+                    Button {
+                        bottomTab = tab
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 20, weight: .semibold))
+                            Text(tab.title)
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .offset(y: contentOffset) // nudge content lower without changing bar height
+                        .foregroundStyle(bottomTab == tab ? Color.accentColor : Color.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 6)
+            .frame(height: barHeight)
+            .background(Color(.secondarySystemGroupedBackground))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        .background(Color(.secondarySystemGroupedBackground))
     }
 
     private var bottomOverlay: some View {
@@ -548,33 +563,10 @@ struct ContentView: View {
     }
 
     private var bottomOverlayPadding: CGFloat {
-        let safeInset = currentBottomSafeAreaInset()
-        return 6
+        0 // flush with bottom; bar manages its own safe area
     }
 
-    private func tabLabel(for tab: BottomTab, gradient: LinearGradient) -> some View {
-        let isSelected = bottomTab == tab
-        let textColor: Color = isSelected ? .white : Color.primary.opacity(0.7)
-        let borderColor: Color = isSelected ? .clear : Color.orange.opacity(0.25)
-        let shadowColor: Color = isSelected ? Color.orange.opacity(0.25) : .clear
-
-        return Text(tab.title)
-            .lineLimit(1)
-            .minimumScaleFactor(0.9)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(textColor)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isSelected ? AnyShapeStyle(gradient) : AnyShapeStyle(Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
-            )
-            .shadow(color: shadowColor, radius: 8, y: 4)
-    }
+    // No chip-style labels anymore; the bar uses icons + labels above.
 
     private var searchBar: some View {
         Button {
@@ -949,7 +941,7 @@ private struct PlaceRow: View {
                         Text(String(format: "%.1f", rating))
                         Image(systemName: "star.fill")
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.accentColor)
                         Text("(\(count) \(ratingLabel))")
                         if let source = place.source, !source.isEmpty {
                             Text("- \(readableSource(source))")
@@ -996,7 +988,7 @@ private struct ApplePlaceRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "mappin.circle")
                 .font(.title3)
-                .foregroundStyle(Color.orange)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -1138,7 +1130,7 @@ private struct TopRatedRow: View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: "star.circle.fill")
                 .font(.title3)
-                .foregroundStyle(Color.orange)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -1175,10 +1167,10 @@ private struct TopRatedRow: View {
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.accentColor)
                 Text(String(format: "%.1f", rating))
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.accentColor)
             }
             Text(countText(count))
                 .font(.caption2)
@@ -1186,7 +1178,7 @@ private struct TopRatedRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func countText(_ count: Int?) -> String {
@@ -1434,7 +1426,7 @@ private struct FavoriteRow: View {
                         Text(String(format: "%.1f", rating))
                         Image(systemName: "star.fill")
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.accentColor)
                         Text("(\(count) \(ratingLabel))")
                         if let source = snapshot.source, !source.isEmpty {
                             Text("- \(readableSource(source))")
