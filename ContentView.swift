@@ -63,7 +63,7 @@ private enum TopRatedRegion: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: return "All Boroughs"
+        case .all: return "All Locations"
         case .manhattan: return "Manhattan"
         case .brooklyn: return "Brooklyn"
         case .queens: return "Queens"
@@ -222,15 +222,15 @@ struct ContentView: View {
         case .all:
             return true
         case .manhattan:
-            return inManhattan
+            return inManhattan && !(inBrooklyn || inQueens || inBronx || inStaten)
         case .brooklyn:
-            return inBrooklyn
+            return inBrooklyn && !(inManhattan || inQueens || inBronx || inStaten)
         case .queens:
-            return inQueens
+            return inQueens && !(inManhattan || inBrooklyn || inBronx || inStaten)
         case .bronx:
-            return inBronx
+            return inBronx && !(inManhattan || inBrooklyn || inQueens || inStaten)
         case .statenIsland:
-            return inStaten
+            return inStaten && !(inManhattan || inBrooklyn || inQueens || inBronx)
         case .longIsland:
             if inLongIslandBox {
                 return !(inBrooklyn || inQueens || inManhattan)
@@ -1052,7 +1052,7 @@ private struct TopRatedScreen: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
-                        Text("Borough")
+                        Text("By Location")
                         if region != .all {
                             Text(region.title)
                                 .font(.caption2)
@@ -1075,7 +1075,7 @@ private struct TopRatedScreen: View {
             }
 
             if places.isEmpty {
-                Text("No matches yet. Try a different borough.")
+                Text("No matches yet. Try a different location.")
                     .font(.footnote)
                     .foregroundStyle(detailColor)
                     .fixedSize(horizontal: false, vertical: true)
