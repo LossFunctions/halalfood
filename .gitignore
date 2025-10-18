@@ -1,10 +1,4 @@
-# Ignore generated workspace/user data
-HalalFood.xcodeproj/project.xcworkspace/xcuserdata/
-HalalFood.xcodeproj/project.xcworkspace/xcshareddata/
-HalalFood.xcodeproj/xcshareddata/
-
-# Ignore generated Core artifacts from recent pulls
-Core/
-
-# Ignore duplicate map view
-HalalMapView 2.swift
+# Secrets and environment overrides
+*.env
+*.env.*
+SupabaseKeys.plist

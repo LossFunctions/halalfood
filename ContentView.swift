@@ -297,8 +297,15 @@ struct ContentView: View {
         case .topRated:
             return topRatedDisplay
         default:
-            return filteredPlaces
+            return viewportFilteredPlaces
         }
+    }
+
+    private var viewportFilteredPlaces: [Place] {
+        let base = filteredPlaces
+        guard !base.isEmpty else { return base }
+        guard mapRegion.span.latitudeDelta > 0, mapRegion.span.longitudeDelta > 0 else { return base }
+        return viewportSlice(for: base, in: mapRegion)
     }
 
     private var mapAppleItems: [MKMapItem] {
@@ -453,9 +460,8 @@ struct ContentView: View {
                 places: mapPlaces,
                 appleMapItems: mapAppleItems,
                 onRegionChange: { region in
-                    // Enforce search/data fetch region to NYC + Long Island
+                    viewModel.regionDidChange(to: region, filter: selectedFilter)
                     let effective = RegionGate.enforcedRegion(for: region)
-                    viewModel.regionDidChange(to: effective, filter: selectedFilter)
                     appleHalalSearch.search(in: effective)
                 },
                 onPlaceSelected: { place in
@@ -515,9 +521,9 @@ struct ContentView: View {
             bottomOverlay
         }
         .onAppear {
-            let effective = RegionGate.enforcedRegion(for: mapRegion)
-            viewModel.initialLoad(region: effective, filter: selectedFilter)
+            viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
             locationManager.requestAuthorizationIfNeeded()
+            let effective = RegionGate.enforcedRegion(for: mapRegion)
             appleHalalSearch.search(in: effective)
         }
         .onChange(of: selectedFilter) { oldValue, newValue in
@@ -542,8 +548,8 @@ struct ContentView: View {
             // Keep the camera focused tightly on the user's actual location
             mapRegion = region
             // But fetch/search using the enforced NYC/LI scope
+            viewModel.forceRefresh(region: region, filter: selectedFilter)
             let effective = RegionGate.enforcedRegion(for: region)
-            viewModel.forceRefresh(region: effective, filter: selectedFilter)
             hasCenteredOnUser = true
             appleHalalSearch.search(in: effective)
         }
@@ -777,8 +783,8 @@ struct ContentView: View {
                     // Keep the camera tight on the user's location
                     mapRegion = targetRegion
                     // Fetch/search within enforced NYC/LI scope
+                    viewModel.forceRefresh(region: targetRegion, filter: selectedFilter)
                     let effective = RegionGate.enforcedRegion(for: targetRegion)
-                    viewModel.forceRefresh(region: effective, filter: selectedFilter)
                     appleHalalSearch.search(in: effective)
                 } else {
                     locationManager.requestCurrentLocation()
@@ -916,6 +922,41 @@ private extension ContentView {
         }
 
         return 812 // Sensible default for calculations when no screen is available
+    }
+
+    private func viewportSlice(for places: [Place],
+                               in region: MKCoordinateRegion,
+                               paddingFactor: Double = 1.3,
+                               maxCount: Int = 600) -> [Place] {
+        guard region.span.latitudeDelta > 0, region.span.longitudeDelta > 0 else { return places }
+
+        let halfLat = (region.span.latitudeDelta * paddingFactor) / 2.0
+        let halfLon = (region.span.longitudeDelta * paddingFactor) / 2.0
+
+        let minLat = region.center.latitude - halfLat
+        let maxLat = region.center.latitude + halfLat
+        let minLon = region.center.longitude - halfLon
+        let maxLon = region.center.longitude + halfLon
+
+        let filtered = places.filter { place in
+            let lat = place.coordinate.latitude
+            let lon = place.coordinate.longitude
+            return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
+        }
+
+        guard filtered.count > maxCount else { return filtered }
+
+        let center = region.center
+        let sorted = filtered.sorted {
+            squaredDistance(from: center, to: $0.coordinate) < squaredDistance(from: center, to: $1.coordinate)
+        }
+        return Array(sorted.prefix(maxCount))
+    }
+
+    private func squaredDistance(from center: CLLocationCoordinate2D, to coordinate: CLLocationCoordinate2D) -> Double {
+        let latDiff = center.latitude - coordinate.latitude
+        let lonDiff = center.longitude - coordinate.longitude
+        return latDiff * latDiff + lonDiff * lonDiff
     }
 }
 
@@ -2450,15 +2491,22 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var currentFilter: MapFilter = .all
     private var appleIngestTasks: [String: Task<Void, Never>] = [:]
     private var ingestedApplePlaceIDs: Set<String> = []
+    private let diskCache = PlaceDiskCache()
+    private var didAttemptDiskBootstrap = false
+    private var persistTask: Task<Void, Never>?
+    private var lastPersistedFingerprint: Int?
+    private var pendingPersistFingerprint: Int?
+    private let persistDebounceNanoseconds: UInt64 = 1_500_000_000
+    private let diskSnapshotStalenessInterval: TimeInterval = 60 * 60 * 6
 
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter
+        bootstrapFromDiskIfNeeded(region: region, filter: filter)
         guard allPlaces.isEmpty else {
             apply(filter: filter)
             return
         }
-        ensureGlobalDataset()
-        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: true)
+        fetch(region: region, filter: filter, eager: true)
     }
 
     func filterChanged(to filter: MapFilter, region: MKCoordinateRegion) {
@@ -2472,12 +2520,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     func regionDidChange(to region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter
-        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: false)
+        fetch(region: region, filter: filter, eager: false)
     }
 
     func forceRefresh(region: MKCoordinateRegion, filter: MapFilter) {
         lastRequestedRegion = nil
-        fetch(region: RegionGate.enforcedRegion(for: region), filter: filter, eager: true)
+        fetch(region: region, filter: filter, eager: true)
     }
 
     func search(query: String) {
@@ -2550,8 +2598,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     }
 
     private func fetch(region: MKCoordinateRegion, filter: MapFilter, eager: Bool) {
-        let cacheHit = cache.value(for: region)
-        let cachedOverride = cacheHit.map { PlaceOverrides.apply(overridesTo: $0.places, in: region) }
+        let requestRegion = normalizedRegion(for: region)
+        let cacheHit = cache.value(for: requestRegion)
+        let cachedOverride = cacheHit.map { PlaceOverrides.apply(overridesTo: $0.places, in: requestRegion) }
 
         if let cachedPlaces = cachedOverride {
             // Show cached results immediately for snappy UI, but do not return early here.
@@ -2562,7 +2611,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         }
 
         if let last = lastRequestedRegion,
-           regionIsSimilar(lhs: last, rhs: region),
+           regionIsSimilar(lhs: last, rhs: requestRegion),
            !(cacheHit == nil || cacheHit?.isFresh == false || eager) {
             return
         }
@@ -2571,7 +2620,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         isLoading = true
         errorMessage = nil
         presentingError = false
-        lastRequestedRegion = region
+        lastRequestedRegion = requestRegion
 
         fetchTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -2580,11 +2629,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             }
             do {
                 let dtos = try await Task.detached(priority: .userInitiated) {
-                    try await PlaceAPI.getPlaces(bbox: region.bbox)
+                    try await PlaceAPI.getPlaces(bbox: requestRegion.bbox)
                 }.value
                 // Convert and enforce NYC + Long Island scope
                 let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
-                let overridden = PlaceOverrides.apply(overridesTo: results, in: region)
+                let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
                 let cleaned = overridden.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 // Only surface verified halal places by default
                 let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
@@ -2601,7 +2650,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.mergeIntoGlobalDataset(combined)
                 self.apply(filter: self.currentFilter)
                 self.isLoading = false
-                self.cache.store(combined, region: region)
+                self.cache.store(combined, region: requestRegion)
             } catch is CancellationError {
                 // Swallow cancellation; any inflight request will manage loading state.
             } catch {
@@ -2617,6 +2666,104 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+
+    private func bootstrapFromDiskIfNeeded(region: MKCoordinateRegion, filter: MapFilter) {
+        guard !didAttemptDiskBootstrap else { return }
+        didAttemptDiskBootstrap = true
+
+        let seedRegion = normalizedRegion(for: region)
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let snapshot = await self.diskCache.loadSnapshot(), !snapshot.places.isEmpty {
+                let filtered = snapshot.places.filteredByCurrentGeoScope()
+                guard !filtered.isEmpty else {
+                    self.ensureGlobalDataset(forceRefresh: true)
+                    return
+                }
+                self.mergeIntoGlobalDataset(filtered, persist: false)
+                self.allPlaces = self.globalDataset
+                self.apply(filter: filter)
+                self.cache.store(self.allPlaces, region: seedRegion)
+                self.lastPersistedFingerprint = self.persistenceFingerprint(for: self.globalDataset)
+
+                let isStale = Date().timeIntervalSince(snapshot.savedAt) > self.diskSnapshotStalenessInterval
+                if isStale {
+                    self.ensureGlobalDataset(forceRefresh: true)
+                }
+            } else {
+                let seeds = self.loadBundledSeedPlaces()
+                if !seeds.isEmpty {
+                    let filteredSeeds = seeds.filteredByCurrentGeoScope()
+                    if !filteredSeeds.isEmpty {
+                        self.mergeIntoGlobalDataset(filteredSeeds, persist: false)
+                        self.allPlaces = PlaceOverrides.sorted(filteredSeeds)
+                        self.apply(filter: filter)
+                        self.cache.store(filteredSeeds, region: seedRegion)
+                    }
+                }
+                self.ensureGlobalDataset()
+            }
+        }
+    }
+
+    private func normalizedRegion(for region: MKCoordinateRegion) -> MKCoordinateRegion {
+        let minDelta: CLLocationDegrees = 0.05
+        let maxDelta: CLLocationDegrees = 4.5
+        let multiplier: CLLocationDegrees = 1.35
+
+        let baseLat = max(region.span.latitudeDelta, minDelta)
+        let baseLon = max(region.span.longitudeDelta, minDelta)
+
+        let latitudeDelta = min(baseLat * multiplier, maxDelta)
+        let longitudeDelta = min(baseLon * multiplier, maxDelta)
+
+        return MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
+    }
+
+    private func schedulePersistGlobalDataset() {
+        guard !globalDataset.isEmpty else { return }
+        let fingerprint = persistenceFingerprint(for: globalDataset)
+        if fingerprint == lastPersistedFingerprint || fingerprint == pendingPersistFingerprint {
+            return
+        }
+
+        pendingPersistFingerprint = fingerprint
+        persistTask?.cancel()
+        persistTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.pendingPersistFingerprint == fingerprint {
+                    self.pendingPersistFingerprint = nil
+                }
+            }
+            do {
+                try await Task.sleep(nanoseconds: persistDebounceNanoseconds)
+            } catch {
+                return
+            }
+            let snapshot = self.globalDataset
+            guard !snapshot.isEmpty else { return }
+            await self.diskCache.saveSnapshot(places: snapshot)
+            self.lastPersistedFingerprint = fingerprint
+        }
+    }
+
+    private func persistenceFingerprint(for places: [Place]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(places.count)
+        for place in places {
+            hasher.combine(place.id)
+            hasher.combine(place.name)
+            hasher.combine(place.halalStatus.rawValue)
+            hasher.combine(place.rating ?? -1)
+            hasher.combine(place.ratingCount ?? -1)
+            hasher.combine(place.confidence ?? -1)
+            hasher.combine(place.address ?? "")
+            hasher.combine(place.source ?? "")
+        }
+        return hasher.finalize()
     }
 
     private func apply(filter: MapFilter) {
@@ -2710,10 +2857,30 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         remoteSearchTask?.cancel()
         appleFallbackTask?.cancel()
         appleIngestTasks.values.forEach { $0.cancel() }
+        persistTask?.cancel()
     }
 }
 
 private extension MapScreenViewModel {
+    struct PlaceSeed: Decodable {
+        let id: UUID
+        let name: String
+        let latitude: Double
+        let longitude: Double
+        let halalStatus: Place.HalalStatus
+
+        func toPlace() -> Place {
+            Place(
+                id: id,
+                name: name,
+                latitude: latitude,
+                longitude: longitude,
+                halalStatus: halalStatus,
+                source: "seed"
+            )
+        }
+    }
+
     static let appleFallbackRegion: MKCoordinateRegion = {
         let center = CLLocationCoordinate2D(latitude: 40.789142, longitude: -73.13496)
         let span = MKCoordinateSpan(latitudeDelta: 3.5, longitudeDelta: 3.8)
@@ -2856,8 +3023,12 @@ private extension MapScreenViewModel {
         }
     }
 
-    func ensureGlobalDataset() {
-        guard globalDataset.isEmpty, globalDatasetTask == nil else { return }
+    func ensureGlobalDataset(forceRefresh: Bool = false) {
+        if forceRefresh {
+            guard globalDatasetTask == nil else { return }
+        } else {
+            guard globalDataset.isEmpty, globalDatasetTask == nil else { return }
+        }
         globalDatasetTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -2888,13 +3059,31 @@ private extension MapScreenViewModel {
         }
     }
 
-    func mergeIntoGlobalDataset(_ newPlaces: [Place]) {
+    func mergeIntoGlobalDataset(_ newPlaces: [Place], persist: Bool = true) {
         guard !newPlaces.isEmpty else { return }
         let filtered = newPlaces.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !filtered.isEmpty else { return }
         let combined = deduplicate(globalDataset + filtered)
         let sorted = PlaceOverrides.sorted(combined)
         globalDataset = sorted
+        if persist {
+            schedulePersistGlobalDataset()
+        }
+    }
+
+    func loadBundledSeedPlaces() -> [Place] {
+        guard let url = Bundle.main.url(forResource: "places_seed", withExtension: "json") else { return [] }
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            let seeds = try decoder.decode([PlaceSeed].self, from: data)
+            return seeds.compactMap { $0.toPlace() }
+        } catch {
+#if DEBUG
+            print("[MapScreenViewModel] Failed to load seed places:", error)
+#endif
+            return []
+        }
     }
 
     func deduplicate(_ places: [Place]) -> [Place] {

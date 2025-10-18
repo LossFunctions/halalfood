@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		762002FF4B461690F93A6E1C /* ManualPlaceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */; };
 		7ED499816768FCDCC1EB81D0 /* ApplePlaceDetailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */; };
+		C1F0B2C22F123456008D2917 /* PlaceDiskCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F0B2C12F123456008D2917 /* PlaceDiskCache.swift */; };
+		C1F0B2C62F123457008D2917 /* places_seed.json in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2C42F123456008D2917 /* places_seed.json */; };
 		A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */; };
 		B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */; };
 		B505B9DC2E7CC7FA008D2917 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9DB2E7CC7FA008D2917 /* ContentView.swift */; };
@@ -48,6 +50,8 @@
 /* Begin PBXFileReference section */
 		62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapItemDetailCardView.swift; sourceTree = "<group>"; };
 		7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlaceDetailService.swift; sourceTree = "<group>"; };
+		C1F0B2C12F123456008D2917 /* PlaceDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDiskCache.swift; sourceTree = "<group>"; };
+		C1F0B2C42F123456008D2917 /* places_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = places_seed.json; sourceTree = "<group>"; };
 		9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKMapItem+Compat.swift"; sourceTree = "<group>"; };
 		B505B9D62E7CC7FA008D2917 /* HalalFood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HalalFood.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalalFoodApp.swift; sourceTree = "<group>"; };
@@ -122,6 +126,7 @@
 			children = (
 				7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */,
 				D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */,
+				C1F0B2C12F123456008D2917 /* PlaceDiskCache.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -129,6 +134,7 @@
 		B505B9CD2E7CC7FA008D2917 = {
 			isa = PBXGroup;
 			children = (
+				C1F0B2C52F123457008D2917 /* data */,
 				B505BA252E7CE741008D2917 /* Info.plist */,
 				B505BA1B2E7CE233008D2917 /* Core */,
 				B505B9E62E7CC7FC008D2917 /* HalalFoodTests */,
@@ -201,6 +207,14 @@
 				B505BA2A2E7CF100008D2917 /* LocationProvider.swift */,
 			);
 			path = Location;
+			sourceTree = "<group>";
+		};
+		C1F0B2C52F123457008D2917 /* data */ = {
+			isa = PBXGroup;
+			children = (
+				C1F0B2C42F123456008D2917 /* places_seed.json */,
+			);
+			path = data;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -324,6 +338,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C1F0B2C62F123457008D2917 /* places_seed.json in Resources */,
 				B505B9DE2E7CC7FC008D2917 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -358,6 +373,7 @@
 				B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */,
 				B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */,
 				7ED499816768FCDCC1EB81D0 /* ApplePlaceDetailService.swift in Sources */,
+				C1F0B2C22F123456008D2917 /* PlaceDiskCache.swift in Sources */,
 				F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */,
 				A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */,
 				B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */,

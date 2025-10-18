@@ -2,7 +2,7 @@ import Foundation
 import MapKit
 import CoreLocation
 
-enum PlaceCategory: String, Identifiable {
+enum PlaceCategory: String, Identifiable, Codable {
     case restaurant
     case other
 
@@ -10,7 +10,7 @@ enum PlaceCategory: String, Identifiable {
 }
 
 struct Place: Identifiable, Hashable {
-    enum HalalStatus: String {
+    enum HalalStatus: String, Codable {
         case unknown
         case yes
         case only
@@ -111,8 +111,101 @@ extension Place {
         self.source = source
         self.applePlaceID = applePlaceID
     }
+
+    init(id: UUID,
+         name: String,
+         coordinate: CLLocationCoordinate2D,
+         category: PlaceCategory,
+         rawCategory: String,
+         address: String?,
+         halalStatus: HalalStatus,
+         rating: Double?,
+         ratingCount: Int?,
+         confidence: Double?,
+         source: String?,
+         applePlaceID: String?) {
+        self.id = id
+        self.name = name
+        self.coordinate = coordinate
+        self.category = category
+        self.rawCategory = rawCategory
+        self.address = address
+        self.halalStatus = halalStatus
+        self.rating = rating
+        self.ratingCount = ratingCount
+        self.confidence = confidence
+        self.source = source
+        self.applePlaceID = applePlaceID
+    }
 }
 
+extension Place: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case latitude
+        case longitude
+        case category
+        case rawCategory
+        case address
+        case halalStatus
+        case rating
+        case ratingCount
+        case confidence
+        case source
+        case applePlaceID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(UUID.self, forKey: .id)
+        let name = try container.decode(String.self, forKey: .name)
+        let latitude = try container.decode(Double.self, forKey: .latitude)
+        let longitude = try container.decode(Double.self, forKey: .longitude)
+        let category = try container.decode(PlaceCategory.self, forKey: .category)
+        let rawCategory = try container.decodeIfPresent(String.self, forKey: .rawCategory) ?? category.rawValue
+        let address = try container.decodeIfPresent(String.self, forKey: .address)
+        let halalStatus = try container.decode(Place.HalalStatus.self, forKey: .halalStatus)
+        let rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+        let ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
+        let confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+        let source = try container.decodeIfPresent(String.self, forKey: .source)
+        let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+
+        self.init(
+            id: id,
+            name: name,
+            coordinate: coordinate,
+            category: category,
+            rawCategory: rawCategory,
+            address: address,
+            halalStatus: halalStatus,
+            rating: rating,
+            ratingCount: ratingCount,
+            confidence: confidence,
+            source: source,
+            applePlaceID: applePlaceID
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(coordinate.latitude, forKey: .latitude)
+        try container.encode(coordinate.longitude, forKey: .longitude)
+        try container.encode(category, forKey: .category)
+        try container.encode(rawCategory, forKey: .rawCategory)
+        try container.encodeIfPresent(address, forKey: .address)
+        try container.encode(halalStatus, forKey: .halalStatus)
+        try container.encodeIfPresent(rating, forKey: .rating)
+        try container.encodeIfPresent(ratingCount, forKey: .ratingCount)
+        try container.encodeIfPresent(confidence, forKey: .confidence)
+        try container.encodeIfPresent(source, forKey: .source)
+        try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
+    }
+}
 enum PlaceOverrides {
     private static let permanentlyClosedNames: Set<String> = {
         let names = [
