@@ -1966,18 +1966,7 @@ struct PlaceDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if !hasAppleDetails, let rating = place.rating {
-                let count = place.ratingCount ?? 0
-                Label(String(format: "%.1f rating (%d reviews)", rating, count), systemImage: "star.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !hasAppleDetails, let source = place.source {
-                Text("Source: \(source.uppercased())")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            ratingSummaryView
         }
     }
 
@@ -1995,6 +1984,44 @@ struct PlaceDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var ratingSummaryView: some View {
+        if let rating = place.rating, rating > 0 {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Yelp Rating")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(Color.yellow)
+
+                    Text(String(format: "%.1f", rating))
+                        .font(.title3.weight(.semibold))
+
+                    if let reviews = reviewCountLabel(for: place.ratingCount) {
+                        Text("• \(reviews)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if let source = ratingSourceLabel {
+                        Text("via \(source)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.primary.opacity(0.08), in: Capsule())
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -2112,6 +2139,7 @@ struct PlaceDetailView: View {
                     expandedPhotoSelection = PhotoSelection(index: index)
                 }
             }
+            ratingSummaryView
             if #available(iOS 18.0, *) {
                 applePlaceCard(details)
             } else {
@@ -2127,6 +2155,17 @@ struct PlaceDetailView: View {
             return details.displayName
         }
         return place.name
+    }
+
+    private var ratingSourceLabel: String? {
+        guard let raw = place.source?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return "Yelp" }
+        return readableSource(raw)
+    }
+
+    private func reviewCountLabel(for count: Int?) -> String? {
+        guard let count, count > 0 else { return nil }
+        let label = count == 1 ? "review" : "reviews"
+        return "\(count) \(label)"
     }
 
     private var displayAddress: String? {
