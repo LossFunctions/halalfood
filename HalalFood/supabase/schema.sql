@@ -117,6 +117,7 @@ create unique index if not exists place_apple_place_id_uidx on public.place (app
 create index if not exists place_geog_gix on public.place using gist (geog);
 create index if not exists place_category_idx on public.place (category);
 create index if not exists place_status_idx on public.place (status);
+create index if not exists place_halal_status_idx on public.place (halal_status);
 create index if not exists place_name_normalized_trgm_idx on public.place using gin (name_normalized gin_trgm_ops);
 create index if not exists place_address_normalized_trgm_idx on public.place using gin (address_normalized gin_trgm_ops);
 
@@ -197,6 +198,7 @@ language sql stable parallel safe as $$
          p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id
   from public.place as p
   where p.status = 'published'
+    and p.halal_status in ('yes', 'only')
     and (cat = 'all' or p.category = cat)
     and ST_Intersects(p.geog::geometry, ST_MakeEnvelope(west, south, east, north, 4326))
   -- Sort by distance to the viewport center first to prioritize nearby places,
@@ -254,6 +256,7 @@ as $$
   from public.place as p
   cross join input as i
   where p.status = 'published'
+    and p.halal_status in ('yes', 'only')
     and (
       (i.raw_query <> '' and (
         p.name ilike '%' || i.raw_query || '%' or

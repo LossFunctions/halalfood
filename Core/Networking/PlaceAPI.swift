@@ -38,9 +38,8 @@ enum PlaceAPI {
     private static let minimumRequestedLimit = 100
 
     static func getPlaces(bbox: BBox, category: String = "all", limit: Int = 750) async throws -> [PlaceDTO] {
-        var accumulator: [UUID: PlaceDTO] = [:]
         let sanitizedLimit = sanitize(limit)
-        try await collectPlaces(bbox: bbox, category: category, limit: sanitizedLimit, depth: 0, accumulator: &accumulator)
+        let accumulator = try await collectPlaces(bbox: bbox, category: category, limit: sanitizedLimit, depth: 0)
         return sortPlaces(Array(accumulator.values))
     }
 
@@ -118,6 +117,7 @@ enum PlaceAPI {
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
             URLQueryItem(name: "category", value: "eq.restaurant"),
+            URLQueryItem(name: "halal_status", value: "in.(\"yes\",\"only\")"),
             URLQueryItem(name: "order", value: "rating.desc.nullslast")
         ]
 
@@ -163,9 +163,9 @@ enum PlaceAPI {
         bbox: BBox,
         category: String,
         limit: Int,
-        depth: Int,
-        accumulator: inout [UUID: PlaceDTO]
-    ) async throws {
+        depth: Int
+    ) async throws -> [UUID: PlaceDTO] {
+        var accumulator: [UUID: PlaceDTO] = [:]
         let page = try await fetchPlacesPage(bbox: bbox, category: category, limit: limit)
         for dto in page {
             accumulator[dto.id] = dto
@@ -175,12 +175,24 @@ enum PlaceAPI {
         guard hitLimit,
               depth < subdivisionDepthLimit,
               bbox.canSubdivide(minSpan: minimumSubdivisionSpan) else {
-            return
+            return accumulator
         }
 
-        // Supabase truncates results per request; split the bounding box to surface densely clustered places.
-        for subBox in bbox.subdivided() {
-            try await collectPlaces(bbox: subBox, category: category, limit: limit, depth: depth + 1, accumulator: &accumulator)
+        let subBoxes = bbox.subdivided()
+        guard !subBoxes.isEmpty else { return accumulator }
+
+        return try await withThrowingTaskGroup(of: [UUID: PlaceDTO].self) { group in
+            for subBox in subBoxes {
+                group.addTask {
+                    try await collectPlaces(bbox: subBox, category: category, limit: limit, depth: depth + 1)
+                }
+            }
+
+            for try await child in group {
+                accumulator.merge(child) { existing, _ in existing }
+            }
+
+            return accumulator
         }
     }
 
@@ -263,6 +275,7 @@ enum PlaceAPI {
         let queryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "halal_status", value: "in.(\"yes\",\"only\")"),
             URLQueryItem(name: "order", value: "rating.desc.nullslast"),
             URLQueryItem(name: "limit", value: "\(sanitizedLimit)"),
             URLQueryItem(name: "or", value: "(name.ilike.\(likePattern),address.ilike.\(likePattern))")

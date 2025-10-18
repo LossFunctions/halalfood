@@ -97,6 +97,8 @@ struct ContentView: View {
     @State private var keyboardHeight: CGFloat = 0
     @State private var previousMapRegion: MKCoordinateRegion?
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
+    @State private var visiblePlaces: [Place] = []
+    @State private var viewportCache = ViewportCache()
 
     private var appleOverlayItems: [MKMapItem] {
         guard selectedFilter == .all else { return [] }
@@ -297,15 +299,8 @@ struct ContentView: View {
         case .topRated:
             return topRatedDisplay
         default:
-            return viewportFilteredPlaces
+            return visiblePlaces
         }
-    }
-
-    private var viewportFilteredPlaces: [Place] {
-        let base = filteredPlaces
-        guard !base.isEmpty else { return base }
-        guard mapRegion.span.latitudeDelta > 0, mapRegion.span.longitudeDelta > 0 else { return base }
-        return viewportSlice(for: base, in: mapRegion)
     }
 
     private var mapAppleItems: [MKMapItem] {
@@ -463,6 +458,7 @@ struct ContentView: View {
                     viewModel.regionDidChange(to: region, filter: selectedFilter)
                     let effective = RegionGate.enforcedRegion(for: region)
                     appleHalalSearch.search(in: effective)
+                    refreshVisiblePlaces()
                 },
                 onPlaceSelected: { place in
                     selectedPlace = place
@@ -525,6 +521,7 @@ struct ContentView: View {
             locationManager.requestAuthorizationIfNeeded()
             let effective = RegionGate.enforcedRegion(for: mapRegion)
             appleHalalSearch.search(in: effective)
+            refreshVisiblePlaces()
         }
         .onChange(of: selectedFilter) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -541,6 +538,16 @@ struct ContentView: View {
                 restoreSearchStateAfterDismiss()
             }
         }
+        .onChange(of: viewModel.filteredPlacesVersion) { _ in
+            guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard bottomTab == .places || bottomTab == .newSpots else { return }
+            refreshVisiblePlaces()
+        }
+        .onChange(of: viewModel.searchResultsVersion) { _ in
+            guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard bottomTab == .places || bottomTab == .newSpots else { return }
+            refreshVisiblePlaces()
+        }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
             let span = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
@@ -552,6 +559,7 @@ struct ContentView: View {
             let effective = RegionGate.enforcedRegion(for: region)
             hasCenteredOnUser = true
             appleHalalSearch.search(in: effective)
+            refreshVisiblePlaces()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
             guard let info = notification.userInfo,
@@ -618,6 +626,8 @@ struct ContentView: View {
                    !favoritesStore.contains(id: selected.id) {
                     selectedPlace = nil
                 }
+            case .places, .newSpots:
+                refreshVisiblePlaces()
             case .topRated:
                 selectedApplePlace = nil
                 if let selected = selectedPlace,
@@ -786,6 +796,7 @@ struct ContentView: View {
                     viewModel.forceRefresh(region: targetRegion, filter: selectedFilter)
                     let effective = RegionGate.enforcedRegion(for: targetRegion)
                     appleHalalSearch.search(in: effective)
+                    refreshVisiblePlaces()
                 } else {
                     locationManager.requestCurrentLocation()
                 }
@@ -858,6 +869,7 @@ private extension ContentView {
         }
         selectedPlace = place
         isSearchOverlayPresented = false
+        refreshVisiblePlaces()
     }
 
     func focus(on mapItem: MKMapItem) {
@@ -874,6 +886,7 @@ private extension ContentView {
         selectedPlace = nil
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
         isSearchOverlayPresented = false
+        refreshVisiblePlaces()
     }
 
     func resolvedPlace(for snapshot: FavoritePlaceSnapshot) -> Place {
@@ -924,39 +937,12 @@ private extension ContentView {
         return 812 // Sensible default for calculations when no screen is available
     }
 
-    private func viewportSlice(for places: [Place],
-                               in region: MKCoordinateRegion,
-                               paddingFactor: Double = 1.3,
-                               maxCount: Int = 600) -> [Place] {
-        guard region.span.latitudeDelta > 0, region.span.longitudeDelta > 0 else { return places }
-
-        let halfLat = (region.span.latitudeDelta * paddingFactor) / 2.0
-        let halfLon = (region.span.longitudeDelta * paddingFactor) / 2.0
-
-        let minLat = region.center.latitude - halfLat
-        let maxLat = region.center.latitude + halfLat
-        let minLon = region.center.longitude - halfLon
-        let maxLon = region.center.longitude + halfLon
-
-        let filtered = places.filter { place in
-            let lat = place.coordinate.latitude
-            let lon = place.coordinate.longitude
-            return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
-        }
-
-        guard filtered.count > maxCount else { return filtered }
-
-        let center = region.center
-        let sorted = filtered.sorted {
-            squaredDistance(from: center, to: $0.coordinate) < squaredDistance(from: center, to: $1.coordinate)
-        }
-        return Array(sorted.prefix(maxCount))
-    }
-
-    private func squaredDistance(from center: CLLocationCoordinate2D, to coordinate: CLLocationCoordinate2D) -> Double {
-        let latDiff = center.latitude - coordinate.latitude
-        let lonDiff = center.longitude - coordinate.longitude
-        return latDiff * latDiff + lonDiff * lonDiff
+    private func refreshVisiblePlaces() {
+        guard bottomTab == .places || bottomTab == .newSpots else { return }
+        let base = filteredPlaces
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let version = trimmed.isEmpty ? viewModel.filteredPlacesVersion : viewModel.searchResultsVersion
+        visiblePlaces = viewportCache.slice(for: mapRegion, version: version, source: base)
     }
 }
 
@@ -1109,6 +1095,187 @@ private struct SearchOverlayView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+    }
+}
+
+private struct ViewportCache {
+    private var lastRegion: MKCoordinateRegion?
+    private var lastVersion: Int?
+    private var lastResult: [Place] = []
+    private var grid: SpatialGrid?
+
+    private let movementThresholdFraction: Double = 1.0 / 3.0
+    private let spanThresholdFraction: Double = 0.25
+    private let paddingFactor: Double = 1.3
+    private let maxCount: Int = 600
+    private let gridCellSpan: Double = 0.02
+    private let gridMinimumCount = 200
+
+    mutating func slice(for region: MKCoordinateRegion, version: Int, source: [Place]) -> [Place] {
+        guard !source.isEmpty else {
+            lastRegion = region
+            lastVersion = version
+            lastResult = []
+            grid = nil
+            return []
+        }
+
+        if lastVersion != version {
+            lastVersion = version
+            lastRegion = nil
+            lastResult = []
+            if source.count >= gridMinimumCount {
+                grid = SpatialGrid(places: source, cellSpan: gridCellSpan)
+            } else {
+                grid = nil
+            }
+        }
+
+        if let cachedRegion = lastRegion,
+           lastVersion == version,
+           cachedRegion.isClose(to: region,
+                                movementFraction: movementThresholdFraction,
+                                spanFraction: spanThresholdFraction) {
+            lastRegion = region
+            return lastResult
+        }
+
+        let candidates: [Place]
+        if let grid {
+            candidates = grid.query(region: region, paddingFactor: paddingFactor)
+        } else {
+            candidates = source
+        }
+
+        let filtered = filterCandidates(candidates, in: region, paddingFactor: paddingFactor)
+        let trimmed = trim(filtered, in: region, limit: maxCount)
+        lastRegion = region
+        lastResult = trimmed
+        return trimmed
+    }
+
+    private func filterCandidates(_ places: [Place],
+                                  in region: MKCoordinateRegion,
+                                  paddingFactor: Double) -> [Place] {
+        guard region.span.latitudeDelta > 0, region.span.longitudeDelta > 0 else { return places }
+        let halfLat = (region.span.latitudeDelta * paddingFactor) / 2.0
+        let halfLon = (region.span.longitudeDelta * paddingFactor) / 2.0
+        let minLat = region.center.latitude - halfLat
+        let maxLat = region.center.latitude + halfLat
+        let minLon = region.center.longitude - halfLon
+        let maxLon = region.center.longitude + halfLon
+
+        return places.filter { place in
+            let lat = place.coordinate.latitude
+            let lon = place.coordinate.longitude
+            return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
+        }
+    }
+
+    private func trim(_ places: [Place],
+                      in region: MKCoordinateRegion,
+                      limit: Int) -> [Place] {
+        guard places.count > limit else { return places }
+        let center = region.center
+        let sorted = places.sorted {
+            center.squaredDistance(to: $0.coordinate) < center.squaredDistance(to: $1.coordinate)
+        }
+        return Array(sorted.prefix(limit))
+    }
+}
+
+private struct SpatialGrid {
+    private struct Tile: Hashable {
+        let x: Int
+        let y: Int
+
+        static func index(for value: Double, span: Double) -> Int {
+            Int(floor(value / span))
+        }
+
+        init(coordinate: CLLocationCoordinate2D, cellSpan: Double) {
+            self.x = Tile.index(for: coordinate.longitude, span: cellSpan)
+            self.y = Tile.index(for: coordinate.latitude, span: cellSpan)
+        }
+
+        init(x: Int, y: Int) {
+            self.x = x
+            self.y = y
+        }
+    }
+
+    private let cellSpan: Double
+    private let buckets: [Tile: [Place]]
+
+    init(places: [Place], cellSpan: Double) {
+        self.cellSpan = cellSpan
+        var storage: [Tile: [Place]] = [:]
+        storage.reserveCapacity(max(1, places.count / 4))
+        for place in places {
+            let tile = Tile(coordinate: place.coordinate, cellSpan: cellSpan)
+            storage[tile, default: []].append(place)
+        }
+        self.buckets = storage
+    }
+
+    func query(region: MKCoordinateRegion, paddingFactor: Double) -> [Place] {
+        guard region.span.latitudeDelta > 0, region.span.longitudeDelta > 0 else { return [] }
+        let halfLat = (region.span.latitudeDelta * paddingFactor) / 2.0
+        let halfLon = (region.span.longitudeDelta * paddingFactor) / 2.0
+
+        let minLat = region.center.latitude - halfLat
+        let maxLat = region.center.latitude + halfLat
+        let minLon = region.center.longitude - halfLon
+        let maxLon = region.center.longitude + halfLon
+
+        let minX = Tile.index(for: minLon, span: cellSpan)
+        let maxX = Tile.index(for: maxLon, span: cellSpan)
+        let minY = Tile.index(for: minLat, span: cellSpan)
+        let maxY = Tile.index(for: maxLat, span: cellSpan)
+
+        guard minX <= maxX, minY <= maxY else { return [] }
+
+        var results: [Place] = []
+        results.reserveCapacity((maxX - minX + 1) * (maxY - minY + 1))
+        var seen: Set<UUID> = []
+
+        for x in minX...maxX {
+            for y in minY...maxY {
+                if let bucket = buckets[Tile(x: x, y: y)] {
+                    for place in bucket where seen.insert(place.id).inserted {
+                        results.append(place)
+                    }
+                }
+            }
+        }
+
+        return results
+    }
+}
+
+private extension MKCoordinateRegion {
+    func isClose(to other: MKCoordinateRegion,
+                 movementFraction: Double,
+                 spanFraction: Double) -> Bool {
+        let latThreshold = max(max(span.latitudeDelta, other.span.latitudeDelta), 1e-6) * movementFraction
+        let lonThreshold = max(max(span.longitudeDelta, other.span.longitudeDelta), 1e-6) * movementFraction
+        let latDiff = abs(center.latitude - other.center.latitude)
+        let lonDiff = abs(center.longitude - other.center.longitude)
+        guard latDiff <= latThreshold, lonDiff <= lonThreshold else { return false }
+
+        let latSpanThreshold = max(max(span.latitudeDelta, other.span.latitudeDelta), 1e-6) * spanFraction
+        let lonSpanThreshold = max(max(span.longitudeDelta, other.span.longitudeDelta), 1e-6) * spanFraction
+        let latSpanDiff = abs(span.latitudeDelta - other.span.latitudeDelta)
+        let lonSpanDiff = abs(span.longitudeDelta - other.span.longitudeDelta)
+        return latSpanDiff <= latSpanThreshold && lonSpanDiff <= lonSpanThreshold
+    }
+}
+
+private extension CLLocationCoordinate2D {
+    func squaredDistance(to other: CLLocationCoordinate2D) -> Double {
+        let latDiff = latitude - other.latitude
+        let lonDiff = longitude - other.longitude
+        return latDiff * latDiff + lonDiff * lonDiff
     }
 }
 
@@ -2460,12 +2627,24 @@ final class PlaceDetailViewModel: ObservableObject {
 
 @MainActor
 final class MapScreenViewModel: @MainActor ObservableObject {
-    @Published private(set) var places: [Place] = []
+    @Published private(set) var places: [Place] = [] {
+        didSet {
+            guard oldValue != places else { return }
+            filteredPlacesVersion = filteredPlacesVersion &+ 1
+        }
+    }
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
     @Published var presentingError = false
-    @Published private(set) var searchResults: [Place] = []
+    @Published private(set) var searchResults: [Place] = [] {
+        didSet {
+            guard oldValue != searchResults else { return }
+            searchResultsVersion = searchResultsVersion &+ 1
+        }
+    }
     @Published private(set) var isSearching = false
+    @Published private(set) var filteredPlacesVersion: Int = 0
+    @Published private(set) var searchResultsVersion: Int = 0
 
     var subtitleMessage: String? {
         guard !isLoading else { return "We're looking for new halal spots." }

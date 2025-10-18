@@ -166,12 +166,15 @@ struct HalalMapView: UIViewRepresentable {
         static let dotReuseIdentifier = "PlaceDot"
 
         private let dotSpanThreshold: CLLocationDegrees = 0.09
+        private let regionChangeDebounceNanoseconds: UInt64 = 200_000_000
 
         private var parent: HalalMapView
+        private var placeAnnotationsByID: [UUID: PlaceAnnotation] = [:]
         private var currentAnnotations: [PlaceAnnotation] = []
         private var appleAnnotations: [AppleMapItemAnnotation] = []
         private var lastRenderedRegion: MKCoordinateRegion?
         private var usesDotAnnotations = true
+        private var regionChangeTask: Task<Void, Never>?
         var isSettingRegion = false
 
         fileprivate weak var mapView: MKMapView?
@@ -230,33 +233,41 @@ struct HalalMapView: UIViewRepresentable {
         private func syncAnnotations(with places: [Place]) {
             guard let mapView else { return }
 
-            let incomingAnnotations = places.map { PlaceAnnotation(place: $0) }
+            let incomingIDs = Set(places.map { $0.id })
 
-            let existingSet = Set(currentAnnotations.map { $0.place.id })
-            let incomingSet = Set(incomingAnnotations.map { $0.place.id })
-
-            let toRemove = currentAnnotations.filter { !incomingSet.contains($0.place.id) }
-            let toAdd = incomingAnnotations.filter { !existingSet.contains($0.place.id) }
-
-            currentAnnotations.forEach { annotation in
-                guard let updated = incomingAnnotations.first(where: { $0.place.id == annotation.place.id }) else { return }
-                if annotation.coordinate.latitude != updated.coordinate.latitude || annotation.coordinate.longitude != updated.coordinate.longitude {
-                    annotation.coordinate = updated.coordinate
+            var annotationsToRemove: [PlaceAnnotation] = []
+            for id in placeAnnotationsByID.keys where !incomingIDs.contains(id) {
+                if let annotation = placeAnnotationsByID[id] {
+                    annotationsToRemove.append(annotation)
                 }
-                annotation.place = updated.place
+            }
+            if !annotationsToRemove.isEmpty {
+                mapView.removeAnnotations(annotationsToRemove)
+                for annotation in annotationsToRemove {
+                    placeAnnotationsByID.removeValue(forKey: annotation.place.id)
+                }
             }
 
-            if !toRemove.isEmpty {
-                mapView.removeAnnotations(toRemove)
-            }
-            if !toAdd.isEmpty {
-                mapView.addAnnotations(toAdd)
+            var annotationsToAdd: [PlaceAnnotation] = []
+            for place in places {
+                if let annotation = placeAnnotationsByID[place.id] {
+                    if annotation.coordinate.latitude != place.coordinate.latitude ||
+                        annotation.coordinate.longitude != place.coordinate.longitude {
+                        annotation.coordinate = place.coordinate
+                    }
+                    annotation.place = place
+                } else {
+                    let annotation = PlaceAnnotation(place: place)
+                    placeAnnotationsByID[place.id] = annotation
+                    annotationsToAdd.append(annotation)
+                }
             }
 
-            currentAnnotations.removeAll { annotation in
-                toRemove.contains(where: { $0.place.id == annotation.place.id })
+            if !annotationsToAdd.isEmpty {
+                mapView.addAnnotations(annotationsToAdd)
             }
-            currentAnnotations.append(contentsOf: toAdd)
+
+            currentAnnotations = Array(placeAnnotationsByID.values)
         }
 
         private func syncAppleAnnotations(with items: [MKMapItem]) {
@@ -301,13 +312,31 @@ struct HalalMapView: UIViewRepresentable {
             let shouldNotify = !(previousRegion?.isApproximatelyEqual(to: parentMap, centerTolerance: 5e-4, spanTolerance: 5e-4) ?? false)
 
             isSettingRegion = true
-            let callback = parent.onRegionChange
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.parent.region = parentMap
-                self.isSettingRegion = false
-                if shouldNotify {
-                    callback?(parentMap)
+            parent.region = parentMap
+            isSettingRegion = false
+
+            if shouldNotify {
+                scheduleRegionChangeCallback(for: parentMap, callback: parent.onRegionChange)
+            } else {
+                regionChangeTask?.cancel()
+                regionChangeTask = nil
+            }
+        }
+
+        private func scheduleRegionChangeCallback(for region: MKCoordinateRegion, callback: ((MKCoordinateRegion) -> Void)?) {
+            guard let callback else { return }
+            regionChangeTask?.cancel()
+            regionChangeTask = Task { [weak self] in
+                do {
+                    try await Task.sleep(nanoseconds: regionChangeDebounceNanoseconds)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self else { return }
+                    callback(region)
+                    self.regionChangeTask = nil
                 }
             }
         }
@@ -316,6 +345,7 @@ struct HalalMapView: UIViewRepresentable {
             if let placeAnnotation = annotation as? PlaceAnnotation {
                 if usesDotAnnotations {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.dotReuseIdentifier, for: annotation) as! HalalDotAnnotationView
+                    view.clusteringIdentifier = nil
                     view.apply(color: tintColor(for: placeAnnotation.place))
                     return view
                 } else {
@@ -335,6 +365,7 @@ struct HalalMapView: UIViewRepresentable {
             if annotation is AppleMapItemAnnotation {
                 if usesDotAnnotations {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.dotReuseIdentifier, for: annotation) as! HalalDotAnnotationView
+                    view.clusteringIdentifier = nil
                     view.apply(color: .systemOrange)
                     return view
                 } else {
@@ -424,6 +455,10 @@ struct HalalMapView: UIViewRepresentable {
             } else if !selectedAnnotations.isEmpty {
                 selectedAnnotations.forEach { mapView.deselectAnnotation($0, animated: true) }
             }
+        }
+
+        deinit {
+            regionChangeTask?.cancel()
         }
 
         private func tintColor(for place: Place) -> UIColor {
