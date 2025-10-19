@@ -3136,53 +3136,10 @@ private extension MapScreenViewModel {
     }
 
     func triggerAppleFallbackIfNecessary(for query: String) {
-        guard appleFallbackTask == nil else { return }
-        guard searchResults.isEmpty else { return }
-        guard !query.isEmpty else { return }
-
-        appleFallbackTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer {
-                self.appleFallbackTask = nil
-                self.updateSearchActivityIndicator()
-            }
-
-            self.isSearching = true
-
-            let request = MKLocalSearch.Request()
-            request.naturalLanguageQuery = query
-            request.resultTypes = [.pointOfInterest]
-            request.region = Self.appleFallbackRegion
-
-            let search = MKLocalSearch(request: request)
-            do {
-                let response = try await search.start()
-                let items = response.mapItems
-                guard !items.isEmpty else { return }
-
-                var fallbackPlaces: [Place] = []
-                for item in items {
-                    if let place = makePlace(from: item, halalStatus: .only, confidence: 0.4) {
-                        fallbackPlaces.append(place)
-                    }
-                    self.ingestApplePlaceIfNeeded(item)
-                }
-
-                guard !fallbackPlaces.isEmpty else { return }
-                self.mergeIntoGlobalDataset(fallbackPlaces)
-                for place in fallbackPlaces {
-                    self.insertOrUpdatePlace(place)
-                }
-                let merged = self.deduplicate(self.searchResults + fallbackPlaces)
-                self.searchResults = PlaceOverrides.sorted(merged)
-            } catch is CancellationError {
-                // Ignore cancellation
-            } catch {
-#if DEBUG
-                print("[MapScreenViewModel] Apple fallback search failed for query \(query):", error)
-#endif
-            }
-        }
+        // Historically we fell back to Apple Maps to pad results, but that led to
+        // non-database venues appearing as fully halal in search. Disable the
+        // fallback entirely so we only surface places sourced from Supabase.
+        return
     }
 
     private static let nonHalalChainBlocklist: Set<String> = {
