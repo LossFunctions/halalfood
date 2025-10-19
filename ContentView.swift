@@ -119,6 +119,7 @@ struct ContentView: View {
 
             // Exclude known closed venues by name
             if let name = item.name, PlaceOverrides.isMarkedClosed(name: name) { continue }
+            if let name = item.name, MapScreenViewModel.isBlocklistedChainName(name) { continue }
 
             let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             let matchesExisting = supabaseLocations.contains { existing in
@@ -2774,7 +2775,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
                 let referenceCoordinate = remotePlaces.first?.coordinate ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
                 let region = MKCoordinateRegion(center: referenceCoordinate, span: MKCoordinateSpan(latitudeDelta: 1.0, longitudeDelta: 1.0))
-                let cleaned = PlaceOverrides.apply(overridesTo: remotePlaces, in: region).filteredByCurrentGeoScope()
+                let cleaned = PlaceOverrides
+                    .apply(overridesTo: remotePlaces, in: region)
+                    .filteredByCurrentGeoScope()
+                    .filter(self.isTrustedPlace(_:))
+                guard !cleaned.isEmpty else { return }
                 self.mergeIntoGlobalDataset(cleaned)
                 let merged = self.deduplicate(self.searchResults + cleaned)
                 self.searchResults = PlaceOverrides.sorted(merged)
@@ -2794,7 +2799,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.updateSearchActivityIndicator()
             }
             let exclusion = self.searchResults + self.allPlaces + self.globalDataset
-            let additionalManual = await ManualPlaceResolver.shared.searchMatches(for: trimmed, excluding: exclusion).filteredByCurrentGeoScope()
+            let additionalManual = await ManualPlaceResolver
+                .shared
+                .searchMatches(for: trimmed, excluding: exclusion)
+                .filteredByCurrentGeoScope()
+                .filter(self.isTrustedPlace(_:))
             guard !Task.isCancelled else { return }
             guard !additionalManual.isEmpty else { return }
             self.mergeIntoGlobalDataset(additionalManual)
@@ -2806,7 +2815,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private func fetch(region: MKCoordinateRegion, filter: MapFilter, eager: Bool) {
         let requestRegion = normalizedRegion(for: region)
         let cacheHit = cache.value(for: requestRegion)
-        let cachedOverride = cacheHit.map { PlaceOverrides.apply(overridesTo: $0.places, in: requestRegion) }
+        let cachedOverride = cacheHit.map {
+            PlaceOverrides
+                .apply(overridesTo: $0.places, in: requestRegion)
+                .filter(self.isTrustedPlace(_:))
+        }
 
         if let cachedPlaces = cachedOverride {
             // Show cached results immediately for snappy UI, but do not return early here.
@@ -2840,7 +2853,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 // Convert and enforce NYC + Long Island scope
                 let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
                 let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
-                let cleaned = overridden.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                let cleaned = overridden
+                    .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .filter(self.isTrustedPlace(_:))
                 // Only surface verified halal places by default
                 let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
 
@@ -2848,15 +2863,20 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 // so they always appear on the map within the current region.
                 // Always evaluate manual places across the broader NYC + Long Island scope
                 // so outliers (e.g., LIC while viewing Manhattan) still appear on the map.
-                let manual = await ManualPlaceResolver.shared.manualPlaces(in: Self.appleFallbackRegion, excluding: halalOnly).filteredByCurrentGeoScope()
+                let manual = await ManualPlaceResolver
+                    .shared
+                    .manualPlaces(in: Self.appleFallbackRegion, excluding: halalOnly)
+                    .filteredByCurrentGeoScope()
+                    .filter(self.isTrustedPlace(_:))
 
                 try Task.checkCancellation()
                 let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
-                self.allPlaces = PlaceOverrides.sorted(combined)
-                self.mergeIntoGlobalDataset(combined)
+                let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
+                self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
+                self.mergeIntoGlobalDataset(sanitizedCombined)
                 self.apply(filter: self.currentFilter)
                 self.isLoading = false
-                self.cache.store(combined, region: requestRegion)
+                self.cache.store(sanitizedCombined, region: requestRegion)
             } catch is CancellationError {
                 // Swallow cancellation; any inflight request will manage loading state.
             } catch {
@@ -2866,7 +2886,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.errorMessage = Self.message(for: error)
                 self.presentingError = true
                 if self.places.isEmpty, let cachedPlaces = cachedOverride {
-                    self.allPlaces = cachedPlaces.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    self.allPlaces = cachedPlaces
+                        .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        .filter(self.isTrustedPlace(_:))
                     self.apply(filter: self.currentFilter)
                 }
                 self.isLoading = false
@@ -2883,7 +2905,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let snapshot = await self.diskCache.loadSnapshot(), !snapshot.places.isEmpty {
-                let filtered = snapshot.places.filteredByCurrentGeoScope()
+                let filtered = snapshot.places
+                    .filteredByCurrentGeoScope()
+                    .filter(self.isTrustedPlace(_:))
                 guard !filtered.isEmpty else {
                     self.ensureGlobalDataset(forceRefresh: true)
                     return
@@ -2893,6 +2917,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 self.apply(filter: filter)
                 self.cache.store(self.allPlaces, region: seedRegion)
                 self.lastPersistedFingerprint = self.persistenceFingerprint(for: self.globalDataset)
+                await self.diskCache.saveSnapshot(places: self.globalDataset)
 
                 let isStale = Date().timeIntervalSince(snapshot.savedAt) > self.diskSnapshotStalenessInterval
                 if isStale {
@@ -2902,11 +2927,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 let seeds = self.loadBundledSeedPlaces()
                 if !seeds.isEmpty {
                     let filteredSeeds = seeds.filteredByCurrentGeoScope()
-                    if !filteredSeeds.isEmpty {
-                        self.mergeIntoGlobalDataset(filteredSeeds, persist: false)
-                        self.allPlaces = PlaceOverrides.sorted(filteredSeeds)
+                    let sanitizedSeeds = filteredSeeds.filter(self.isTrustedPlace(_:))
+                    if !sanitizedSeeds.isEmpty {
+                        self.mergeIntoGlobalDataset(sanitizedSeeds, persist: false)
+                        self.allPlaces = PlaceOverrides.sorted(sanitizedSeeds)
                         self.apply(filter: filter)
-                        self.cache.store(filteredSeeds, region: seedRegion)
+                        self.cache.store(sanitizedSeeds, region: seedRegion)
                     }
                 }
                 self.ensureGlobalDataset()
@@ -3094,45 +3120,8 @@ private extension MapScreenViewModel {
     }()
 
     func ingestApplePlaceIfNeeded(_ mapItem: MKMapItem) {
-        // Guard against obvious non‑halal chains being marked as halal.
-        guard Self.shouldIngestApplePlace(mapItem) else { return }
-        // Persist Apple-provided halal venues as fully halal by default.
-        guard let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: .only, confidence: 0.3) else { return }
-        let identifier = payload.applePlaceID
-        guard !ingestedApplePlaceIDs.contains(identifier) else { return }
-        ingestedApplePlaceIDs.insert(identifier)
-
-        if let existing = appleIngestTasks[identifier] {
-            existing.cancel()
-        }
-
-        let task = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer {
-                self.appleIngestTasks.removeValue(forKey: identifier)
-            }
-
-            do {
-                let dto = try await PlaceAPI.upsertApplePlace(payload)
-                guard !Task.isCancelled else { return }
-                guard let place = Place(dto: dto) else { return }
-                // Only surface places that came back as halal after the upsert.
-                if place.halalStatus == .yes || place.halalStatus == .only {
-                    self.mergeIntoGlobalDataset([place])
-                    self.insertOrUpdatePlace(place)
-                    self.refreshSearchResultsIfNeeded(with: place)
-                }
-            } catch is CancellationError {
-                self.ingestedApplePlaceIDs.remove(identifier)
-            } catch {
-#if DEBUG
-                print("[MapScreenViewModel] Failed to upsert Apple-sourced place:", error)
-#endif
-                self.ingestedApplePlaceIDs.remove(identifier)
-            }
-        }
-
-        appleIngestTasks[identifier] = task
+        // Apple ingestion is disabled to avoid unvetted entries polluting the dataset.
+        _ = mapItem
     }
 
     func triggerAppleFallbackIfNecessary(for query: String) {
@@ -3153,12 +3142,24 @@ private extension MapScreenViewModel {
         return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
     }()
 
+    static func isBlocklistedChainName(_ name: String) -> Bool {
+        let normalized = PlaceOverrides.normalizedName(for: name)
+        guard !normalized.isEmpty else { return false }
+        for blocked in nonHalalChainBlocklist {
+            if normalized.hasPrefix(blocked) { return true }
+        }
+        return false
+    }
+
+    static func isBlocklistedChain(_ place: Place) -> Bool {
+        isBlocklistedChainName(place.name)
+    }
+
     private static func shouldIngestApplePlace(_ mapItem: MKMapItem) -> Bool {
         let name = mapItem.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let normalized = PlaceOverrides.normalizedName(for: name)
-        if normalized.isEmpty { return false }
-        if nonHalalChainBlocklist.contains(normalized) { return false }
-        return true
+        guard !name.isEmpty else { return false }
+        if isBlocklistedChainName(name) { return false }
+        return !PlaceOverrides.normalizedName(for: name).isEmpty
     }
 
     func combinedMatches(for query: String) -> [Place] {
@@ -3174,6 +3175,7 @@ private extension MapScreenViewModel {
         guard !normalizedQuery.isEmpty else { return [] }
 
         return source.filter { place in
+            guard !Self.isBlocklistedChain(place) else { return false }
             let normalizedName = PlaceOverrides.normalizedName(for: place.name)
             if normalizedName.contains(normalizedQuery) { return true }
 
@@ -3202,6 +3204,7 @@ private extension MapScreenViewModel {
                     .compactMap(Place.init(dto:))
                     .filteredByCurrentGeoScope()
                     .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .filter(self.isTrustedPlace(_:))
                 try Task.checkCancellation()
                 self.mergeIntoGlobalDataset(places)
                 if let query = self.lastSearchQuery, !query.isEmpty {
@@ -3224,12 +3227,32 @@ private extension MapScreenViewModel {
 
     func mergeIntoGlobalDataset(_ newPlaces: [Place], persist: Bool = true) {
         guard !newPlaces.isEmpty else { return }
-        let filtered = newPlaces.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        guard !filtered.isEmpty else { return }
-        let combined = deduplicate(globalDataset + filtered)
+        let filtered = newPlaces
+            .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .filter(isTrustedPlace)
+        let sanitizedExisting = globalDataset.filter(isTrustedPlace)
+        guard !(filtered.isEmpty && sanitizedExisting == globalDataset) else { return }
+
+        let combined = deduplicate(sanitizedExisting + filtered)
         let sorted = PlaceOverrides.sorted(combined)
-        globalDataset = sorted
-        if persist {
+        if sorted != globalDataset {
+            globalDataset = sorted
+        }
+
+        let sanitizedAll = allPlaces.filter(isTrustedPlace)
+        if sanitizedAll != allPlaces {
+            allPlaces = sanitizedAll
+            apply(filter: currentFilter)
+        }
+
+        let sanitizedSearch = searchResults.filter(isTrustedPlace)
+        if sanitizedSearch != searchResults {
+            searchResults = PlaceOverrides.sorted(sanitizedSearch)
+        }
+
+        if persist, !globalDataset.isEmpty {
+            schedulePersistGlobalDataset()
+        } else if persist, globalDataset.isEmpty {
             schedulePersistGlobalDataset()
         }
     }
@@ -3254,6 +3277,7 @@ private extension MapScreenViewModel {
     }
 
     func insertOrUpdatePlace(_ place: Place) {
+        guard isTrustedPlace(place) else { return }
         var updated = allPlaces
         if let existingIndex = updated.firstIndex(where: { $0.id == place.id }) {
             updated[existingIndex] = place
@@ -3336,6 +3360,17 @@ private struct PlaceCache {
         }
 
         return (entry.places, age < ttl)
+    }
+}
+
+private extension MapScreenViewModel {
+    func isTrustedPlace(_ place: Place) -> Bool {
+        if Self.isBlocklistedChain(place) { return false }
+        guard let rawSource = place.source?.trimmingCharacters(in: .whitespacesAndNewlines), !rawSource.isEmpty else {
+            return true
+        }
+        let normalized = rawSource.lowercased()
+        return !normalized.contains("apple")
     }
 }
 
