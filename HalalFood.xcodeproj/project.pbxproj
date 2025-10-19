@@ -28,6 +28,7 @@
 		E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C42E8C000100000001 /* PlacePhoto.swift */; };
 		F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */; };
 		B5A1B2C52E8D1234008D2917 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A1B2C42E8D1234008D2917 /* FavoritesStore.swift */; };
+		C2D0F1A52F9AB12300AAA111 /* YelpRatingRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +54,7 @@
 		C1F0B2C12F123456008D2917 /* PlaceDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDiskCache.swift; sourceTree = "<group>"; };
 		C1F0B2C42F123456008D2917 /* places_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = places_seed.json; sourceTree = "<group>"; };
 		9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKMapItem+Compat.swift"; sourceTree = "<group>"; };
+		C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YelpRatingRow.swift; sourceTree = "<group>"; };
 		B505B9D62E7CC7FA008D2917 /* HalalFood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HalalFood.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalalFoodApp.swift; sourceTree = "<group>"; };
 		B505B9DB2E7CC7FA008D2917 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 		63D0CF215B7650CC4BA52C5F /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */,
 				62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */,
 			);
 			path = UI;
@@ -381,6 +384,7 @@
 				B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */,
 				F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */,
 				B5A1B2C52E8D1234008D2917 /* FavoritesStore.swift in Sources */,
+				C2D0F1A52F9AB12300AAA111 /* YelpRatingRow.swift in Sources */,
 				E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

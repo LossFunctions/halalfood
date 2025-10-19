@@ -1838,6 +1838,7 @@ struct PlaceDetailView: View {
 
     @StateObject private var viewModel = PlaceDetailViewModel()
     @State private var expandedPhotoSelection: PhotoSelection?
+    @State private var isRatingEmbeddedInAppleCard = false
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var favoritesStore: FavoritesStore
@@ -1966,7 +1967,9 @@ struct PlaceDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ratingSummaryView
+            if let ratingModel, (!hasAppleDetails || !isRatingEmbeddedInAppleCard) {
+                YelpRatingRow(model: ratingModel, style: .prominent)
+            }
         }
     }
 
@@ -1984,44 +1987,6 @@ struct PlaceDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var ratingSummaryView: some View {
-        if let rating = place.rating, rating > 0 {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Yelp Rating")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(Color.yellow)
-
-                    Text(String(format: "%.1f", rating))
-                        .font(.title3.weight(.semibold))
-
-                    if let reviews = reviewCountLabel(for: place.ratingCount) {
-                        Text("• \(reviews)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if let source = ratingSourceLabel {
-                        Text("via \(source)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.primary.opacity(0.08), in: Capsule())
-                    }
-                }
-            }
-            .padding(14)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -2057,6 +2022,9 @@ struct PlaceDetailView: View {
     @ViewBuilder
     private func appleDetailsSection(_ details: ApplePlaceDetails) -> some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let ratingModel {
+                YelpRatingRow(model: ratingModel, style: .inline)
+            }
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "apple.logo")
                     .font(.title3)
@@ -2131,6 +2099,36 @@ struct PlaceDetailView: View {
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    @available(iOS 18.0, *)
+    @ViewBuilder
+    private func applePlaceCard(_ details: ApplePlaceDetails) -> some View {
+        MapItemDetailCardView(
+            mapItem: details.mapItem,
+            showsInlineMap: false,
+            ratingModel: ratingModel,
+            onRatingEmbedded: { embedded in
+                if embedded != isRatingEmbeddedInAppleCard {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isRatingEmbeddedInAppleCard = embedded
+                        }
+                    }
+                }
+            }
+        ) {
+            dismiss()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 520)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.08), radius: 11, y: 6)
+        .overlay(alignment: .topTrailing) {
+            favoriteButton
+                .padding(.trailing, 15.5)
+                .padding(.top, 58)
+        }
+    }
+
     @ViewBuilder
     private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
         VStack(spacing: 16) {
@@ -2139,8 +2137,11 @@ struct PlaceDetailView: View {
                     expandedPhotoSelection = PhotoSelection(index: index)
                 }
             }
-            ratingSummaryView
             if #available(iOS 18.0, *) {
+                if let ratingModel, !isRatingEmbeddedInAppleCard {
+                    YelpRatingRow(model: ratingModel, style: .prominent)
+                        .padding(.horizontal, 16)
+                }
                 applePlaceCard(details)
             } else {
                 appleDetailsSection(details)
@@ -2162,10 +2163,13 @@ struct PlaceDetailView: View {
         return readableSource(raw)
     }
 
-    private func reviewCountLabel(for count: Int?) -> String? {
-        guard let count, count > 0 else { return nil }
-        let label = count == 1 ? "review" : "reviews"
-        return "\(count) \(label)"
+    private var ratingModel: RatingDisplayModel? {
+        guard let rating = place.rating, rating > 0 else { return nil }
+        return RatingDisplayModel(
+            rating: rating,
+            reviewCount: place.ratingCount,
+            source: ratingSourceLabel
+        )
     }
 
     private var displayAddress: String? {
@@ -2185,21 +2189,6 @@ struct PlaceDetailView: View {
         return false
     }
 
-    @ViewBuilder
-    private func applePlaceCard(_ details: ApplePlaceDetails) -> some View {
-        MapItemDetailCardView(mapItem: details.mapItem, showsInlineMap: false) {
-            dismiss()
-        }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 520)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 11, y: 6)
-        .overlay(alignment: .topTrailing) {
-            favoriteButton
-                .padding(.trailing, 15.5)
-                .padding(.top, 58)
-        }
-    }
 }
 
 extension PlaceDetailView {
@@ -2408,13 +2397,6 @@ private struct PhotoCarouselView: View {
                 selectedIndex = 0
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            Text("Photos: Yelp")
-                .font(.caption2)
-                .padding(6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(8)
-        }
         .onAppear {
             if let lastIndex = photos.indices.last {
                 selectedIndex = min(selectedIndex, lastIndex)
@@ -2432,7 +2414,13 @@ private struct AppleMapItemSheet: View {
     var body: some View {
         Group {
             if #available(iOS 18.0, *) {
-                MapItemDetailCardView(mapItem: selection.mapItem, showsInlineMap: true, onFinished: onDismiss)
+                MapItemDetailCardView(
+                    mapItem: selection.mapItem,
+                    showsInlineMap: true,
+                    ratingModel: nil,
+                    onRatingEmbedded: nil,
+                    onFinished: onDismiss
+                )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 AppleFallbackDetailView(details: ApplePlaceDetails(mapItem: selection.mapItem))

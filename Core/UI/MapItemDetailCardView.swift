@@ -6,6 +6,8 @@ import UIKit
 struct MapItemDetailCardView: UIViewControllerRepresentable {
     let mapItem: MKMapItem
     var showsInlineMap = false
+    var ratingModel: RatingDisplayModel? = nil
+    var onRatingEmbedded: ((Bool) -> Void)? = nil
     var onFinished: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -13,14 +15,20 @@ struct MapItemDetailCardView: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> ContainerViewController {
-        let controller = ContainerViewController(mapItem: mapItem, showsInlineMap: showsInlineMap)
-        controller.update(mapItem: mapItem, showsInlineMap: showsInlineMap, coordinator: context.coordinator)
+        let controller = ContainerViewController(
+            mapItem: mapItem,
+            showsInlineMap: showsInlineMap,
+            ratingModel: ratingModel,
+            onRatingEmbedded: onRatingEmbedded
+        )
+        controller.update(mapItem: mapItem, showsInlineMap: showsInlineMap, ratingModel: ratingModel, coordinator: context.coordinator)
         return controller
     }
 
     func updateUIViewController(_ controller: ContainerViewController, context: Context) {
         context.coordinator.parent = self
-        controller.update(mapItem: mapItem, showsInlineMap: showsInlineMap, coordinator: context.coordinator)
+        controller.update(mapItem: mapItem, showsInlineMap: showsInlineMap, ratingModel: ratingModel, coordinator: context.coordinator)
+        controller.onRatingEmbedded = onRatingEmbedded
     }
 
     final class Coordinator: NSObject, MKMapItemDetailViewControllerDelegate {
@@ -39,11 +47,14 @@ struct MapItemDetailCardView: UIViewControllerRepresentable {
         private let detailController: MKMapItemDetailViewController
         private var cachedScrollView: UIScrollView?
         private var currentShowsInlineMap: Bool
+        var onRatingEmbedded: ((Bool) -> Void)?
 
-        init(mapItem: MKMapItem, showsInlineMap: Bool) {
+        init(mapItem: MKMapItem, showsInlineMap: Bool, ratingModel: RatingDisplayModel?, onRatingEmbedded: ((Bool) -> Void)?) {
             detailController = MKMapItemDetailViewController(mapItem: mapItem, displaysMap: showsInlineMap)
             currentShowsInlineMap = showsInlineMap
+            self.onRatingEmbedded = onRatingEmbedded
             super.init(nibName: nil, bundle: nil)
+            notifyEmbeddedState(for: ratingModel)
         }
 
         @available(*, unavailable)
@@ -73,7 +84,7 @@ struct MapItemDetailCardView: UIViewControllerRepresentable {
             adjustInsetsIfNeeded()
         }
 
-        func update(mapItem: MKMapItem, showsInlineMap: Bool, coordinator: Coordinator) {
+        func update(mapItem: MKMapItem, showsInlineMap: Bool, ratingModel: RatingDisplayModel?, coordinator: Coordinator) {
             detailController.delegate = coordinator
 
             if detailController.mapItem != mapItem {
@@ -84,7 +95,17 @@ struct MapItemDetailCardView: UIViewControllerRepresentable {
                 currentShowsInlineMap = showsInlineMap
             }
 
+            notifyEmbeddedState(for: ratingModel)
             adjustInsetsIfNeeded()
+        }
+
+        private func notifyEmbeddedState(for ratingModel: RatingDisplayModel?) {
+            guard let onRatingEmbedded else { return }
+            // Apple renders its detail card inside a private scene, so we cannot embed additional rows.
+            // Always report `false` so the SwiftUI fallback can stay visible.
+            if ratingModel != nil {
+                onRatingEmbedded(false)
+            }
         }
 
         private func adjustInsetsIfNeeded() {
