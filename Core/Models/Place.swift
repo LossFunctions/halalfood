@@ -2,6 +2,8 @@ import Foundation
 import MapKit
 import CoreLocation
 
+extension CLLocationCoordinate2D: @unchecked Sendable {}
+
 enum PlaceCategory: String, Identifiable, Codable {
     case restaurant
     case other
@@ -9,7 +11,7 @@ enum PlaceCategory: String, Identifiable, Codable {
     var id: String { rawValue }
 }
 
-struct Place: Identifiable, Hashable {
+struct Place: Identifiable, Hashable, Sendable {
     enum HalalStatus: String, Codable {
         case unknown
         case yes

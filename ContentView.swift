@@ -75,6 +75,291 @@ private enum TopRatedRegion: String, CaseIterable, Identifiable {
     }
 }
 
+private enum CommunityTopRatedConfig {
+    static let regions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .bronx, .statenIsland, .longIsland]
+
+    static let curatedNames: [TopRatedRegion: [String]] = [
+        .manhattan: [
+            "Top Thai",
+            "Balade Your Way",
+            "Adel's",
+            "Au' Zatar East Village",
+            "Nishaan"
+        ],
+        .queens: [
+            "Zyara Restaurant",
+            "Nur Thai",
+            "Mahmoud's Corner",
+            "Little Flower Cafe",
+            "Darjeeling Kitchen & Cafe"
+        ],
+        .brooklyn: [
+            "BK Jani",
+            "Namkeen",
+            "Monkey King",
+            "Zatar",
+            "Affy's"
+        ],
+        .bronx: [
+            "Waleed's Kitchen & Hot Wings",
+            "Blazin Chicken & Gyro",
+            "Fry Chick",
+            "Sooq NYC",
+            "Halal Indian Grill"
+        ],
+        .longIsland: [
+            "Zaoq",
+            "Choopan",
+            "Guac Time",
+            "Halal Express Kabab House",
+            "While in Kathmandu"
+        ],
+        .statenIsland: []
+    ]
+
+}
+
+private enum CommunityRegionClassifier {
+    static func matches(_ place: Place, region: TopRatedRegion) -> Bool {
+        guard region != .all else { return true }
+        return regionForPlace(place) == region
+    }
+
+    static func regionForPlace(_ place: Place) -> TopRatedRegion? {
+        if let addr = place.address?.lowercased() {
+            if let zip = extractZip(addr), let regionFromZip = regionFromZip(zip) {
+                return regionFromZip
+            }
+            if addr.contains(" ny 100") || addr.contains(" new york, ny 100") || addr.contains(" new york ny 100") { return .manhattan }
+
+            let queensKeys = [
+                " queens", "sunnyside", "astoria", "long island city", " lic ",
+                "jackson heights", "flushing", "jamaica, ny", "woodside", "elmhurst",
+                "forest hills", "rego park", "kew gardens", "richmond hill", "ozone park",
+                "bayside", "whitestone", "college point", "far rockaway", "rockaway"
+            ]
+            if queensKeys.contains(where: { addr.contains($0) }) { return .queens }
+
+            if addr.contains(" brooklyn") { return .brooklyn }
+            if addr.contains(" bronx") { return .bronx }
+            if addr.contains(" staten island") { return .statenIsland }
+
+            if addr.contains(" long island") && !addr.contains("long island city") { return .longIsland }
+        }
+        return regionForCoordinate(place.coordinate)
+    }
+
+    private static func extractZip(_ address: String) -> String? {
+        let pattern = #"\b(\d{5})\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(address.startIndex..<address.endIndex, in: address)
+        guard let match = regex.firstMatch(in: address, options: [], range: range),
+              let swiftRange = Range(match.range(at: 1), in: address) else {
+            return nil
+        }
+        return String(address[swiftRange])
+    }
+
+    private static func regionFromZip(_ zip: String) -> TopRatedRegion? {
+        guard zip.count == 5 else { return nil }
+        let prefix3 = String(zip.prefix(3))
+        switch prefix3 {
+        case "100", "101", "102": return .manhattan
+        case "112": return .brooklyn
+        case "111", "113", "114", "116": return .queens
+        case "104": return .bronx
+        case "103": return .statenIsland
+        case "110", "115", "117", "118": return .longIsland
+        default: return nil
+        }
+    }
+
+    private static func regionForCoordinate(_ coordinate: CLLocationCoordinate2D) -> TopRatedRegion? {
+        struct RegionBox { let region: TopRatedRegion; let lat: ClosedRange<Double>; let lon: ClosedRange<Double>; let centroid: CLLocationCoordinate2D }
+
+        let boxes: [RegionBox] = [
+            .init(region: .manhattan,    lat: 40.68...40.90, lon: (-74.03)...(-73.92), centroid: .init(latitude: 40.7831, longitude: -73.9712)),
+            .init(region: .brooklyn,     lat: 40.56...40.74, lon: (-74.05)...(-73.83), centroid: .init(latitude: 40.6500, longitude: -73.9496)),
+            .init(region: .queens,       lat: 40.54...40.81, lon: (-73.96)...(-73.70), centroid: .init(latitude: 40.7282, longitude: -73.7949)),
+            .init(region: .bronx,        lat: 40.79...40.93, lon: (-73.93)...(-73.76), centroid: .init(latitude: 40.8448, longitude: -73.8648)),
+            .init(region: .statenIsland, lat: 40.48...40.65, lon: (-74.27)...(-74.05), centroid: .init(latitude: 40.5795, longitude: -74.1502))
+        ]
+
+        let candidates = boxes.filter { box in
+            latRangeContains(box.lat, coordinate: coordinate) && lonRangeContains(box.lon, coordinate: coordinate)
+        }
+
+        if candidates.count == 1 {
+            return candidates.first?.region
+        }
+        if candidates.count > 1 {
+            let best = candidates.min(by: { a, b in
+                squaredDistance(coordinate, a.centroid) < squaredDistance(coordinate, b.centroid)
+            })
+            return best?.region
+        }
+
+        let inLongIslandBox = latRangeContains(40.55...41.20, coordinate: coordinate) &&
+            lonRangeContains((-73.95)...(-71.75), coordinate: coordinate)
+        if inLongIslandBox { return .longIsland }
+        return nil
+    }
+
+    private static func squaredDistance(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let dx = a.latitude - b.latitude
+        let dy = a.longitude - b.longitude
+        return dx * dx + dy * dy
+    }
+
+    private static func latRangeContains(_ range: ClosedRange<Double>, coordinate: CLLocationCoordinate2D) -> Bool {
+        range.contains(coordinate.latitude)
+    }
+
+    private static func lonRangeContains(_ range: ClosedRange<Double>, coordinate: CLLocationCoordinate2D) -> Bool {
+        range.contains(coordinate.longitude)
+    }
+}
+
+private struct CommunityTopRatedSnapshot: Sendable {
+    let allPlaces: [Place]
+    let globalPlaces: [Place]
+    let searchResults: [Place]
+    let yelpFallback: [Place]
+}
+
+private struct CommunityComputationResult: Sendable {
+    let regionResults: [TopRatedRegion: [Place]]
+}
+
+private enum CommunityTopRatedEngine {
+    static func compute(snapshot: CommunityTopRatedSnapshot) -> CommunityComputationResult {
+        var regionResults: [TopRatedRegion: [Place]] = [:]
+        var nameMatches: [String: [Place]] = [:]
+
+        var pool: [Place] = snapshot.allPlaces
+        if !snapshot.globalPlaces.isEmpty {
+            pool.append(contentsOf: snapshot.globalPlaces)
+        }
+        if !snapshot.searchResults.isEmpty {
+            pool.append(contentsOf: snapshot.searchResults)
+        }
+
+        let dedupedPool = PlaceOverrides.deduplicate(pool)
+        let filteredPool = dedupedPool.filteredByCurrentGeoScope()
+
+        let yelpBase = snapshot.yelpFallback
+        var fallbackByRegion: [TopRatedRegion: [Place]] = [:]
+        for region in CommunityTopRatedConfig.regions {
+            let matches = yelpBase.filter { CommunityRegionClassifier.matches($0, region: region) }
+            fallbackByRegion[region] = Array(matches.prefix(20))
+        }
+
+        for region in CommunityTopRatedConfig.regions {
+            let curatedNames = CommunityTopRatedConfig.curatedNames[region] ?? []
+            var curatedResults: [Place] = []
+
+            for name in curatedNames {
+                let normalized = PlaceOverrides.normalizedName(for: name)
+                guard !normalized.isEmpty else { continue }
+
+                let matches: [Place]
+                if let cached = nameMatches[normalized] {
+                    matches = cached
+                } else {
+                    let resolved = findMatches(in: filteredPool, normalizedQuery: normalized)
+                    nameMatches[normalized] = resolved
+                    matches = resolved
+                }
+
+                if let best = pickBest(from: matches, normalizedTarget: normalized, region: region) {
+                    curatedResults.append(best)
+                }
+            }
+
+            if curatedResults.count < 5 {
+                let fallback = fallbackByRegion[region] ?? []
+                for place in fallback where !curatedResults.contains(where: { $0.id == place.id }) {
+                    curatedResults.append(place)
+                    if curatedResults.count >= 5 { break }
+                }
+            }
+
+            if curatedResults.isEmpty {
+                let fallback = fallbackByRegion[region] ?? []
+                curatedResults.append(contentsOf: fallback.prefix(5))
+            }
+
+            regionResults[region] = Array(curatedResults.prefix(5))
+        }
+
+        var combined: [Place] = []
+        for region in CommunityTopRatedConfig.regions {
+            if let list = regionResults[region] {
+                combined.append(contentsOf: list)
+            }
+        }
+        let dedupedCombined = deduplicateCombined(combined)
+        regionResults[.all] = dedupedCombined
+
+        return CommunityComputationResult(regionResults: regionResults)
+    }
+
+    private static func findMatches(in dataset: [Place], normalizedQuery: String) -> [Place] {
+        guard !normalizedQuery.isEmpty else { return [] }
+
+        var matches: [Place] = []
+        matches.reserveCapacity(16)
+
+        for place in dataset {
+            let normalizedName = PlaceOverrides.normalizedName(for: place.name)
+            if normalizedName.contains(normalizedQuery) {
+                matches.append(place)
+                continue
+            }
+            if let address = place.address {
+                let normalizedAddress = PlaceOverrides.normalizedName(for: address)
+                if normalizedAddress.contains(normalizedQuery) {
+                    matches.append(place)
+                }
+            }
+        }
+
+        guard !matches.isEmpty else { return [] }
+        let deduped = PlaceOverrides.deduplicate(matches)
+        return PlaceOverrides.sorted(deduped)
+    }
+
+    private static func pickBest(from matches: [Place], normalizedTarget: String, region: TopRatedRegion) -> Place? {
+        guard !matches.isEmpty else { return nil }
+        if let exactRegional = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget && CommunityRegionClassifier.matches($0, region: region) }) {
+            return exactRegional
+        }
+        if let regional = matches.first(where: { CommunityRegionClassifier.matches($0, region: region) }) {
+            return regional
+        }
+        if let exact = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget }) {
+            return exact
+        }
+        return matches.first
+    }
+
+    private static func deduplicateCombined(_ places: [Place]) -> [Place] {
+        var seen = Set<String>()
+        var result: [Place] = []
+        result.reserveCapacity(places.count)
+
+        for place in places {
+            let key = place.id.uuidString + PlaceOverrides.normalizedName(for: place.name)
+            if seen.insert(key).inserted {
+                result.append(place)
+            }
+        }
+
+        return result
+    }
+}
+
+
 struct ContentView: View {
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
@@ -97,6 +382,8 @@ struct ContentView: View {
     @State private var keyboardHeight: CGFloat = 0
     @State private var previousMapRegion: MKCoordinateRegion?
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
+    @State private var communityPrecomputeTask: Task<Void, Never>?
+    @State private var communityComputationGeneration: Int = 0
     @State private var visiblePlaces: [Place] = []
     @State private var viewportCache = ViewportCache()
 
@@ -183,114 +470,83 @@ struct ContentView: View {
         switch topRatedSort {
         case .yelp:
             let base = viewModel.topRatedPlaces(limit: 50, minimumReviews: 10)
-            return base.filter { matchesTopRatedRegion($0, region: topRatedRegion) }
+            return base.filter { CommunityRegionClassifier.matches($0, region: topRatedRegion) }
         case .community:
             return communityTopRated(for: topRatedRegion)
         }
     }
 
     private func communityTopRated(for region: TopRatedRegion) -> [Place] {
-        if let cached = communityCache[region], !cached.isEmpty { return cached }
-        // Curated names per region
-        let curated: [TopRatedRegion: [String]] = [
-            .manhattan: [
-                "Top Thai",
-                "Balade Your Way",
-                "Adel's",
-                "Au' Zatar East Village",
-                "Nishaan"
-            ],
-            .queens: [
-                "Zyara Restaurant",
-                "Nur Thai",
-                "Mahmoud's Corner",
-                "Little Flower Cafe",
-                "Darjeeling Kitchen & Cafe"
-            ],
-            .brooklyn: [
-                "BK Jani",
-                "Namkeen",
-                "Monkey King",
-                "Zatar",
-                "Affy's"
-            ],
-            .bronx: [
-                "Waleed's Kitchen & Hot Wings",
-                "Blazin Chicken & Gyro",
-                "Fry Chick",
-                "Sooq NYC",
-                "Halal Indian Grill"
-            ],
-            .longIsland: [
-                "Zaoq",
-                "Choopan",
-                "Guac Time",
-                "Halal Express Kabab House",
-                "While in Kathmandu"
-            ]
-        ]
-
-        func placeForName(_ name: String, in region: TopRatedRegion) -> Place? {
-            // Try exact match, prefer items classified into the requested region
-            let matches = viewModel.combinedMatches(for: name)
-            let normalizedTarget = PlaceOverrides.normalizedName(for: name)
-            if let exact = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget && matchesTopRatedRegion($0, region: region) }) {
-                return exact
-            }
-            if let regional = matches.first(where: { matchesTopRatedRegion($0, region: region) }) {
-                return regional
-            }
-            if let exactAny = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget }) {
-                return exactAny
-            }
-            return matches.first
+        if let cached = communityCache[region] {
+            return cached
         }
+        scheduleCommunityPrecomputationIfNeeded()
+        return communityFallback(for: region)
+    }
 
-        func list(for region: TopRatedRegion) -> [Place] {
-            if let names = curated[region], !names.isEmpty {
-                var results: [Place] = []
-                for n in names {
-                    if let p = placeForName(n, in: region) {
-                        results.append(p)
-                    }
-                }
-                // If any missing, backfill with Yelp top for this region
-                if results.count < 5 {
-                    let needed = 5 - results.count
-                    let yelp = viewModel.topRatedPlaces(limit: 50, minimumReviews: 5)
-                        .filter { matchesTopRatedRegion($0, region: region) }
-                        .filter { existing in !results.contains(where: { $0.id == existing.id }) }
-                    results.append(contentsOf: yelp.prefix(needed))
-                }
-                return Array(results.prefix(5))
-            } else {
-                // No curated list: fall back entirely to Yelp top 5
-                return Array(viewModel.topRatedPlaces(limit: 50, minimumReviews: 5)
-                    .filter { matchesTopRatedRegion($0, region: region) }
-                    .prefix(5))
-            }
-        }
+    private func resetCommunityCaches() {
+        communityComputationGeneration &+= 1
+        communityPrecomputeTask?.cancel()
+        communityPrecomputeTask = nil
+        communityCache.removeAll(keepingCapacity: false)
+    }
 
-        let result: [Place]
-        if region == .all {
-            // Concatenate 5 from each region to ~30 results
-            let regions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .bronx, .statenIsland, .longIsland]
+    private func communityFallback(for region: TopRatedRegion) -> [Place] {
+        let base = viewModel.topRatedPlaces(limit: 60, minimumReviews: 5)
+        switch region {
+        case .all:
             var combined: [Place] = []
-            for r in regions { combined += list(for: r) }
-            // Deduplicate by id/name
-            var seen = Set<String>()
-            let unique = combined.filter { place in
-                let key = place.id.uuidString + PlaceOverrides.normalizedName(for: place.name)
-                if seen.contains(key) { return false }
-                seen.insert(key)
-                return true
+            for region in CommunityTopRatedConfig.regions {
+                combined.append(contentsOf: base.filter { CommunityRegionClassifier.matches($0, region: region) }.prefix(5))
             }
-            result = unique
-        } else {
-            result = list(for: region)
+            return deduplicateCombinedList(combined)
+        default:
+            return Array(
+                base
+                    .filter { CommunityRegionClassifier.matches($0, region: region) }
+                    .prefix(5)
+            )
         }
-        communityCache[region] = result
+    }
+
+    private func deduplicateCombinedList(_ places: [Place]) -> [Place] {
+        var seen = Set<String>()
+        var result: [Place] = []
+        result.reserveCapacity(places.count)
+        for place in places {
+            let key = place.id.uuidString + PlaceOverrides.normalizedName(for: place.name)
+            if seen.insert(key).inserted {
+                result.append(place)
+            }
+        }
         return result
+    }
+
+    private func scheduleCommunityPrecomputationIfNeeded(force: Bool = false) {
+        if !force {
+            if let cachedAll = communityCache[.all], cachedAll.count >= 5 {
+                return
+            }
+            if communityPrecomputeTask != nil {
+                return
+            }
+        }
+
+        communityPrecomputeTask?.cancel()
+        let snapshot = viewModel.communityTopRatedSnapshot()
+        communityComputationGeneration &+= 1
+        let generation = communityComputationGeneration
+
+        communityPrecomputeTask = Task.detached(priority: .utility) {
+            let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
+            await MainActor.run {
+                guard communityComputationGeneration == generation else { return }
+                for (region, list) in result.regionResults {
+                    communityCache[region] = list
+                }
+                communityPrecomputeTask = nil
+            }
+        }
     }
 
     private var mapPlaces: [Place] {
@@ -313,116 +569,6 @@ struct ContentView: View {
         }
     }
 
-    private func matchesTopRatedRegion(_ place: Place, region: TopRatedRegion) -> Bool {
-        let assigned = regionForPlace(place)
-        if region == .all { return true }
-        return assigned == region
-    }
-
-    // Determine region using address keywords first (more precise for edge cases),
-    // then fall back to coordinate classification with centroid tie‑breakers.
-    private func regionForPlace(_ place: Place) -> TopRatedRegion? {
-        if let addr = place.address?.lowercased() {
-            if let zip = extractZip(addr), let regionFromZip = regionFromZip(zip) {
-                return regionFromZip
-            }
-            // Manhattan via ZIP (100xx). Avoid generic "New York, NY" because many Queens
-            // addresses include that string (e.g., "Long Island City, New York, NY 11101").
-            if addr.contains(" ny 100") || addr.contains(" new york, ny 100") || addr.contains(" new york ny 100") { return .manhattan }
-
-            // Queens neighborhood keywords (avoid Long Island confusion; LIC handled here).
-            let queensKeys = [
-                " queens", "sunnyside", "astoria", "long island city", " lic ",
-                "jackson heights", "flushing", "jamaica, ny", "woodside", "elmhurst",
-                "forest hills", "rego park", "kew gardens", "richmond hill", "ozone park",
-                "bayside", "whitestone", "college point", "far rockaway", "rockaway"
-            ]
-            if queensKeys.contains(where: { addr.contains($0) }) { return .queens }
-
-            if addr.contains(" brooklyn") { return .brooklyn }
-            if addr.contains(" bronx") { return .bronx }
-            if addr.contains(" staten island") { return .statenIsland }
-
-            // Long Island (exclude LIC)
-            if addr.contains(" long island") && !addr.contains("long island city") { return .longIsland }
-        }
-        return regionForCoordinate(place.coordinate)
-    }
-
-    // Extract first 5-digit zip code from an address string.
-    private func extractZip(_ address: String) -> String? {
-        let pattern = #"\b(\d{5})\b"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-            let range = NSRange(address.startIndex..<address.endIndex, in: address)
-            if let match = regex.firstMatch(in: address, options: [], range: range) {
-                if let r = Range(match.range(at: 1), in: address) {
-                    return String(address[r])
-                }
-            }
-        }
-        return nil
-    }
-
-    private func regionFromZip(_ zip: String) -> TopRatedRegion? {
-        guard zip.count == 5 else { return nil }
-        let prefix3 = String(zip.prefix(3))
-        switch prefix3 {
-        case "100", "101", "102": return .manhattan
-        case "112": return .brooklyn
-        case "111", "113", "114", "116": return .queens
-        case "104": return .bronx
-        case "103": return .statenIsland
-        case "110", "115", "117", "118": return .longIsland
-        default: return nil
-        }
-    }
-
-    // Assign each coordinate to exactly one region using bounding boxes and centroid tie‑breakers.
-    private func regionForCoordinate(_ coordinate: CLLocationCoordinate2D) -> TopRatedRegion? {
-        struct RegionBox { let region: TopRatedRegion; let lat: ClosedRange<Double>; let lon: ClosedRange<Double>; let centroid: CLLocationCoordinate2D }
-
-        let boxes: [RegionBox] = [
-            .init(region: .manhattan,    lat: 40.68...40.90, lon: (-74.03)...(-73.92), centroid: .init(latitude: 40.7831, longitude: -73.9712)),
-            .init(region: .brooklyn,     lat: 40.56...40.74, lon: (-74.05)...(-73.83), centroid: .init(latitude: 40.6500, longitude: -73.9496)),
-            .init(region: .queens,       lat: 40.54...40.81, lon: (-73.96)...(-73.70), centroid: .init(latitude: 40.7282, longitude: -73.7949)),
-            .init(region: .bronx,        lat: 40.79...40.93, lon: (-73.93)...(-73.76), centroid: .init(latitude: 40.8448, longitude: -73.8648)),
-            .init(region: .statenIsland, lat: 40.48...40.65, lon: (-74.27)...(-74.05), centroid: .init(latitude: 40.5795, longitude: -74.1502))
-        ]
-
-        let candidates = boxes.filter { box in
-            isWithin(coordinate, lat: box.lat, lon: box.lon)
-        }
-
-        if let only = candidates.first, candidates.count == 1 {
-            return only.region
-        }
-        if candidates.count > 1 {
-            // Break ties by selecting nearest centroid.
-            let best = candidates.min(by: { a, b in
-                squaredDistance(coordinate, a.centroid) < squaredDistance(coordinate, b.centroid)
-            })
-            return best?.region
-        }
-
-        // Long Island (exclude NYC boroughs):
-        let inLongIslandBox = isWithin(coordinate, lat: 40.55...41.20, lon: (-73.95)...(-71.75))
-        if inLongIslandBox { return .longIsland }
-        return nil
-    }
-
-    private func squaredDistance(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
-        let dx = a.latitude - b.latitude
-        let dy = a.longitude - b.longitude
-        return dx*dx + dy*dy
-    }
-
-    private func isWithin(_ coordinate: CLLocationCoordinate2D, lat: ClosedRange<Double>, lon: ClosedRange<Double>) -> Bool {
-        lat.contains(coordinate.latitude) && lon.contains(coordinate.longitude)
-    }
-
-    private func address(of place: Place) -> String {
-        place.address?.lowercased() ?? ""
-    }
 
     private func matchesAppleQuery(item: MKMapItem, normalizedQuery: String) -> Bool {
         guard !normalizedQuery.isEmpty else { return true }
@@ -540,6 +686,10 @@ struct ContentView: View {
             }
         }
         .onChange(of: viewModel.filteredPlacesVersion) { _ in
+            resetCommunityCaches()
+            if bottomTab == .topRated && topRatedSort == .community {
+                scheduleCommunityPrecomputationIfNeeded(force: true)
+            }
             guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             guard bottomTab == .places || bottomTab == .newSpots else { return }
             refreshVisiblePlaces()
@@ -635,15 +785,21 @@ struct ContentView: View {
                    !topRatedDisplay.contains(where: { $0.id == selected.id }) {
                     selectedPlace = nil
                 }
+                if topRatedSort == .community {
+                    scheduleCommunityPrecomputationIfNeeded()
+                }
             default:
                 break
             }
         }
-        .onChange(of: topRatedSort) { _, _ in
+        .onChange(of: topRatedSort) { _, newValue in
             if bottomTab == .topRated,
                let selected = selectedPlace,
                !topRatedDisplay.contains(where: { $0.id == selected.id }) {
                 selectedPlace = nil
+            }
+            if newValue == .community {
+                scheduleCommunityPrecomputationIfNeeded()
             }
         }
         .onChange(of: topRatedRegion) { _, _ in
@@ -3009,6 +3165,15 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             filtered = allPlaces.filter { $0.halalStatus == .yes }
         }
         places = filtered
+    }
+
+    fileprivate func communityTopRatedSnapshot() -> CommunityTopRatedSnapshot {
+        return CommunityTopRatedSnapshot(
+            allPlaces: allPlaces,
+            globalPlaces: globalDataset,
+            searchResults: searchResults,
+            yelpFallback: topRatedPlaces(limit: 80, minimumReviews: 5)
+        )
     }
 
     func topRatedPlaces(limit: Int = 50, minimumReviews: Int = 10) -> [Place] {
