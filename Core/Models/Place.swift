@@ -48,6 +48,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let confidence: Double?
     let source: String?
     let applePlaceID: String?
+    let note: String?
 
     init?(dto: PlaceDTO) {
         id = dto.id
@@ -67,6 +68,7 @@ struct Place: Identifiable, Hashable, Sendable {
         confidence = dto.confidence
         source = dto.source
         applePlaceID = dto.apple_place_id
+        note = dto.note
     }
 }
 
@@ -99,7 +101,8 @@ extension Place {
          ratingCount: Int? = nil,
          confidence: Double? = nil,
          source: String? = "manual",
-         applePlaceID: String? = nil) {
+         applePlaceID: String? = nil,
+         note: String? = nil) {
         self.id = id
         self.name = name
         self.coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -112,6 +115,7 @@ extension Place {
         self.confidence = confidence
         self.source = source
         self.applePlaceID = applePlaceID
+        self.note = note
     }
 
     init(id: UUID,
@@ -125,7 +129,8 @@ extension Place {
          ratingCount: Int?,
          confidence: Double?,
          source: String?,
-         applePlaceID: String?) {
+         applePlaceID: String?,
+         note: String?) {
         self.id = id
         self.name = name
         self.coordinate = coordinate
@@ -138,6 +143,7 @@ extension Place {
         self.confidence = confidence
         self.source = source
         self.applePlaceID = applePlaceID
+        self.note = note
     }
 }
 
@@ -156,6 +162,7 @@ extension Place: Codable {
         case confidence
         case source
         case applePlaceID
+        case note
     }
 
     init(from decoder: Decoder) throws {
@@ -173,6 +180,7 @@ extension Place: Codable {
         let confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
         let source = try container.decodeIfPresent(String.self, forKey: .source)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
+        let note = try container.decodeIfPresent(String.self, forKey: .note)
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
 
         self.init(
@@ -187,7 +195,8 @@ extension Place: Codable {
             ratingCount: ratingCount,
             confidence: confidence,
             source: source,
-            applePlaceID: applePlaceID
+            applePlaceID: applePlaceID,
+            note: note
         )
     }
 
@@ -206,6 +215,7 @@ extension Place: Codable {
         try container.encodeIfPresent(confidence, forKey: .confidence)
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
+        try container.encodeIfPresent(note, forKey: .note)
     }
 }
 enum PlaceOverrides {
@@ -454,14 +464,25 @@ enum PlaceOverrides {
         let confidence = (place.confidence ?? 0) * 100
         let rating = (place.rating ?? 0) * 10
         let ratingCountBonus = sqrt(Double(place.ratingCount ?? 0))
-        return priority * 10_000 + confidence + rating + ratingCountBonus
+        let halalBonus: Double
+        switch place.halalStatus {
+        case .only:
+            halalBonus = 18_000
+        case .yes:
+            halalBonus = 15_000
+        case .unknown:
+            halalBonus = 0
+        case .no:
+            halalBonus = -20_000
+        }
+        return priority * 10_000 + halalBonus + confidence + rating + ratingCountBonus
     }
 
     private static func sourcePriority(for source: String?) -> Int {
         switch normalizedSource(source) {
-        case "manual": return 4
-        case "yelp": return 3
-        case "apple": return 2
+        case "yelp": return 4
+        case "apple": return 3
+        case "manual": return 2
         case "osm": return 1
         default: return 1
         }

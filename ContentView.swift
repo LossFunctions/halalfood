@@ -386,19 +386,23 @@ struct ContentView: View {
     @State private var communityComputationGeneration: Int = 0
     @State private var visiblePlaces: [Place] = []
     @State private var viewportCache = ViewportCache()
+    @State private var searchDebounceTask: DispatchWorkItem?
 
     private var appleOverlayItems: [MKMapItem] {
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard selectedFilter == .all else { return [] }
+        guard !trimmedQuery.isEmpty else { return [] }
+        guard trimmedQuery.lowercased().contains("halal") else { return [] }
 
         let supabaseLocations = viewModel.places.map {
             CLLocation(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
         }
 
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedQuery = PlaceOverrides.normalizedName(for: trimmedQuery)
 
         var filtered: [MKMapItem] = []
         for item in appleHalalSearch.results {
+            guard appleItemLooksHalal(item) else { continue }
             guard let coordinate = mapItemCoordinate(item) else { continue }
 
             // Enforce NYC + Long Island scope for Apple items
@@ -420,6 +424,22 @@ struct ContentView: View {
         }
 
         return filtered
+    }
+
+    private func appleItemLooksHalal(_ item: MKMapItem) -> Bool {
+        func containsHalal(_ value: String?) -> Bool {
+            guard let raw = value, !raw.isEmpty else { return false }
+            let normalized = PlaceOverrides.normalizedName(for: raw)
+            return normalized.contains("halal")
+        }
+
+        if containsHalal(item.name) { return true }
+        if containsHalal(item.halalShortAddress) { return true }
+        if let urlString = item.url?.absoluteString, containsHalal(urlString) { return true }
+        if #available(iOS 13.0, *), let categoryRaw = item.pointOfInterestCategory?.rawValue {
+            if containsHalal(categoryRaw) { return true }
+        }
+        return false
     }
 
     private var filteredPlaces: [Place] {
@@ -578,11 +598,6 @@ struct ContentView: View {
             if normalizedName.contains(normalizedQuery) { return true }
         }
 
-        if let shortAddress = item.halalShortAddress, !shortAddress.isEmpty {
-            let normalizedAddress = PlaceOverrides.normalizedName(for: shortAddress)
-            if normalizedAddress.contains(normalizedQuery) { return true }
-        }
-
         return false
     }
 
@@ -722,7 +737,24 @@ struct ContentView: View {
             keyboardHeight = 0
         }
         .onChange(of: searchQuery) { _, newValue in
-            viewModel.search(query: newValue)
+            searchDebounceTask?.cancel()
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                viewModel.search(query: "")
+                searchDebounceTask = nil
+                return
+            }
+
+            let workItem = DispatchWorkItem {
+                viewModel.search(query: newValue)
+            }
+            searchDebounceTask = workItem
+            workItem.notify(queue: .main) {
+                if searchDebounceTask === workItem {
+                    searchDebounceTask = nil
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
         }
         .alert("Unable to load places", isPresented: $viewModel.presentingError) {
             Button("OK", role: .cancel) {
@@ -2132,18 +2164,16 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private var halalSection: some View {
-        if place.source?.lowercased() == "apple" {
-            EmptyView()
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Label(place.halalStatus.label, systemImage: "checkmark.seal")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            partialHalalMessageView()
 
-                Text("Our halal classification comes from our own Supabase dataset.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Label(place.halalStatus.label, systemImage: "checkmark.seal")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text("Our halal classification comes from our own Supabase dataset.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -2182,6 +2212,7 @@ struct PlaceDetailView: View {
             if let ratingModel {
                 YelpRatingRow(model: ratingModel, style: .inline)
             }
+            partialHalalMessageView()
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "apple.logo")
                     .font(.title3)
@@ -2299,6 +2330,9 @@ struct PlaceDetailView: View {
                     YelpRatingRow(model: ratingModel, style: .prominent)
                         .padding(.horizontal, 16)
                 }
+                partialHalalMessageView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
                 applePlaceCard(details)
             } else {
                 appleDetailsSection(details)
@@ -2344,6 +2378,32 @@ struct PlaceDetailView: View {
     private var hasAppleDetails: Bool {
         if case .loaded = viewModel.loadingState { return true }
         return false
+    }
+
+    @ViewBuilder
+    private func partialHalalMessageView() -> some View {
+        if let display = partialHalalDisplay {
+            VStack(alignment: .leading, spacing: 4) {
+                (Text("Partially Halal: ").fontWeight(.semibold) + Text(display.primary))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let disclaimer = display.disclaimer {
+                    Text(disclaimer)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var partialHalalDisplay: (primary: String, disclaimer: String?)? {
+        guard place.halalStatus == .yes else { return nil }
+        let reminder = "Please always double check with restaurant"
+        if let raw = place.note?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            return (primary: raw, disclaimer: "(\(reminder))")
+        } else {
+            return (primary: reminder, disclaimer: nil)
+        }
     }
 
 }
@@ -2846,6 +2906,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var globalDatasetTask: Task<Void, Never>?
     private var remoteSearchTask: Task<Void, Never>?
     private var appleFallbackTask: Task<Void, Never>?
+    private var localFilterComputationTask: Task<[Place], Error>?
+    private var localFilterDeliveryTask: Task<Void, Never>?
     private var lastRequestedRegion: MKCoordinateRegion?
     private var cache = PlaceCache()
     private var allPlaces: [Place] = []
@@ -2899,6 +2961,10 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         manualSearchTask = nil
         appleFallbackTask?.cancel()
         appleFallbackTask = nil
+        localFilterDeliveryTask?.cancel()
+        localFilterDeliveryTask = nil
+        localFilterComputationTask?.cancel()
+        localFilterComputationTask = nil
 
         lastSearchQuery = trimmed
 
@@ -2911,9 +2977,42 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
         ensureGlobalDataset()
 
-        let seededMatches = combinedMatches(for: trimmed)
-        searchResults = PlaceOverrides.sorted(seededMatches)
+        let localSnapshot = allPlaces
+        let globalSnapshot = globalDataset
+
         isSearching = true
+        searchResults = []
+
+        let filterTask = Task.detached(priority: .userInitiated) { () throws -> [Place] in
+            try Task.checkCancellation()
+            return Self.combinedMatchesSnapshot(local: localSnapshot, global: globalSnapshot, query: trimmed)
+        }
+        localFilterComputationTask = filterTask
+
+        localFilterDeliveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.localFilterDeliveryTask = nil
+                self.localFilterComputationTask = nil
+                self.updateSearchActivityIndicator()
+            }
+
+            do {
+                let matches = try await filterTask.value
+                guard !Task.isCancelled else { return }
+                guard self.lastSearchQuery == trimmed else { return }
+                let merged = self.deduplicate(self.searchResults + matches)
+                self.searchResults = PlaceOverrides.sorted(merged)
+            } catch is CancellationError {
+                return
+            } catch {
+#if DEBUG
+                print("[MapScreenViewModel] Local search filtering failed for query \(trimmed):", error)
+#endif
+            }
+        }
+
+        updateSearchActivityIndicator()
 
         remoteSearchTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -2934,6 +3033,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 let cleaned = PlaceOverrides
                     .apply(overridesTo: remotePlaces, in: region)
                     .filteredByCurrentGeoScope()
+                    .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     .filter(self.isTrustedPlace(_:))
                 guard !cleaned.isEmpty else { return }
                 self.mergeIntoGlobalDataset(cleaned)
@@ -2959,6 +3059,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 .shared
                 .searchMatches(for: trimmed, excluding: exclusion)
                 .filteredByCurrentGeoScope()
+                .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 .filter(self.isTrustedPlace(_:))
             guard !Task.isCancelled else { return }
             guard !additionalManual.isEmpty else { return }
@@ -3029,7 +3130,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
                 let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
                 self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
-                self.mergeIntoGlobalDataset(sanitizedCombined)
+                self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))
                 self.apply(filter: self.currentFilter)
                 self.isLoading = false
                 self.cache.store(sanitizedCombined, region: requestRegion)
@@ -3253,6 +3354,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         globalDatasetTask?.cancel()
         remoteSearchTask?.cancel()
         appleFallbackTask?.cancel()
+        localFilterDeliveryTask?.cancel()
+        localFilterComputationTask?.cancel()
         appleIngestTasks.values.forEach { $0.cancel() }
         persistTask?.cancel()
     }
@@ -3296,18 +3399,19 @@ private extension MapScreenViewModel {
         return
     }
 
-    private static let nonHalalChainBlocklist: Set<String> = {
-        let names = [
-            "Subway", "Taco Bell", "McDonald's", "Burger King", "Wendy's",
-            "KFC", "Chipotle", "Domino's", "Pizza Hut", "Papa John's",
-            "Five Guys", "White Castle", "Panera Bread", "Starbucks",
-            "Dunkin'", "Chick-fil-A", "Popeyes", "Arby's", "Jack in the Box",
-            "Sonic Drive-In", "Little Caesars", "Carl's Jr", "Hardee's"
-        ]
-        return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
-    }()
+private static let nonHalalChainBlocklist: Set<String> = {
+    let names = [
+        "Subway", "Taco Bell", "McDonald's", "Burger King", "Wendy's",
+        "KFC", "Chipotle", "Domino's", "Pizza Hut", "Papa John's",
+        "Five Guys", "White Castle", "Panera Bread", "Starbucks",
+        "Dunkin'", "Chick-fil-A", "Popeyes", "Arby's", "Jack in the Box",
+        "Sonic Drive-In", "Little Caesars", "Carl's Jr", "Hardee's",
+        "Little Ruby's", "Little Ruby's Cafe", "Little Ruby's SoHo"
+    ]
+    return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
+}()
 
-    static func isBlocklistedChainName(_ name: String) -> Bool {
+    nonisolated static func isBlocklistedChainName(_ name: String) -> Bool {
         let normalized = PlaceOverrides.normalizedName(for: name)
         guard !normalized.isEmpty else { return false }
         for blocked in nonHalalChainBlocklist {
@@ -3316,7 +3420,7 @@ private extension MapScreenViewModel {
         return false
     }
 
-    static func isBlocklistedChain(_ place: Place) -> Bool {
+    nonisolated static func isBlocklistedChain(_ place: Place) -> Bool {
         isBlocklistedChainName(place.name)
     }
 
@@ -3328,19 +3432,31 @@ private extension MapScreenViewModel {
     }
 
     func combinedMatches(for query: String) -> [Place] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        let local = matches(in: allPlaces, query: trimmed)
-        let global = matches(in: globalDataset, query: trimmed)
-        return deduplicate(local + global)
+        Self.combinedMatchesSnapshot(local: allPlaces, global: globalDataset, query: query)
     }
 
     func matches(in source: [Place], query: String) -> [Place] {
         let normalizedQuery = PlaceOverrides.normalizedName(for: query)
+        return Self.matches(in: source, normalizedQuery: normalizedQuery)
+    }
+
+    nonisolated static func combinedMatchesSnapshot(local: [Place], global: [Place], query: String) -> [Place] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let normalizedQuery = PlaceOverrides.normalizedName(for: trimmed)
+        guard !normalizedQuery.isEmpty else { return [] }
+        let localMatches = matches(in: local, normalizedQuery: normalizedQuery)
+        let globalMatches = matches(in: global, normalizedQuery: normalizedQuery)
+        return PlaceOverrides.deduplicate(localMatches + globalMatches)
+    }
+
+    nonisolated static func matches(in source: [Place], normalizedQuery: String) -> [Place] {
         guard !normalizedQuery.isEmpty else { return [] }
 
         return source.filter { place in
             guard !Self.isBlocklistedChain(place) else { return false }
+            let trimmedName = place.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else { return false }
             let normalizedName = PlaceOverrides.normalizedName(for: place.name)
             if normalizedName.contains(normalizedQuery) { return true }
 
@@ -3371,7 +3487,7 @@ private extension MapScreenViewModel {
                     .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     .filter(self.isTrustedPlace(_:))
                 try Task.checkCancellation()
-                self.mergeIntoGlobalDataset(places)
+                self.mergeIntoGlobalDataset(places, replacingSources: Set(["seed"]))
                 if let query = self.lastSearchQuery, !query.isEmpty {
                     let seeded = self.combinedMatches(for: query).filteredByCurrentGeoScope()
                     self.searchResults = PlaceOverrides.sorted(seeded)
@@ -3390,12 +3506,19 @@ private extension MapScreenViewModel {
         }
     }
 
-    func mergeIntoGlobalDataset(_ newPlaces: [Place], persist: Bool = true) {
+    func mergeIntoGlobalDataset(_ newPlaces: [Place], replacingSources: Set<String> = [], persist: Bool = true) {
         guard !newPlaces.isEmpty else { return }
         let filtered = newPlaces
             .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .filter(isTrustedPlace)
-        let sanitizedExisting = globalDataset.filter(isTrustedPlace)
+        var sanitizedExisting = globalDataset.filter(isTrustedPlace)
+        if !replacingSources.isEmpty {
+            let needle = replacingSources.map { $0.lowercased() }
+            sanitizedExisting.removeAll { place in
+                guard let source = place.source?.lowercased(), !source.isEmpty else { return false }
+                return needle.contains { source.contains($0) }
+            }
+        }
         guard !(filtered.isEmpty && sanitizedExisting == globalDataset) else { return }
 
         let combined = deduplicate(sanitizedExisting + filtered)
@@ -3462,7 +3585,12 @@ private extension MapScreenViewModel {
     }
 
     func updateSearchActivityIndicator() {
-        let active = (remoteSearchTask != nil) || (manualSearchTask != nil) || (globalDatasetTask != nil) || (appleFallbackTask != nil)
+        let active = (remoteSearchTask != nil)
+            || (manualSearchTask != nil)
+            || (globalDatasetTask != nil)
+            || (appleFallbackTask != nil)
+            || (localFilterComputationTask != nil)
+            || (localFilterDeliveryTask != nil)
         if active, let query = lastSearchQuery, !query.isEmpty {
             isSearching = true
         } else if !active {
@@ -3535,7 +3663,10 @@ private extension MapScreenViewModel {
             return true
         }
         let normalized = rawSource.lowercased()
-        return !normalized.contains("apple")
+        if normalized.contains("apple") {
+            return normalized.hasPrefix("apple")
+        }
+        return true
     }
 }
 

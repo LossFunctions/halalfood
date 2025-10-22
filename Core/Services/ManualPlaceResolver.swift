@@ -74,18 +74,7 @@ final class ManualPlaceResolver {
     private let definitions: [ManualPlaceDefinition]
 
     @MainActor
-    private static let defaultDefinitions: [ManualPlaceDefinition] = [
-        ManualPlaceDefinition(
-            id: UUID(uuidString: "628C5396-CA36-4E47-B72B-6363F9DF1F3B")!,
-            name: "BK Jani",
-            anchorCoordinate: CLLocationCoordinate2D(latitude: 40.7020781, longitude: -73.9243236),
-            halalStatus: .only,
-            rating: 4.5,
-            ratingCount: 250,
-            confidence: 0.9,
-            fallbackAddress: "276 Knickerbocker Ave, Brooklyn, NY 11237"
-        )
-    ]
+    private static let defaultDefinitions: [ManualPlaceDefinition] = []
 
     private struct CacheEntry {
         let place: Place?
@@ -148,15 +137,18 @@ final class ManualPlaceResolver {
 
     func manualPlaces(in region: MKCoordinateRegion, excluding existingPlaces: [Place]) async -> [Place] {
         let existingKeys = Set(existingPlaces.map { PlaceOverrides.normalizedName(for: $0.name) })
+        var occupiedKeys = existingKeys
         var resolved: [Place] = []
 
         for definition in definitions {
             let anchorInsideRegion = region.contains(definition.anchorCoordinate)
             let cachedCoordinateInsideRegion = cache[definition.id]?.place.map { region.contains($0.coordinate) } ?? false
             guard anchorInsideRegion || cachedCoordinateInsideRegion else { continue }
-            guard let place = await resolve(definition, existingKeys: existingKeys) else { continue }
+            guard let place = await resolve(definition, existingKeys: occupiedKeys) else { continue }
+            guard !conflicts(with: existingPlaces, candidate: place) else { continue }
             let key = PlaceOverrides.normalizedName(for: place.name)
-            guard !existingKeys.contains(key) else { continue }
+            guard !occupiedKeys.contains(key) else { continue }
+            occupiedKeys.insert(key)
             resolved.append(place)
         }
 
@@ -168,12 +160,15 @@ final class ManualPlaceResolver {
         guard !trimmed.isEmpty else { return [] }
 
         let existingKeys = Set(existingPlaces.map { PlaceOverrides.normalizedName(for: $0.name) })
+        var occupiedKeys = existingKeys
         var matches: [Place] = []
 
         for definition in definitions where definition.matches(query: trimmed) {
-            guard let place = await resolve(definition, existingKeys: existingKeys) else { continue }
+            guard let place = await resolve(definition, existingKeys: occupiedKeys) else { continue }
+            guard !conflicts(with: existingPlaces, candidate: place) else { continue }
             let key = PlaceOverrides.normalizedName(for: place.name)
-            guard !existingKeys.contains(key) else { continue }
+            guard !occupiedKeys.contains(key) else { continue }
+            occupiedKeys.insert(key)
             matches.append(place)
         }
 
@@ -200,6 +195,20 @@ final class ManualPlaceResolver {
         let key = PlaceOverrides.normalizedName(for: fetched.name)
         guard !existingKeys.contains(key) else { return nil }
         return fetched
+    }
+
+    private func conflicts(with existingPlaces: [Place], candidate: Place) -> Bool {
+        guard !existingPlaces.isEmpty else { return false }
+        for existing in existingPlaces {
+            if PlaceOverrides.isDuplicate(candidate, of: existing) { return true }
+            let candidateName = PlaceOverrides.normalizedName(for: candidate.name)
+            let existingName = PlaceOverrides.normalizedName(for: existing.name)
+            if candidateName == existingName { return true }
+            if candidateName.contains(existingName) || existingName.contains(candidateName) {
+                return true
+            }
+        }
+        return false
     }
 
     private func fetchPlace(for definition: ManualPlaceDefinition) async -> Place? {
