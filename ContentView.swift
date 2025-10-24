@@ -119,6 +119,82 @@ private enum CommunityTopRatedConfig {
 
 }
 
+private struct NewSpotConfig: Identifiable {
+    let id = UUID()
+    let placeID: UUID
+    let imageURL: URL
+    let photoDescription: String?
+    let displayLocation: String
+    let cuisine: String
+    let halalStatusOverride: Place.HalalStatus?
+    let openedOn: (month: String, day: String)
+    let spotlightSummary: String?
+    let spotlightBody: String?
+    let spotlightDetails: String?
+
+    init(
+        placeID: UUID,
+        imageURL: URL,
+        photoDescription: String? = nil,
+        displayLocation: String,
+        cuisine: String,
+        halalStatusOverride: Place.HalalStatus? = nil,
+        openedOn: (month: String, day: String),
+        spotlightSummary: String? = nil,
+        spotlightBody: String? = nil,
+        spotlightDetails: String? = nil
+    ) {
+        self.placeID = placeID
+        self.imageURL = imageURL
+        self.photoDescription = photoDescription
+        self.displayLocation = displayLocation
+        self.cuisine = cuisine
+        self.halalStatusOverride = halalStatusOverride
+        self.openedOn = openedOn
+        self.spotlightSummary = spotlightSummary
+        self.spotlightBody = spotlightBody
+        self.spotlightDetails = spotlightDetails
+    }
+}
+
+private struct NewSpotEntry: Identifiable {
+    var id: UUID { place.id }
+    let place: Place
+    let imageURL: URL
+    let photoDescription: String?
+    let displayLocation: String
+    let cuisine: String
+    let halalStatusOverride: Place.HalalStatus?
+    let openedOn: (month: String, day: String)
+    let spotlightSummary: String?
+    let spotlightBody: String?
+    let spotlightDetails: String?
+
+    init(
+        place: Place,
+        imageURL: URL,
+        photoDescription: String? = nil,
+        displayLocation: String,
+        cuisine: String,
+        halalStatusOverride: Place.HalalStatus? = nil,
+        openedOn: (month: String, day: String),
+        spotlightSummary: String? = nil,
+        spotlightBody: String? = nil,
+        spotlightDetails: String? = nil
+    ) {
+        self.place = place
+        self.imageURL = imageURL
+        self.photoDescription = photoDescription
+        self.displayLocation = displayLocation
+        self.cuisine = cuisine
+        self.halalStatusOverride = halalStatusOverride
+        self.openedOn = openedOn
+        self.spotlightSummary = spotlightSummary
+        self.spotlightBody = spotlightBody
+        self.spotlightDetails = spotlightDetails
+    }
+}
+
 private enum CommunityRegionClassifier {
     static func matches(_ place: Place, region: TopRatedRegion) -> Bool {
         guard region != .all else { return true }
@@ -384,9 +460,95 @@ struct ContentView: View {
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
     @State private var communityPrecomputeTask: Task<Void, Never>?
     @State private var communityComputationGeneration: Int = 0
-    @State private var visiblePlaces: [Place] = []
-    @State private var viewportCache = ViewportCache()
-    @State private var searchDebounceTask: DispatchWorkItem?
+   @State private var visiblePlaces: [Place] = []
+   @State private var viewportCache = ViewportCache()
+   @State private var searchDebounceTask: DispatchWorkItem?
+
+    private let newSpotConfigs: [NewSpotConfig] = [
+        NewSpotConfig(
+            placeID: UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/cgpfmYM7TAJB3fekoQAiEA/o.jpg")!,
+            displayLocation: "Tribeca, Manhattan",
+            cuisine: "Indian",
+            halalStatusOverride: .yes,
+            openedOn: ("AUG", "25"),
+            spotlightSummary: "Newest Indian fine dining with owner confirmation of halal menu.",
+            spotlightBody: "Musaafer, meaning traveller, is a dining experience set in an opulent space that showcases the art and architecture of India. Chef-owner Aashim was sent on an ambitious journey through every state, gathering stories and age-old regional recipes that now appear across the menu. Guests step into TriBeCa and discover an unforgettable homage to the regions of India—custom interiors shipped from abroad and hospitality that feels like a voyage.",
+            spotlightDetails: "Full Halal Menu. However, alcohol is served."
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "dcafd5ae-b276-4852-9779-f45bcb2def9e")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/dOPbu4vYyB728kwYCDolWg/o.jpg")!,
+            photoDescription: "Prime No. 7 signature spread",
+            displayLocation: "Astoria, Queens",
+            cuisine: "Korean BBQ",
+            halalStatusOverride: .only,
+            openedOn: ("SEP", "12")
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "8741d8c4-140f-4e7c-960f-000d785da2bd")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/y1X51sVppZ8GPfFeEl0nzw/o.jpg")!,
+            photoDescription: "The Buttery artisan spread",
+            displayLocation: "Westerleigh, Staten Island",
+            cuisine: "Burgers",
+            halalStatusOverride: .only,
+            openedOn: ("JUL", "18")
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "f2e7df0e-d0e9-4f21-b398-f8768639503c")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/YyDMa0TsyUENpJ5kY0AQPw/o.jpg")!,
+            photoDescription: "Flippin Buns smash classics",
+            displayLocation: "Hicksville, Long Island",
+            cuisine: "Burgers",
+            halalStatusOverride: .only,
+            openedOn: ("OCT", "25")
+        )
+    ]
+
+    private var halalStatusOverrides: [UUID: Place.HalalStatus] {
+        Dictionary(uniqueKeysWithValues: newSpotConfigs.compactMap { config in
+            guard let status = config.halalStatusOverride else { return nil }
+            return (config.placeID, status)
+        })
+    }
+
+    private var newSpotEntries: [NewSpotEntry] {
+        newSpotConfigs.compactMap { config in
+            guard let place = viewModel.place(with: config.placeID) else { return nil }
+            return NewSpotEntry(
+                place: applyingOverrides(to: place),
+                imageURL: config.imageURL,
+                photoDescription: config.photoDescription,
+                displayLocation: config.displayLocation,
+                cuisine: config.cuisine,
+                halalStatusOverride: config.halalStatusOverride,
+                openedOn: config.openedOn,
+                spotlightSummary: config.spotlightSummary,
+                spotlightBody: config.spotlightBody,
+                spotlightDetails: config.spotlightDetails
+            )
+        }
+    }
+
+    private var spotlightEntry: NewSpotEntry? {
+        newSpotEntries.first(where: { $0.id == UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36") }) ?? newSpotEntries.first
+    }
+
+    private var featuredNewSpots: [NewSpotEntry] {
+        newSpotEntries.sorted { lhs, rhs in
+            sortValue(for: lhs) > sortValue(for: rhs)
+        }
+    }
+
+    private func sortValue(for entry: NewSpotEntry) -> Int {
+        let map: [String: Int] = [
+            "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+            "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12
+        ]
+        let month = map[entry.openedOn.month.uppercased()] ?? 0
+        let day = Int(entry.openedOn.day) ?? 0
+        return month * 100 + day
+    }
 
     private var appleOverlayItems: [MKMapItem] {
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -424,6 +586,29 @@ struct ContentView: View {
         }
 
         return filtered
+    }
+
+    private func applyingOverrides(to place: Place) -> Place {
+        guard let override = halalStatusOverrides[place.id], override != place.halalStatus else { return place }
+        return Place(
+            id: place.id,
+            name: place.name,
+            coordinate: place.coordinate,
+            category: place.category,
+            rawCategory: place.rawCategory,
+            address: place.address,
+            halalStatus: override,
+            rating: place.rating,
+            ratingCount: place.ratingCount,
+            confidence: place.confidence,
+            source: place.source,
+            applePlaceID: place.applePlaceID,
+            note: place.note
+        )
+    }
+
+    private func applyingOverrides(to places: [Place]) -> [Place] {
+        places.map { applyingOverrides(to: $0) }
     }
 
     private func appleItemLooksHalal(_ item: MKMapItem) -> Bool {
@@ -572,11 +757,11 @@ struct ContentView: View {
     private var mapPlaces: [Place] {
         switch bottomTab {
         case .favorites:
-            return favoritesDisplay.map { resolvedPlace(for: $0) }
+            return applyingOverrides(to: favoritesDisplay.map { resolvedPlace(for: $0) })
         case .topRated:
-            return topRatedDisplay
+            return applyingOverrides(to: topRatedDisplay)
         default:
-            return visiblePlaces
+            return applyingOverrides(to: visiblePlaces)
         }
     }
 
@@ -611,65 +796,77 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            HalalMapView(
-                region: $mapRegion,
-                selectedPlace: $selectedPlace,
-                places: mapPlaces,
-                appleMapItems: mapAppleItems,
-                onRegionChange: { region in
-                    viewModel.regionDidChange(to: region, filter: selectedFilter)
-                    let effective = RegionGate.enforcedRegion(for: region)
-                    appleHalalSearch.search(in: effective)
-                    refreshVisiblePlaces()
-                },
-                onPlaceSelected: { place in
-                    selectedPlace = place
-                },
-                onAppleItemSelected: { mapItem in
-                    selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
-                },
-                onMapTap: {
-                    guard bottomTab == .favorites else { return }
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        bottomTab = .places
-                    }
-                }
-            )
-            .ignoresSafeArea()
-
-            VStack(alignment: .leading, spacing: 0) {
-                searchBar
-                topSegmentedControl
-            }
-            .padding(.top, 16)
-            .padding(.horizontal, 16)
-
-            if viewModel.isLoading && viewModel.places.isEmpty {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .padding(16)
-                    .background(.thinMaterial, in: Capsule())
-            }
-
-            if bottomTab == .topRated {
-                TopRatedScreen(
-                    places: topRatedDisplay,
-                    sortOption: topRatedSort,
-                    region: topRatedRegion,
+            if bottomTab == .newSpots {
+                NewSpotsScreen(
+                    spots: featuredNewSpots,
+                    spotlight: spotlightEntry,
                     topInset: currentTopSafeAreaInset(),
-                    bottomInset: currentBottomSafeAreaInset(),
                     onSelect: { place in
-                        focus(on: place)
-                    },
-                    onSortChange: { topRatedSort = $0 },
-                    onRegionChange: { topRatedRegion = $0 }
+                        selectedPlace = place
+                    }
                 )
-                .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+                .environmentObject(favoritesStore)
+            } else {
+                HalalMapView(
+                    region: $mapRegion,
+                    selectedPlace: $selectedPlace,
+                    places: mapPlaces,
+                    appleMapItems: mapAppleItems,
+                    onRegionChange: { region in
+                        viewModel.regionDidChange(to: region, filter: selectedFilter)
+                        let effective = RegionGate.enforcedRegion(for: region)
+                        appleHalalSearch.search(in: effective)
+                        refreshVisiblePlaces()
+                    },
+                    onPlaceSelected: { place in
+                        selectedPlace = place
+                    },
+                    onAppleItemSelected: { mapItem in
+                        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+                    },
+                    onMapTap: {
+                        guard bottomTab == .favorites else { return }
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            bottomTab = .places
+                        }
+                    }
+                )
                 .ignoresSafeArea()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    searchBar
+                    topSegmentedControl
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 16)
+
+                if viewModel.isLoading && viewModel.places.isEmpty {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .padding(16)
+                        .background(.thinMaterial, in: Capsule())
+                }
+
+                if bottomTab == .topRated {
+                    TopRatedScreen(
+                        places: topRatedDisplay,
+                        sortOption: topRatedSort,
+                        region: topRatedRegion,
+                        topInset: currentTopSafeAreaInset(),
+                        bottomInset: currentBottomSafeAreaInset(),
+                        onSelect: { place in
+                            focus(on: place)
+                        },
+                        onSortChange: { topRatedSort = $0 },
+                        onRegionChange: { topRatedRegion = $0 }
+                    )
+                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+                    .ignoresSafeArea()
+                }
             }
         }
         .overlay(alignment: .topTrailing) {
-            if bottomTab != .topRated {
+            if bottomTab != .topRated && bottomTab != .newSpots {
                 locateMeButton
                     .padding(.top, locateButtonTopPadding)
                     .padding(.trailing, 16)
@@ -780,7 +977,7 @@ struct ContentView: View {
                     isPresented: $isSearchOverlayPresented,
                     query: $searchQuery,
                     isSearching: viewModel.isSearching,
-                    supabaseResults: viewModel.searchResults.filteredByCurrentGeoScope(),
+                    supabaseResults: applyingOverrides(to: viewModel.searchResults.filteredByCurrentGeoScope()),
                     appleResults: appleOverlayItems,
                     subtitle: viewModel.subtitleMessage,
                     topSafeAreaInset: currentTopSafeAreaInset(),
@@ -809,7 +1006,11 @@ struct ContentView: View {
                    !favoritesStore.contains(id: selected.id) {
                     selectedPlace = nil
                 }
-            case .places, .newSpots:
+            case .places:
+                refreshVisiblePlaces()
+            case .newSpots:
+                selectedApplePlace = nil
+                isSearchOverlayPresented = false
                 refreshVisiblePlaces()
             case .topRated:
                 selectedApplePlace = nil
@@ -2022,6 +2223,351 @@ private struct FavoriteRow: View {
     }
 }
 
+private struct NewSpotsScreen: View {
+    @EnvironmentObject private var favoritesStore: FavoritesStore
+    let spots: [NewSpotEntry]
+    let spotlight: NewSpotEntry?
+    let topInset: CGFloat
+    let onSelect: (Place) -> Void
+
+    var body: some View {
+        let spotlightEntry = spotlight
+        let listEntries = spots
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                if listEntries.isEmpty {
+                    ProgressView("Loading new trendy spots…")
+                        .progressViewStyle(.circular)
+                        .padding(.top, 80)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    NewSpotsCard(spots: listEntries, onSelect: onSelect)
+                    if let hero = spotlightEntry {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack(spacing: 8) {
+                                Text("Restaurant Spotlight")
+                                    .font(.headline.weight(.semibold))
+                                Spacer()
+                            }
+                            .foregroundStyle(Color.primary)
+
+                            NewSpotHero(entry: hero, onSelect: onSelect)
+                            SpotlightSummary(entry: hero)
+                        }
+                    }
+                }
+            }
+            .padding(.top, max(topInset - 16, 0))
+            .padding(.bottom, 32)
+            .padding(.horizontal, 16)
+        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+    }
+
+    private struct NewSpotsCard: View {
+        @EnvironmentObject private var favoritesStore: FavoritesStore
+        let spots: [NewSpotEntry]
+        let onSelect: (Place) -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.headline.weight(.semibold))
+                    Text("New Trendy Spots")
+                        .font(.headline.weight(.semibold))
+                    Spacer()
+                }
+                .foregroundStyle(Color.primary)
+
+                ForEach(Array(spots.enumerated()), id: \.element.id) { index, spot in
+                    if index != 0 {
+                        Divider()
+                        .background(Color.black.opacity(0.06))
+                    }
+                    NewSpotRow(entry: spot, onSelect: onSelect)
+                }
+            }
+            .padding(18)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+        }
+    }
+
+    private struct NewSpotRow: View {
+        @EnvironmentObject private var favoritesStore: FavoritesStore
+        let entry: NewSpotEntry
+        let onSelect: (Place) -> Void
+
+        private var place: Place { entry.place }
+
+        var body: some View {
+            Button {
+                onSelect(place)
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    HStack(alignment: .top, spacing: 12) {
+                        AsyncImage(url: entry.imageURL) { phase in
+                            switch phase {
+                            case .empty:
+                                Color.gray.opacity(0.3)
+                            case .failure:
+                                Color.gray.opacity(0.3)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            @unknown default:
+                                Color.gray.opacity(0.3)
+                            }
+                        }
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+                        )
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(place.name)
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+
+                            ratingView(for: place)
+
+                            Text(categoryLine())
+                                .font(.subheadline)
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.9)
+
+                            Label(entry.displayLocation, systemImage: "mappin.and.ellipse")
+                                .labelStyle(.titleAndIcon)
+                                .font(.footnote)
+                                .foregroundStyle(Color.secondary)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        FavoriteToggleSmall(place: place)
+                    }
+                    .padding(.vertical, 4)
+
+                    DateOpenedLabel(month: entry.openedOn.month, day: entry.openedOn.day)
+                        .padding(.trailing, 4)
+                        .padding(.bottom, 4)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+
+        @ViewBuilder
+        private func ratingView(for place: Place) -> some View {
+            Group {
+                if let rating = place.rating {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.orange)
+                        Text(String(format: "%.1f", rating))
+                            .font(.subheadline)
+                            .foregroundStyle(Color.primary)
+                        Text("(\(reviewLabel(for: place.ratingCount)))")
+                            .font(.footnote)
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+            }
+        }
+
+        private func reviewLabel(for count: Int?) -> String {
+            guard let count else { return "No reviews" }
+            if count == 1 { return "1 review" }
+            if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
+            return "\(count) reviews"
+        }
+
+        private func categoryLine() -> String {
+            let status = entry.halalStatusOverride ?? place.halalStatus
+            let halalLabel = status == .only ? "Fully halal" : status.label
+            return "\(entry.cuisine) • \(halalLabel)"
+        }
+    }
+
+    private struct FavoriteToggleSmall: View {
+        @EnvironmentObject private var favoritesStore: FavoritesStore
+        let place: Place
+
+        private var isFavorite: Bool {
+            favoritesStore.contains(id: place.id)
+        }
+
+        var body: some View {
+            Button {
+                favoritesStore.toggleFavorite(
+                    for: place,
+                    name: place.name,
+                    address: place.address,
+                    rating: place.rating,
+                    ratingCount: place.ratingCount,
+                    source: place.source,
+                    applePlaceID: place.applePlaceID
+                )
+            } label: {
+                Image(systemName: isFavorite ? "heart.fill" : "heart")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(isFavorite ? Color.red : Color.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
+        }
+    }
+
+    private struct NewSpotHero: View {
+        let entry: NewSpotEntry
+        let onSelect: (Place) -> Void
+
+        var body: some View {
+            Button {
+                onSelect(entry.place)
+            } label: {
+                ZStack(alignment: .bottomLeading) {
+                    AsyncImage(url: entry.imageURL) { phase in
+                        switch phase {
+                        case .empty:
+                            Color.gray.opacity(0.3)
+                        case .failure:
+                            Color.gray.opacity(0.3)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        @unknown default:
+                            Color.gray.opacity(0.3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(entry.place.name)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.white)
+                            .lineLimit(1)
+                        Text(entry.displayLocation)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .lineLimit(1)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        LinearGradient(
+                            colors: [.black.opacity(0.65), .clear],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    )
+                    .overlay(alignment: .bottomTrailing) {
+                        DateOpenedLabel(month: entry.openedOn.month, day: entry.openedOn.day)
+                            .padding(.trailing, 32)
+                            .padding(.bottom, 12)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private struct SpotlightSummary: View {
+        let entry: NewSpotEntry
+
+        private var hasContent: Bool {
+            let texts = [entry.spotlightSummary, entry.spotlightBody, entry.spotlightDetails]
+            return texts.contains { text in
+                guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+                return true
+            }
+        }
+
+        var body: some View {
+            Group {
+                if hasContent {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let summary = entry.spotlightSummary {
+                            Text(summary)
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                        }
+                        if let body = entry.spotlightBody {
+                            Text(body)
+                                .font(.body)
+                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .lineSpacing(4)
+                        }
+                        if let details = entry.spotlightDetails {
+                            Text(details)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                        }
+                    }
+                    .padding(18)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.05), radius: 14, y: 6)
+                }
+            }
+        }
+    }
+
+    private struct DateOpenedLabel: View {
+        let month: String
+        let day: String
+
+        var body: some View {
+            CalendarBadge(month: month, day: day)
+        }
+    }
+
+    private struct CalendarBadge: View {
+        let month: String
+        let day: String
+        @Environment(\.colorScheme) private var colorScheme
+
+        var body: some View {
+            VStack(spacing: 0) {
+                Text(month.uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+                    .padding(.bottom, 1)
+                    .background(Color(UIColor.systemRed))
+                Text(day)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+                    .background(Color(UIColor.secondarySystemBackground))
+            }
+            .frame(width: 30, height: 30)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(borderColor, lineWidth: 0.5)
+            )
+        }
+
+        private var borderColor: Color {
+            colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.08)
+        }
+    }
+}
+
 struct PlaceDetailView: View {
     let place: Place
 
@@ -2923,6 +3469,14 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var pendingPersistFingerprint: Int?
     private let persistDebounceNanoseconds: UInt64 = 1_500_000_000
     private let diskSnapshotStalenessInterval: TimeInterval = 60 * 60 * 6
+
+    func place(with id: UUID) -> Place? {
+        if let match = places.first(where: { $0.id == id }) { return match }
+        if let match = searchResults.first(where: { $0.id == id }) { return match }
+        if let match = allPlaces.first(where: { $0.id == id }) { return match }
+        if let match = globalDataset.first(where: { $0.id == id }) { return match }
+        return nil
+    }
 
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter

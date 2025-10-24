@@ -112,7 +112,7 @@ enum PlaceAPI {
     static func fetchAllPlaces(limit: Int = 3000, pageSize: Int = 800) async throws -> [PlaceDTO] {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
-        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id"
+        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id,note"
         let baseQueryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
@@ -270,7 +270,7 @@ enum PlaceAPI {
         let encodedQuery = query.replacingOccurrences(of: "*", with: "")
         let likePattern = "*\(encodedQuery)*"
 
-        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id"
+        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id,note"
 
         let queryItems = [
             URLQueryItem(name: "select", value: selectColumns),

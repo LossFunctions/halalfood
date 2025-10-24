@@ -13,6 +13,7 @@ struct PlaceDTO: Decodable, Identifiable {
     let confidence: Double?
     let source: String?
     let apple_place_id: String?
+    let note: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -27,5 +28,6 @@ struct PlaceDTO: Decodable, Identifiable {
         case confidence
         case source
         case apple_place_id
+        case note
     }
 }

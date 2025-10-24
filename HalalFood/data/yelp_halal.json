@@ -11341,29 +11341,6 @@
       "match": "term"
     },
     {
-      "id": "hGo9KArKThuOKxNbwmNpoA",
-      "name": "Little Ruby's SoHo",
-      "alias": "little-rubys-cafe-soho-new-york",
-      "url": "https://www.yelp.com/biz/little-rubys-cafe-soho-new-york?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
-      "rating": 4.2,
-      "review_count": 1742,
-      "is_closed": false,
-      "phone": "+12129255755",
-      "categories": [
-        "burgers",
-        "coffee",
-        "breakfast_brunch"
-      ],
-      "latitude": 40.722319,
-      "longitude": -73.996312,
-      "address": "219 Mulberry St, New York, NY 10012",
-      "city": "New York",
-      "state": "NY",
-      "country": "US",
-      "zip_code": "10012",
-      "match": "term"
-    },
-    {
       "id": "OJSmsA_cE72qq0ZPvn-mHQ",
       "name": "Naq's Halal Food",
       "alias": "naqs-halal-food-island-park",

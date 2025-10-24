@@ -41,6 +41,7 @@ begin
       confidence double precision,
       source text default 'osm' not null,
       apple_place_id text,
+      note text,
       external_id text not null,
       source_raw jsonb,
       status text default 'published' not null,
@@ -92,6 +93,9 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='apple_place_id') then
       alter table public.place add column apple_place_id text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='note') then
+      alter table public.place add column note text;
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='external_id') then
       alter table public.place add column external_id text;
@@ -191,11 +195,12 @@ returns table (
   rating_count integer,
   confidence double precision,
   source text,
-  apple_place_id text
+  apple_place_id text,
+  note text
 )
 language sql stable parallel safe as $$
   select p.id, p.name, p.category, p.lat, p.lon, p.address, p.halal_status,
-         p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id
+         p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
   from public.place as p
   where p.status = 'published'
     and p.halal_status in ('yes', 'only')
@@ -235,7 +240,8 @@ returns table (
   rating_count integer,
   confidence double precision,
   source text,
-  apple_place_id text
+  apple_place_id text,
+  note text
 )
 language sql
 stable
@@ -252,7 +258,7 @@ as $$
       greatest(1, least(coalesce(p_limit, 40), 1000)) as resolved_limit
   )
   select p.id, p.name, p.category, p.lat, p.lon, p.address,
-         p.halal_status, p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id
+         p.halal_status, p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
   from public.place as p
   cross join input as i
   where p.status = 'published'
@@ -278,7 +284,7 @@ grant execute on function public.search_places(text, text, integer)
 
 -- Optional: convenience view for manual browsing
 create or replace view public.place_preview as
-  select id, name, category, lat, lon, address, halal_status, rating, rating_count, source, status
+  select id, name, category, lat, lon, address, halal_status, rating, rating_count, source, status, note
   from public.place;
 
 -- Allow clients to persist Place IDs provided by Apple without exposing other writable fields.

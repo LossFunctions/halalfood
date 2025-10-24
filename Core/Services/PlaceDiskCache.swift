@@ -9,8 +9,8 @@ actor PlaceDiskCache {
 
     private enum Constants {
         static let directoryName = "PlaceCache"
-        static let filename = "places-v1.json"
-        static let version = 1
+        static let filename = "places-v3.json"
+        static let version = 3
     }
 
     private let fileURL: URL
