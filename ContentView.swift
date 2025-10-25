@@ -501,7 +501,7 @@ struct ContentView: View {
             displayLocation: "Hicksville, Long Island",
             cuisine: "Burgers",
             halalStatusOverride: .only,
-            openedOn: ("OCT", "25")
+            openedOn: ("OCT", "18")
         )
     ]
 
@@ -603,7 +603,8 @@ struct ContentView: View {
             confidence: place.confidence,
             source: place.source,
             applePlaceID: place.applePlaceID,
-            note: place.note
+            note: place.note,
+            displayLocation: place.displayLocation
         )
     }
 
@@ -1852,23 +1853,42 @@ private struct TopRatedScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 12) {
-                        ForEach(places) { place in
-                            Button {
-                                onSelect(place)
-                            } label: {
-                                TopRatedRow(place: place)
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Card style similar to NewSpots
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
+                                if index != 0 {
+                                    Divider()
+                                        .background(Color.black.opacity(0.06))
+                                }
+                                Button { onSelect(place) } label: {
+                                    TopRatedRow(
+                                        place: place,
+                                        rank: (sortOption == .community ? index + 1 : nil),
+                                        showYelpRating: sortOption != .community
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.vertical, 10)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(18)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
                     }
                     .padding(.vertical, 8)
+                }
+                .task(id: places.map { $0.id }) {
+                    // Warm prefetch a small number of thumbnails for instant display
+                    for id in places.prefix(20).map({ $0.id }) {
+                        TopRatedPhotoThumb.prefetch(for: id)
+                    }
                 }
             }
         }
         .padding(.top, topInset + 24)
         .padding(.horizontal, 20)
-        .padding(.bottom, bottomInset + 120)
+        .padding(.bottom, bottomInset + 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
     }
@@ -1894,76 +1914,625 @@ private struct TopRatedScreen: View {
 
 private struct TopRatedRow: View {
     let place: Place
+    let rank: Int?
+    let showYelpRating: Bool
 
     private let detailColor = Color.primary.opacity(0.75)
+    @State private var cuisine: String?
+    @State private var displayLocOverride: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "star.circle.fill")
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 32, height: 32)
+        HStack(alignment: .top, spacing: 12) {
+            TopRatedPhotoThumb(placeID: place.id)
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+                )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(place.name)
-                    .font(.headline)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
 
-                if let address = place.address, !address.isEmpty {
-                    Text(address)
-                        .font(.footnote)
-                        .foregroundStyle(detailColor)
+                if showYelpRating {
+                    ratingView()
                 }
 
-                Text(place.halalStatus.label.localizedCapitalized)
-                    .font(.caption)
-                    .foregroundStyle(detailColor)
+                Text(categoryLine())
+                    .font(.subheadline)
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+
+                if let loc = shortLocation() {
+                    Label(loc, systemImage: "mappin.and.ellipse")
+                        .font(.footnote)
+                        .foregroundStyle(detailColor)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 8)
-
-            if let rating = place.rating {
-                ratingBadge(rating: rating, count: place.ratingCount)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            if let rank { rankBadge(rank) }
+        }
+        .task(id: place.id) {
+            await loadCuisine()
+        }
     }
 
-    private func ratingBadge(rating: Double, count: Int?) -> some View {
-        VStack(spacing: 4) {
+    @ViewBuilder
+    private func ratingView() -> some View {
+        if let rating = place.rating {
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.orange)
                 Text(String(format: "%.1f", rating))
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.primary)
+                Text("(\(reviewLabel(for: place.ratingCount)))")
+                    .font(.footnote)
+                    .foregroundStyle(Color.secondary)
             }
-            Text(countText(count))
-                .font(.caption2)
-                .foregroundStyle(detailColor)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func countText(_ count: Int?) -> String {
+    private func reviewLabel(for count: Int?) -> String {
         guard let count else { return "No reviews" }
-        return count == 1 ? "1 review" : "\(count) reviews"
+        if count == 1 { return "1 review" }
+        if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
+        return "\(count) reviews"
+    }
+
+    private func categoryLine() -> String {
+        // Show cuisine if fetched; otherwise just halal label
+        let halalLabel = place.halalStatus == .only ? "Fully halal" : place.halalStatus.label
+        if let cuisine { return "\(cuisine) • \(halalLabel)" }
+        return halalLabel
+    }
+
+    private struct SourceRow: Decodable { let source_raw: SourceRaw? }
+    private struct SourceRaw: Decodable { let categories: [String]?, display_location: String? }
+
+    private func titleCase(_ s: String) -> String {
+        s.replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    @MainActor
+    private func loadCuisine() async {
+        if displayLocOverride == nil {
+            displayLocOverride = DisplayLocationResolver.display(for: place)
+        }
+        do {
+            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            var p = comps.path
+            if !p.hasSuffix("/") { p.append("/") }
+            p.append("rest/v1/place")
+            comps.path = p
+            comps.queryItems = [
+                URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
+                URLQueryItem(name: "select", value: "source_raw")
+            ]
+            var req = URLRequest(url: comps.url!)
+            let key = Env.anonKey
+            req.setValue(key, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                if let row = try? JSONDecoder().decode([SourceRow].self, from: data).first {
+                    if let categories = row.source_raw?.categories {
+                        cuisine = preferredCuisine(from: categories)
+                    }
+                    if let disp = row.source_raw?.display_location, !disp.isEmpty {
+                        displayLocOverride = disp
+                    } else if displayLocOverride == nil {
+                        displayLocOverride = DisplayLocationResolver.display(for: place)
+                    }
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }
+
+    private func preferredCuisine(from categories: [String]) -> String? {
+        // Normalize
+        let cats = categories.map { $0.lowercased() }
+
+        // Skip non-cuisine categories and generic tags
+        let excluded: Set<String> = [
+            "halal","gluten_free","vegan","vegetarian",
+            "coffee","cafes","coffeeandtea","tea","bubbletea",
+            "desserts","donuts","bakeries","icecream",
+            "bars","cocktailbars","beerbar","wine_bars"
+        ]
+
+        // Map Yelp aliases to display labels
+        let map: [String:String] = [
+            "thai":"Thai",
+            "lebanese":"Lebanese",
+            "mediterranean":"Mediterranean",
+            "turkish":"Turkish",
+            "middleeastern":"Middle Eastern",
+            "arabian":"Middle Eastern",
+            "indpak":"Indian",
+            "indian":"Indian",
+            "pakistani":"Pakistani",
+            "bangladeshi":"Bangladeshi",
+            "afghani":"Afghan",
+            "himalayan":"Himalayan",
+            "nepalese":"Nepalese",
+            "chinese":"Chinese",
+            "japanese":"Japanese",
+            "korean":"Korean",
+            "vietnamese":"Vietnamese",
+            "italian":"Italian",
+            "mexican":"Mexican",
+            "ethiopian":"Ethiopian",
+            "persian":"Persian",
+            "iranian":"Persian",
+            "uzbek":"Uzbek",
+            "bbq":"BBQ",
+            "pizza":"Pizza",
+            "burgers":"Burgers",
+            "sandwiches":"Sandwiches",
+            "seafood":"Seafood",
+            "chicken_wings":"Chicken Wings"
+        ]
+
+        // 1) Pick first mapped cuisine that's not excluded
+        for c in cats where !excluded.contains(c) {
+            if let label = map[c] {
+                return label
+            }
+        }
+
+        // 2) If not found, pick any non-excluded, title-cased
+        if let first = cats.first(where: { !excluded.contains($0) }) {
+            let label = titleCase(first)
+            return label
+        }
+        return nil
+    }
+
+    private func shortLocation() -> String? {
+        if let override = displayLocOverride, !override.isEmpty { return override }
+        if let persisted = place.displayLocation, !persisted.isEmpty { return persisted }
+        return DisplayLocationResolver.display(for: place)
+    }
+
+    @ViewBuilder
+    private func rankBadge(_ rank: Int) -> some View {
+        let symbolName: String? = rank <= 50 ? "\(rank).circle.fill" : nil
+        let gold = Color(red: 0.95, green: 0.76, blue: 0.20)
+        return HStack(spacing: 6) {
+            if rank == 1 { Text("🏆").font(.system(size: 14)) }
+            Group {
+                if let name = symbolName, UIImage(systemName: name) != nil {
+                    Image(systemName: name)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(gold)
+                } else {
+                    Text("\(rank)")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(gold.opacity(0.14), in: Capsule())
+                        .overlay(Capsule().stroke(gold.opacity(0.5), lineWidth: 1))
+                        .foregroundStyle(gold)
+                }
+            }
+        }
+        .padding(.top, 4)
+        .padding(.trailing, 4)
+    }
+}
+
+// MARK: - Display Location Resolver (Neighborhood, Borough) with caching
+private enum DisplayLocationResolver {
+    static func display(for place: Place) -> String? {
+        if let cached = DisplayLocationCache.shared.get(placeID: place.id) { return cached }
+        guard let address = place.address, !address.isEmpty else { return nil }
+
+        let lower = address.lowercased()
+        let zip = extractZip(from: address)
+        let borough = detectBorough(in: lower, zip: zip)
+
+        let result: String
+        let neigh = detectNeighborhood(in: lower, zip: zip)
+        if let borough, let neighborhood = neigh, !neighborhood.caseInsensitiveEquals(borough) {
+            result = "\(neighborhood.capitalizedWords()), \(borough)"
+        } else if let borough {
+            result = borough
+        } else {
+            // Fallback to penultimate token
+            let comps = address.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            if comps.count >= 2 { result = comps[comps.count - 2] } else { result = address }
+        }
+
+        DisplayLocationCache.shared.set(placeID: place.id, value: result)
+        return result
+    }
+
+    private static func extractZip(from address: String) -> String? {
+        // Find last 5-digit number
+        let digits = address.reversed().split(whereSeparator: { !$0.isNumber }).first
+        let zipRev = digits.map(String.init)
+        guard let rev = zipRev, rev.count >= 5 else { return nil }
+        let zip = String(rev.prefix(5).reversed())
+        return zip.count == 5 ? zip : nil
+    }
+
+    private static func detectBorough(in lowerAddress: String, zip: String?) -> String? {
+        if let zip, zip.count == 5 {
+            if zip.hasPrefix("112") { return "Brooklyn" }
+            if zip.hasPrefix("111") || zip.hasPrefix("113") || zip.hasPrefix("114") || zip.hasPrefix("116") { return "Queens" }
+            if zip.hasPrefix("104") { return "Bronx" }
+            if zip.hasPrefix("103") { return "Staten Island" }
+            if zip.hasPrefix("100") || zip.hasPrefix("101") || zip.hasPrefix("102") { return "Manhattan" }
+            if zip.hasPrefix("110") || zip.hasPrefix("115") || zip.hasPrefix("117") || zip.hasPrefix("118") || zip.hasPrefix("119") { return "Long Island" }
+        }
+        if lowerAddress.contains(" brooklyn") { return "Brooklyn" }
+        if lowerAddress.contains(" queens") { return "Queens" }
+        if lowerAddress.contains(" bronx") { return "Bronx" }
+        if lowerAddress.contains(" staten island") { return "Staten Island" }
+        if lowerAddress.contains(" new york") { return "Manhattan" }
+        return nil
+    }
+
+    private static func detectNeighborhood(in lowerAddress: String, zip: String? = nil) -> String? {
+        if let z = zip, let mapped = zipNeighborhoodOverride[z] { return mapped }
+        for (token, pretty, _) in neighborhoods where lowerAddress.contains(token) {
+            return pretty
+        }
+        return nil
+    }
+
+    // token (lowercased), pretty label, borough
+    private static let neighborhoods: [(String, String, String)] = [
+        // Manhattan
+        ("tribeca", "Tribeca", "Manhattan"),
+        ("soho", "SoHo", "Manhattan"),
+        ("greenwich village", "Greenwich Village", "Manhattan"),
+        ("east village", "East Village", "Manhattan"),
+        ("west village", "West Village", "Manhattan"),
+        ("lower east side", "Lower East Side", "Manhattan"),
+        ("harlem", "Harlem", "Manhattan"),
+        ("washington heights", "Washington Heights", "Manhattan"),
+        ("inwood", "Inwood", "Manhattan"),
+        ("chelsea", "Chelsea", "Manhattan"),
+        ("midtown", "Midtown", "Manhattan"),
+        ("murray hill", "Murray Hill", "Manhattan"),
+        ("gramercy", "Gramercy", "Manhattan"),
+        ("financial district", "Financial District", "Manhattan"),
+        ("fidi", "Financial District", "Manhattan"),
+        ("upper east side", "Upper East Side", "Manhattan"),
+        ("upper west side", "Upper West Side", "Manhattan"),
+
+        // Queens
+        ("sunnyside", "Sunnyside", "Queens"),
+        ("astoria", "Astoria", "Queens"),
+        ("long island city", "Long Island City", "Queens"),
+        (" lic ", "Long Island City", "Queens"),
+        ("jackson heights", "Jackson Heights", "Queens"),
+        ("flushing", "Flushing", "Queens"),
+        ("jamaica, ny", "Jamaica", "Queens"),
+        ("woodside", "Woodside", "Queens"),
+        ("elmhurst", "Elmhurst", "Queens"),
+        ("forest hills", "Forest Hills", "Queens"),
+        ("rego park", "Rego Park", "Queens"),
+        ("kew gardens", "Kew Gardens", "Queens"),
+        ("richmond hill", "Richmond Hill", "Queens"),
+        ("ozone park", "Ozone Park", "Queens"),
+        ("bayside", "Bayside", "Queens"),
+        ("whitestone", "Whitestone", "Queens"),
+        ("college point", "College Point", "Queens"),
+        ("far rockaway", "Far Rockaway", "Queens"),
+        (" rockaway", "Rockaway", "Queens"),
+
+        // Brooklyn
+        ("williamsburg", "Williamsburg", "Brooklyn"),
+        ("greenpoint", "Greenpoint", "Brooklyn"),
+        ("bed-stuy", "Bed-Stuy", "Brooklyn"),
+        ("bedford-stuyvesant", "Bedford-Stuyvesant", "Brooklyn"),
+        ("bushwick", "Bushwick", "Brooklyn"),
+        ("park slope", "Park Slope", "Brooklyn"),
+        ("sunset park", "Sunset Park", "Brooklyn"),
+        ("downtown brooklyn", "Downtown Brooklyn", "Brooklyn"),
+        ("bay ridge", "Bay Ridge", "Brooklyn"),
+        ("dyker heights", "Dyker Heights", "Brooklyn"),
+        ("flatbush", "Flatbush", "Brooklyn"),
+        ("crown heights", "Crown Heights", "Brooklyn"),
+        ("brighton beach", "Brighton Beach", "Brooklyn"),
+        ("sheepshead bay", "Sheepshead Bay", "Brooklyn"),
+        ("brooklyn heights", "Brooklyn Heights", "Brooklyn"),
+        ("dumbo", "DUMBO", "Brooklyn"),
+        ("fort greene", "Fort Greene", "Brooklyn"),
+        ("clinton hill", "Clinton Hill", "Brooklyn"),
+        ("prospect heights", "Prospect Heights", "Brooklyn"),
+        ("carroll gardens", "Carroll Gardens", "Brooklyn"),
+        ("cobble hill", "Cobble Hill", "Brooklyn"),
+        ("boerum hill", "Boerum Hill", "Brooklyn"),
+
+        // Bronx
+        ("riverdale", "Riverdale", "Bronx"),
+        ("kingsbridge", "Kingsbridge", "Bronx"),
+        ("fordham", "Fordham", "Bronx"),
+        ("mott haven", "Mott Haven", "Bronx"),
+        ("pelham bay", "Pelham Bay", "Bronx"),
+        ("throgs neck", "Throgs Neck", "Bronx"),
+
+        // Staten Island
+        ("st. george", "St. George", "Staten Island"),
+        ("st george", "St. George", "Staten Island"),
+        ("westerleigh", "Westerleigh", "Staten Island")
+    ]
+    private static let zipNeighborhoodOverride: [String: String] = [
+        // Manhattan
+        "10001": "Chelsea", "10011": "Chelsea", "10012": "SoHo", "10013": "Tribeca", "10007": "Tribeca",
+        "10002": "Lower East Side", "10038": "Financial District",
+        "10280": "Battery Park City", "10282": "Battery Park City", "10004": "Financial District", "10005": "Financial District", "10006": "Financial District",
+        "10014": "West Village", "10003": "East Village", "10009": "East Village", "10010": "Gramercy",
+        "10016": "Murray Hill", "10017": "Midtown East", "10022": "Midtown East",
+        "10018": "Theater District / Times Square", "10036": "Midtown West / Hell’s Kitchen", "10019": "Midtown West / Hell’s Kitchen",
+        "10021": "Upper East Side", "10028": "Upper East Side", "10065": "Upper East Side", "10075": "Upper East Side", "10128": "Upper East Side",
+        "10044": "Roosevelt Island",
+        "10023": "Upper West Side", "10024": "Upper West Side", "10025": "Upper West Side", "10069": "Upper West Side",
+        "10027": "Morningside Heights", "10026": "Harlem", "10030": "Harlem", "10037": "Harlem", "10039": "Harlem",
+        "10029": "East Harlem", "10035": "East Harlem",
+        "10032": "Washington Heights", "10033": "Washington Heights", "10040": "Washington Heights", "10034": "Inwood",
+
+        // Queens (Astoria/LIC and beyond)
+        "11101": "Long Island City", "11109": "Long Island City",
+        "11102": "Astoria", "11103": "Astoria", "11105": "Astoria", "11106": "Astoria",
+        "11104": "Sunnyside",
+        "11377": "Woodside", "11372": "Jackson Heights", "11373": "Elmhurst",
+        "11368": "Corona", "11369": "East Elmhurst", "11370": "East Elmhurst",
+        "11354": "Flushing", "11355": "Flushing", "11356": "College Point", "11357": "Whitestone",
+        "11360": "Bayside", "11361": "Bayside",
+        "11362": "Douglaston – Little Neck", "11363": "Douglaston – Little Neck",
+        "11358": "Auburndale",
+        "11364": "Oakland Gardens",
+        "11365": "Fresh Meadows", "11366": "Fresh Meadows",
+        "11375": "Forest Hills", "11374": "Rego Park",
+        "11385": "Ridgewood", // overlaps Glendale/Ridgewood
+        "11378": "Maspeth", "11379": "Middle Village",
+        "11415": "Kew Gardens",
+        "11418": "Richmond Hill", "11419": "Richmond Hill",
+        "11416": "Ozone Park", "11417": "Ozone Park",
+        "11420": "South Ozone Park", "11436": "South Ozone Park",
+        "11414": "Howard Beach", "11421": "Woodhaven",
+        "11432": "Jamaica", "11433": "Jamaica", "11434": "Jamaica", "11435": "Jamaica",
+        "11412": "St. Albans / Hollis", "11423": "St. Albans / Hollis",
+        "11411": "Cambria Heights / Laurelton", "11413": "Cambria Heights / Laurelton",
+        "11428": "Queens Village", "11429": "Queens Village",
+        "11422": "Rosedale",
+        "11691": "The Rockaways", "11692": "The Rockaways", "11693": "The Rockaways", "11694": "The Rockaways", "11695": "The Rockaways", "11697": "The Rockaways",
+
+        // Brooklyn
+        "11206": "Williamsburg", "11211": "Williamsburg", "11249": "Williamsburg",
+        "11222": "Greenpoint",
+        "11207": "Bushwick", "11221": "Bushwick", "11237": "Bushwick",
+        "11205": "Bedford–Stuyvesant", "11216": "Bedford–Stuyvesant", "11233": "Bedford–Stuyvesant", "11238": "Bedford–Stuyvesant",
+        "11213": "Crown Heights", "11225": "Crown Heights",
+        "11238": "Prospect Heights",
+        "11215": "Park Slope",
+        "11217": "Gowanus", // also Downtown/Boerum Hill; prefer Gowanus
+        "11231": "Carroll Gardens", // also Cobble Hill/Red Hook
+        "11201": "Brooklyn Heights", // also DUMBO, Cobble Hill, Downtown BK
+        "11220": "Sunset Park", "11232": "Sunset Park",
+        "11209": "Bay Ridge",
+        "11204": "Bensonhurst", "11214": "Bensonhurst", "11223": "Bensonhurst",
+        "11228": "Dyker Heights",
+        "11219": "Borough Park",
+        "11218": "Kensington",
+        "11210": "Flatbush", "11226": "Flatbush",
+        "11203": "East Flatbush",
+        "11230": "Midwood",
+        "11235": "Sheepshead Bay", // also Brighton Beach
+        "11224": "Coney Island",
+        "11234": "Marine Park",
+        "11236": "Canarsie",
+        "11208": "East New York",
+        "11212": "Brownsville",
+
+        // Bronx
+        "10454": "Mott Haven", "10455": "Mott Haven",
+        "10451": "Melrose", "10452": "Concourse / Concourse Village",
+        "10474": "Hunts Point",
+        "10459": "Longwood",
+        "10472": "Soundview / Clason Point", "10473": "Soundview / Clason Point",
+        "10462": "Parkchester / Van Nest",
+        "10465": "Throgs Neck / Edgewater Park", // also Country Club
+        "10464": "City Island",
+        "10461": "Pelham Bay",
+        "10469": "Pelham Gardens",
+        "10466": "Wakefield", "10470": "Wakefield",
+        "10475": "Co-op City",
+        "10458": "Fordham / Bedford Park", "10468": "Fordham / Bedford Park",
+        "10463": "Kingsbridge", "10471": "Riverdale",
+        "10467": "Norwood",
+        "10453": "University Heights",
+
+        // Staten Island
+        "10301": "St. George / Tompkinsville",
+        "10310": "New Brighton / West Brighton",
+        "10304": "Stapleton / Clifton",
+        "10305": "South Beach / Arrochar",
+        "10306": "New Dorp / Midland Beach",
+        "10308": "Great Kills",
+        "10312": "Eltingville / Annadale", // also Huguenot / Prince's Bay
+        "10307": "Tottenville",
+        "10302": "Port Richmond / Mariners Harbor",
+        "10303": "Port Richmond / Mariners Harbor",
+        "10314": "New Springville / Willowbrook"
+    ]
+}
+
+private final class DisplayLocationCache {
+    static let shared = DisplayLocationCache()
+    private var map: [UUID: String] = [:]
+    private let lock = NSLock()
+    private let defaults = UserDefaults.standard
+    private let prefix = "PlaceLocationCache:v2:"
+
+    func get(placeID: UUID) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        if let val = map[placeID] { return val }
+        let key = prefix + placeID.uuidString
+        return defaults.string(forKey: key)
+    }
+
+    func set(placeID: UUID, value: String) {
+        lock.lock(); map[placeID] = value; lock.unlock()
+        let key = prefix + placeID.uuidString
+        defaults.set(value, forKey: key)
+    }
+}
+
+private extension String {
+    func capitalizedWords() -> String {
+        self.split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+    func caseInsensitiveEquals(_ other: String) -> Bool { self.lowercased() == other.lowercased() }
+}
+
+// Thumbnail loader for Top Rated rows
+private struct TopRatedPhotoThumb: View {
+    let placeID: UUID
+    @State private var imageURL: URL?
+    @State private var attempted = false
+    private static var urlCache: [UUID: URL] = [:]
+
+    var body: some View {
+        if let local = TopRatedPhotoThumb.localThumb(for: placeID) {
+            Image(uiImage: local)
+                .resizable()
+                .scaledToFill()
+        } else {
+            let resolvedURL = imageURL ?? TopRatedPhotoThumb.urlCache[placeID]
+            Group {
+                if let url = resolvedURL {
+                    CachedAsyncImage(url: url) {
+                        Color.gray.opacity(0.3)
+                    } failure: {
+                        placeholder
+                    }
+                    .scaledToFill()
+                } else {
+                    placeholder
+                }
+            }
+            .task(id: placeID) {
+                guard !attempted else { return }
+                attempted = true
+                await loadThumbnailAndCuisine()
+            }
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color.gray.opacity(0.25)
+            Text("🍔🥤")
+                .font(.system(size: 24))
+                .opacity(0.9)
+        }
+    }
+
+    private struct PhotoRow: Decodable { let image_url: String }
+    @MainActor
+    private func loadThumbnailAndCuisine() async {
+        do {
+            // Build place_photo URL
+            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            var p = comps.path
+            if !p.hasSuffix("/") { p.append("/") }
+            p.append("rest/v1/place_photo")
+            comps.path = p
+            comps.queryItems = [
+                URLQueryItem(name: "place_id", value: "eq.\(placeID.uuidString)"),
+                URLQueryItem(name: "order", value: "priority.asc"),
+                URLQueryItem(name: "limit", value: "1")
+            ]
+            var req = URLRequest(url: comps.url!)
+            let key = Env.anonKey
+            req.setValue(key, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                if let row = try? JSONDecoder().decode([PhotoRow].self, from: data).first,
+                   let url = URL(string: row.image_url) {
+                    imageURL = url
+                    TopRatedPhotoThumb.urlCache[placeID] = url
+                    // Prefetch the bitmap into cache for near-instant reuse
+                    _ = try? await URLSession.shared.data(from: url).0
+                }
+            }
+        } catch {
+            // ignore failures silently
+        }
+    }
+
+    // Check for a bundled asset named "thumb_<UUID>"
+    private static func localThumb(for id: UUID) -> UIImage? {
+        let name = "thumb_\(id.uuidString)"
+        return UIImage(named: name)
+    }
+
+    // Allow prefetching from TopRatedScreen
+    static func prefetch(for id: UUID) {
+        if localThumb(for: id) != nil { return }
+        if urlCache[id] != nil { return }
+        Task.detached {
+            do {
+                var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+                var p = comps.path
+                if !p.hasSuffix("/") { p.append("/") }
+                p.append("rest/v1/place_photo")
+                comps.path = p
+                comps.queryItems = [
+                    URLQueryItem(name: "place_id", value: "eq.\(id.uuidString)"),
+                    URLQueryItem(name: "order", value: "priority.asc"),
+                    URLQueryItem(name: "limit", value: "1")
+                ]
+                var req = URLRequest(url: comps.url!)
+                let key = Env.anonKey
+                req.setValue(key, forHTTPHeaderField: "apikey")
+                req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                req.setValue("public", forHTTPHeaderField: "Accept-Profile")
+                let (data, resp) = try await URLSession.shared.data(for: req)
+                if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                    if let row = try? JSONDecoder().decode([PhotoRow].self, from: data).first,
+                       let url = URL(string: row.image_url) {
+                        urlCache[id] = url
+                        // Fetch to populate image cache
+                        _ = try? await URLSession.shared.data(from: url)
+                    }
+                }
+            } catch { /* ignore */ }
+        }
     }
 }
 
 
-private struct ZoomableAsyncImage<Placeholder: View, Failure: View>: View {
+private struct ZoomableCachedImage<Placeholder: View, Failure: View>: View {
     let url: URL
     let resetID: UUID
     let placeholder: Placeholder
     let failure: Failure
+
+    @State private var uiImage: UIImage?
 
     init(url: URL, resetID: UUID, @ViewBuilder placeholder: () -> Placeholder, @ViewBuilder failure: () -> Failure) {
         self.url = url
@@ -1973,26 +2542,36 @@ private struct ZoomableAsyncImage<Placeholder: View, Failure: View>: View {
     }
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .empty:
-                placeholder
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .success(let image):
+        Group {
+            if let uiImage {
                 ZoomableScrollView(resetID: resetID) {
-                    image
+                    Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color.black)
                 }
-            case .failure:
-                failure
+            } else {
+                placeholder
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            @unknown default:
-                failure
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .task(id: url) { await load() }
             }
+        }
+    }
+
+    private func load() async {
+        if let cached = ImageCache.shared.image(for: url) {
+            uiImage = cached
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                ImageCache.shared.store(image, for: url)
+                uiImage = image
+            }
+        } catch {
+            // noop; placeholder remains
         }
     }
 }
@@ -2070,6 +2649,86 @@ private struct ZoomableScrollView<Content: View>: UIViewRepresentable {
             scrollView.contentInset = UIEdgeInsets(top: verticalInset, left: horizontalInset, bottom: verticalInset, right: horizontalInset)
         }
     }
+}
+
+// MARK: - Lightweight image + photo caches (scoped here to avoid Xcode project updates)
+
+final class ImageCache {
+    static let shared = ImageCache()
+    private let memory = NSCache<NSURL, UIImage>()
+    private let ioQueue = DispatchQueue(label: "ImageCache.IO")
+    private let folderURL: URL
+
+    private init() {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        folderURL = caches.appendingPathComponent("hf-image-cache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        memory.countLimit = 512
+        memory.totalCostLimit = 64 * 1024 * 1024
+    }
+
+    func image(for url: URL) -> UIImage? {
+        if let img = memory.object(forKey: url as NSURL) { return img }
+        let path = folderURL.appendingPathComponent(String(url.absoluteString.hashValue))
+        if let data = try? Data(contentsOf: path), let img = UIImage(data: data) {
+            memory.setObject(img, forKey: url as NSURL)
+            return img
+        }
+        return nil
+    }
+
+    func store(_ image: UIImage, for url: URL) {
+        memory.setObject(image, forKey: url as NSURL)
+        let path = folderURL.appendingPathComponent(String(url.absoluteString.hashValue))
+        ioQueue.async {
+            if let data = image.jpegData(compressionQuality: 0.92) ?? image.pngData() {
+                try? data.write(to: path, options: .atomic)
+            }
+        }
+    }
+}
+
+struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
+    let url: URL?
+    @ViewBuilder let placeholder: () -> Placeholder
+    @ViewBuilder let failure: () -> Failure
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable()
+            } else {
+                placeholder()
+                    .task(id: url) { await load() }
+            }
+        }
+    }
+
+    private func load() async {
+        guard let url else { return }
+        if let cached = ImageCache.shared.image(for: url) {
+            image = cached
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let img = UIImage(data: data) {
+                ImageCache.shared.store(img, for: url)
+                image = img
+            }
+        } catch {
+            // ignore
+        }
+    }
+}
+
+actor PlacePhotoCache {
+    static let shared = PlacePhotoCache()
+    private var map: [UUID: [PlacePhoto]] = [:]
+    func get(_ id: UUID) -> [PlacePhoto]? { map[id] }
+    func set(_ id: UUID, photos: [PlacePhoto]) { map[id] = photos }
 }
 
 private struct FavoritesPanel: View {
@@ -2274,7 +2933,7 @@ private struct NewSpotsScreen: View {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
                         .font(.headline.weight(.semibold))
-                    Text("New Trendy Spots")
+                    Text("New Trending Spots")
                         .font(.headline.weight(.semibold))
                     Spacer()
                 }
@@ -2307,20 +2966,12 @@ private struct NewSpotsScreen: View {
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     HStack(alignment: .top, spacing: 12) {
-                        AsyncImage(url: entry.imageURL) { phase in
-                            switch phase {
-                            case .empty:
-                                Color.gray.opacity(0.3)
-                            case .failure:
-                                Color.gray.opacity(0.3)
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            @unknown default:
-                                Color.gray.opacity(0.3)
-                            }
+                        CachedAsyncImage(url: entry.imageURL) {
+                            Color.gray.opacity(0.3)
+                        } failure: {
+                            Color.gray.opacity(0.3)
                         }
+                        .scaledToFill()
                         .frame(width: 64, height: 64)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
@@ -2434,20 +3085,12 @@ private struct NewSpotsScreen: View {
                 onSelect(entry.place)
             } label: {
                 ZStack(alignment: .bottomLeading) {
-                    AsyncImage(url: entry.imageURL) { phase in
-                        switch phase {
-                        case .empty:
-                            Color.gray.opacity(0.3)
-                        case .failure:
-                            Color.gray.opacity(0.3)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        @unknown default:
-                            Color.gray.opacity(0.3)
-                        }
+                    CachedAsyncImage(url: entry.imageURL) {
+                        Color.gray.opacity(0.3)
+                    } failure: {
+                        Color.gray.opacity(0.3)
                     }
+                    .scaledToFill()
                     .frame(maxWidth: .infinity)
                     .frame(height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -2595,7 +3238,11 @@ struct PlaceDetailView: View {
                                 expandedPhotoSelection = PhotoSelection(index: index)
                             }
                         }
+                        // Order: photos → halal details → rating (non-Apple path)
                         halalSection
+                        if let ratingModel, !hasAppleDetails {
+                            YelpRatingRow(model: ratingModel, style: .prominent)
+                        }
                         Divider().opacity(0.4)
                         appleStatusSection
                     }
@@ -2702,9 +3349,7 @@ struct PlaceDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let ratingModel, (!hasAppleDetails || !isRatingEmbeddedInAppleCard) {
-                YelpRatingRow(model: ratingModel, style: .prominent)
-            }
+            // Rating moved below photos to follow: photos → rating → halal details.
         }
     }
 
@@ -2872,13 +3517,14 @@ struct PlaceDetailView: View {
                 }
             }
             if #available(iOS 18.0, *) {
+                // Order: photos → halal details → rating → Apple place card
+                partialHalalMessageView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
                 if let ratingModel, !isRatingEmbeddedInAppleCard {
                     YelpRatingRow(model: ratingModel, style: .prominent)
                         .padding(.horizontal, 16)
                 }
-                partialHalalMessageView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
                 applePlaceCard(details)
             } else {
                 appleDetailsSection(details)
@@ -2928,30 +3574,110 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private func partialHalalMessageView() -> some View {
-        if let display = partialHalalDisplay {
-            VStack(alignment: .leading, spacing: 4) {
-                (Text("Partially Halal: ").fontWeight(.semibold) + Text(display.primary))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let disclaimer = display.disclaimer {
-                    Text(disclaimer)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        if let display = halalDetailsDisplay {
+            HalalDetailsCard(
+                headline: "Halal Details",
+                note: display.note,
+                reminder: display.reminder,
+                status: display.status
+            )
+            .transition(AnyTransition.opacity)
+        }
+    }
+
+    private var halalDetailsDisplay: HalalDetailsDisplay? {
+        // Show details card for both partial (yes) and fully halal (only)
+        switch place.halalStatus {
+        case .yes:
+            let reminder = "Please always double check with restaurant."
+            let trimmed = place.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let note = (trimmed?.isEmpty ?? true) ? nil : trimmed
+            return HalalDetailsDisplay(status: .partial, note: note, reminder: reminder)
+        case .only:
+            let reminder = "Please always double check with restaurant."
+            let trimmed = place.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let note = (trimmed?.isEmpty ?? true) ? nil : trimmed
+            return HalalDetailsDisplay(status: .full, note: note, reminder: reminder)
+        default:
+            return nil
+        }
+    }
+
+}
+
+private enum HalalUIStatus { case full, partial }
+
+private struct HalalDetailsDisplay {
+    let status: HalalUIStatus
+    let note: String?
+    let reminder: String
+}
+
+private struct HalalDetailsCard: View {
+    let headline: String
+    let note: String?
+    let reminder: String
+    let status: HalalUIStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(headline)
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .foregroundStyle(textColor)
+
+                Spacer(minLength: 0)
+
+                HalalStatusBadge(status: status)
             }
+
+            if let note {
+                Text(note)
+                    .font(.system(.body, design: .rounded))
+                    .foregroundStyle(textColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(reminder)
+                .font(.system(.caption, design: .rounded).italic())
+                .foregroundStyle(reminderColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(surfaceColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(outlineColor, lineWidth: 1)
+        )
+        .shadow(color: shadowColor, radius: 14, y: 8)
+        .accessibilityElement(children: .combine)
     }
 
-    private var partialHalalDisplay: (primary: String, disclaimer: String?)? {
-        guard place.halalStatus == .yes else { return nil }
-        let reminder = "Please always double check with restaurant"
-        if let raw = place.note?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
-            return (primary: raw, disclaimer: "(\(reminder))")
-        } else {
-            return (primary: reminder, disclaimer: nil)
-        }
-    }
+    private var textColor: Color { Color.primary }
+    private var reminderColor: Color { Color.secondary.opacity(0.9) }
+    private var surfaceColor: Color { Color(.secondarySystemGroupedBackground) }
+    private var outlineColor: Color { Color.black.opacity(0.06) }
+    private var shadowColor: Color { Color.black.opacity(0.05) }
+}
 
+private struct HalalStatusBadge: View {
+    let status: HalalUIStatus
+    private var label: String { status == .full ? "HALAL" : "PARTIAL" }
+    private var color: Color { status == .full ? Color.green : Color.orange }
+    var body: some View {
+        Text(label)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12), in: Capsule())
+            .overlay(Capsule().stroke(color.opacity(0.4), lineWidth: 1))
+    }
 }
 
 extension PlaceDetailView {
@@ -2998,7 +3724,7 @@ private struct FullscreenPhotoView: View {
                             let photo = pair.element
                             Group {
                                 if let url = URL(string: photo.imageUrl) {
-                                    ZoomableAsyncImage(url: url, resetID: photo.id) {
+                                    ZoomableCachedImage(url: url, resetID: photo.id) {
                                         ProgressView()
                                             .progressViewStyle(.circular)
                                             .tint(.white)
@@ -3120,20 +3846,12 @@ private struct PhotoCarouselView: View {
                 let photo = pair.element
                 ZStack {
                     if let url = URL(string: photo.imageUrl) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .empty:
-                                ZStack { Color.secondary.opacity(0.1); ProgressView() }
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            case .failure:
-                                Color.secondary.opacity(0.1)
-                            @unknown default:
-                                Color.secondary.opacity(0.1)
-                            }
+                        CachedAsyncImage(url: url) {
+                            ZStack { Color.secondary.opacity(0.1); ProgressView() }
+                        } failure: {
+                            Color.secondary.opacity(0.1)
                         }
+                        .scaledToFill()
                     } else {
                         Color.secondary.opacity(0.1)
                     }
@@ -3386,6 +4104,10 @@ final class PlaceDetailViewModel: ObservableObject {
 
     func loadPhotos(for place: Place) async {
         do {
+            if let cached = await PlacePhotoCache.shared.get(place.id) {
+                self.photos = cached
+                return
+            }
             var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
             var p = comps.path
             if !p.hasSuffix("/") { p.append("/") }
@@ -3409,6 +4131,7 @@ final class PlaceDetailViewModel: ObservableObject {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let rows = try decoder.decode([PlacePhoto].self, from: data)
             self.photos = rows
+            await PlacePhotoCache.shared.set(place.id, photos: rows)
         } catch {
             // ignore
         }
@@ -3681,7 +4404,35 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                     .filter(self.isTrustedPlace(_:))
 
                 try Task.checkCancellation()
-                let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
+                var combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
+                // Inline fetch of persisted display_location to avoid first-render flicker.
+                let ids = combined.map { $0.id }
+                let dlMap = try await Task.detached(priority: .utility) {
+                    try await PlaceAPI.fetchDisplayLocations(for: ids)
+                }.value
+                if !dlMap.isEmpty {
+                    combined = combined.map { p in
+                        if let dl = dlMap[p.id] {
+                            return Place(
+                                id: p.id,
+                                name: p.name,
+                                coordinate: p.coordinate,
+                                category: p.category,
+                                rawCategory: p.rawCategory,
+                                address: p.address,
+                                halalStatus: p.halalStatus,
+                                rating: p.rating,
+                                ratingCount: p.ratingCount,
+                                confidence: p.confidence,
+                                source: p.source,
+                                applePlaceID: p.applePlaceID,
+                                note: p.note,
+                                displayLocation: dl
+                            )
+                        }
+                        return p
+                    }
+                }
                 let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
                 self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
                 self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))

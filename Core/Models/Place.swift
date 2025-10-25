@@ -49,6 +49,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let source: String?
     let applePlaceID: String?
     let note: String?
+    let displayLocation: String?
 
     init?(dto: PlaceDTO) {
         id = dto.id
@@ -69,6 +70,7 @@ struct Place: Identifiable, Hashable, Sendable {
         source = dto.source
         applePlaceID = dto.apple_place_id
         note = dto.note
+        displayLocation = dto.source_raw?.display_location
     }
 }
 
@@ -102,7 +104,8 @@ extension Place {
          confidence: Double? = nil,
          source: String? = "manual",
          applePlaceID: String? = nil,
-         note: String? = nil) {
+         note: String? = nil,
+         displayLocation: String? = nil) {
         self.id = id
         self.name = name
         self.coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -116,6 +119,7 @@ extension Place {
         self.source = source
         self.applePlaceID = applePlaceID
         self.note = note
+        self.displayLocation = displayLocation
     }
 
     init(id: UUID,
@@ -130,7 +134,8 @@ extension Place {
          confidence: Double?,
          source: String?,
          applePlaceID: String?,
-         note: String?) {
+         note: String?,
+         displayLocation: String?) {
         self.id = id
         self.name = name
         self.coordinate = coordinate
@@ -144,6 +149,7 @@ extension Place {
         self.source = source
         self.applePlaceID = applePlaceID
         self.note = note
+        self.displayLocation = displayLocation
     }
 }
 
@@ -196,7 +202,8 @@ extension Place: Codable {
             confidence: confidence,
             source: source,
             applePlaceID: applePlaceID,
-            note: note
+            note: note,
+            displayLocation: nil
         )
     }
 
@@ -216,6 +223,7 @@ extension Place: Codable {
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
+        // displayLocation is derived from server source_raw and not encoded here
     }
 }
 enum PlaceOverrides {

@@ -14,6 +14,12 @@ struct PlaceDTO: Decodable, Identifiable {
     let source: String?
     let apple_place_id: String?
     let note: String?
+    let source_raw: SourceRaw?
+
+    struct SourceRaw: Decodable {
+        let display_location: String?
+        let categories: [String]?
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -29,5 +35,6 @@ struct PlaceDTO: Decodable, Identifiable {
         case source
         case apple_place_id
         case note
+        case source_raw
     }
 }

@@ -1,6 +1,6 @@
 {
-  "total": 14,
-  "generated_at": "2025-10-23T18:21:15.876Z",
+  "total": 15,
+  "generated_at": "2025-10-24T01:06:10Z",
   "items": [
     {
       "id": "fKDYkXy8hmcp0bzymEHFFg",
@@ -290,6 +290,29 @@
       "country": "US",
       "zip_code": "11101",
       "match": "manual"
+    },
+    {
+      "id": "while-in-kathmandu-ridgewood",
+      "name": "While in Kathmandu",
+      "alias": "while-in-kathmandu-ridgewood",
+      "url": "https://www.yelp.com/biz/while-in-kathmandu-ridgewood?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 0,
+      "review_count": 0,
+      "is_closed": false,
+      "phone": null,
+      "categories": [
+        "nepalese",
+        "himalayan"
+      ],
+      "latitude": 40.7020423,
+      "longitude": -73.9066086,
+      "address": "758 Seneca Ave, Ridgewood, NY 11385",
+      "city": "Ridgewood",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11385",
+      "match": "manual",
+      "note": "Owner reports halal chicken and goat; pork and alcohol are served. Ask staff what is halal before ordering."
     },
     {
       "id": "yLcJTiE4n_w4sZwSfMZYZA",

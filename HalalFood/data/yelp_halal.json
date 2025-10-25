@@ -1,6 +1,6 @@
 {
-  "total": 1958,
-  "generated_at": "2025-10-04T23:11:16.404Z",
+  "total": 1960,
+  "generated_at": "2025-10-25T19:15:51.216Z",
   "items": [
     {
       "id": "wGFSTTB6b4MHJJUzBnVJeg",
@@ -43860,6 +43860,74 @@
       "state": "NY",
       "country": "US",
       "zip_code": "11385",
+      "match": "manual"
+    },
+    {
+      "id": "Scs2L-4imyt_lorJ6biFKA",
+      "name": "While In Kathmandu",
+      "alias": "while-in-kathmandu-ridgewood",
+      "url": "https://www.yelp.com/biz/while-in-kathmandu-ridgewood?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 4.5,
+      "review_count": 290,
+      "is_closed": false,
+      "phone": "+17183863416",
+      "categories": [
+        "cafes",
+        "bars",
+        "himalayan"
+      ],
+      "latitude": 40.702069,
+      "longitude": -73.906802,
+      "address": "758 Seneca Ave, Ridgewood, NY 11385",
+      "city": "Ridgewood",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11385",
+      "match": "manual"
+    },
+    {
+      "id": "Xcxare_6mb-PKSWYfIK6rg",
+      "name": "Safir Mediterranean",
+      "alias": "safir-mediterranean-long-island-city",
+      "url": "https://www.yelp.com/biz/safir-mediterranean-long-island-city?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 4.6,
+      "review_count": 137,
+      "is_closed": false,
+      "phone": "+13479249152",
+      "categories": [
+        "mediterranean",
+        "turkish"
+      ],
+      "latitude": 40.74447,
+      "longitude": -73.95316,
+      "address": "47-31 Vernon Blvd, Long Island City, NY 11101",
+      "city": "Long Island City",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11101",
+      "match": "manual"
+    },
+    {
+      "id": "tkUc-V8jZ6GyOD_92EyC4w",
+      "name": "Black Nile",
+      "alias": "black-nile-brooklyn-5",
+      "url": "https://www.yelp.com/biz/black-nile-brooklyn-5?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 4.5,
+      "review_count": 2,
+      "is_closed": false,
+      "phone": "+13478798911",
+      "categories": [
+        "soulfood",
+        "seafood",
+        "foodtrucks"
+      ],
+      "latitude": 40.64501838564867,
+      "longitude": -73.92983607393406,
+      "address": "1140 Uttica Ave, Brooklyn, NY 11203",
+      "city": "Brooklyn",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11203",
       "match": "manual"
     }
   ]

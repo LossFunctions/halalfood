@@ -67,6 +67,7 @@ function mapRow(item) {
   const lat = item.latitude;
   const lon = item.longitude;
   if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+  const note = typeof item.note === 'string' ? item.note.trim() : null;
 
   const address = (item.address || '').trim();
   const match = String(item.match || '').toLowerCase();
@@ -89,6 +90,7 @@ function mapRow(item) {
     rating: rating,
     rating_count: ratingCount,
     confidence: confidence,
+    note: note && note.length ? note : null,
     source_raw: { url: item.url || null, categories: item.categories || [], match: item.match || null },
     status: 'published',
   };
@@ -135,4 +137,3 @@ async function upsertBatch(SUPABASE_URL, SERVICE_KEY, rows) {
   }
   console.log('Done upserting Yelp rows.');
 })();
-
