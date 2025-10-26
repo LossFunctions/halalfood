@@ -1,0 +1,25 @@
+{
+  "total": 1,
+  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "items": [
+    {
+      "id": "vh8_4lJxE1K0zGKDleDQaA",
+      "name": "Guac Island",
+      "alias": "guac-island-lake-ronkonkoma",
+      "url": "https://www.yelp.com/biz/guac-island-lake-ronkonkoma",
+      "rating": 0,
+      "review_count": 0,
+      "is_closed": false,
+      "phone": null,
+      "categories": ["mexican"],
+      "latitude": 40.82771264785575,
+      "longitude": -73.10175329999998,
+      "address": "279 Portion Rd, Lake Ronkonkoma, NY 11779",
+      "city": "Lake Ronkonkoma",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11779",
+      "match": "manual"
+    }
+  ]
+}

@@ -45,7 +45,9 @@ const forcedFullyHalalPrefixes = [
   'kababish',
   'kebabish',
   'kebabishq',
-  'momocrave'
+  'momocrave',
+  // Request: Treat Guac Island as fully halal
+  'guacisland'
 ];
 
 function parseArgs() {
