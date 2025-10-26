@@ -3611,30 +3611,30 @@ struct PlaceDetailView: View {
             let loadedDetails = appleLoadedDetails
 
             ZStack(alignment: .top) {
-                if let details = loadedDetails {
-                    ScrollView {
-                        appleLoadedSection(details, availableHeight: proxy.size.height)
-                            .padding(16)
-                    }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            headerSection
-                            if !viewModel.photos.isEmpty {
-                                PhotoCarouselView(photos: viewModel.photos) { index, _ in
-                                    expandedPhotoSelection = PhotoSelection(index: index)
-                                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerSection
+                        if !viewModel.photos.isEmpty {
+                            PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                                expandedPhotoSelection = PhotoSelection(index: index)
                             }
-                            // Order: photos → halal details → rating (non-Apple path)
-                            halalSection
-                            if let ratingModel, !hasAppleDetails {
-                                YelpRatingRow(model: ratingModel, style: .prominent)
-                            }
-                            Divider().opacity(0.4)
-                            appleStatusSection
                         }
-                        .padding(24)
-                        .frame(minHeight: proxy.size.height, alignment: .top)
+                        // Order: photos → halal details → rating (non-Apple path)
+                        halalSection
+                        if let ratingModel, !hasAppleDetails {
+                            YelpRatingRow(model: ratingModel, style: .prominent)
+                        }
+                        Divider().opacity(0.4)
+                        appleStatusSection
+                    }
+                    .padding(24)
+                    .frame(minHeight: proxy.size.height, alignment: .top)
+                }
+                .opacity(loadedDetails == nil ? 1 : 0)
+                .allowsHitTesting(loadedDetails == nil)
+                .overlay(alignment: .top) {
+                    if let details = loadedDetails {
+                        appleLoadedSection(details, availableHeight: proxy.size.height)
                     }
                 }
             }
