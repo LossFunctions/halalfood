@@ -572,23 +572,11 @@ struct ContentView: View {
     }
 
     private var featuredNewSpots: [NewSpotEntry] {
+        // Strict newest → oldest ordering for the list, independent of spotlight.
         let sorted = newSpotEntries.sorted { lhs, rhs in
             sortValue(for: lhs) > sortValue(for: rhs)
         }
-        guard let hero = spotlightEntry else {
-            return Array(sorted.prefix(maxNewSpotsDisplayed))
-        }
-        guard let heroIndex = sorted.firstIndex(where: { $0.id == hero.id }) else {
-            return Array(sorted.prefix(maxNewSpotsDisplayed))
-        }
-
-        var prioritized: [NewSpotEntry] = [sorted[heroIndex]]
-        var remaining = sorted
-        remaining.remove(at: heroIndex)
-        for entry in remaining where prioritized.count < maxNewSpotsDisplayed {
-            prioritized.append(entry)
-        }
-        return prioritized
+        return Array(sorted.prefix(maxNewSpotsDisplayed))
     }
 
     private func sortValue(for entry: NewSpotEntry) -> Int {
@@ -3258,13 +3246,8 @@ private struct NewSpotsScreen: View {
 
     var body: some View {
         let spotlightEntry = spotlight
-        // Exclude the hero (spotlight) from the list so the top row reflects the latest new spot
-        let listEntries: [NewSpotEntry] = {
-            if let hero = spotlightEntry {
-                return spots.filter { $0.id != hero.id }
-            }
-            return spots
-        }()
+        // Include the hero in the list as well, per request
+        let listEntries: [NewSpotEntry] = spots
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if listEntries.isEmpty {
