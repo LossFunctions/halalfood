@@ -1135,7 +1135,7 @@ struct ContentView: View {
 
         var title: String {
             switch self {
-            case .places: return "Places"
+            case .places: return "Map"
             case .topRated: return "Top Rated"
             case .newSpots: return "New Spots"
             case .favorites: return "Favorites"
