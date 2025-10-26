@@ -31,7 +31,6 @@ const forcedFullyHalalPrefixes = [
   'fevyschicken',
   'nurthai',
   'halalmunchies',
-  'smasha',
   'pattanianthai',
   'melindashalalmeatmarket',
   'bakhterhalalfood',

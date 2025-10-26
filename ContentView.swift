@@ -501,7 +501,7 @@ struct ContentView: View {
             photoDescription: "Sma.sha signature double smash",
             displayLocation: "Long Island City, Queens",
             cuisine: "Burgers",
-            halalStatusOverride: .only,
+            halalStatusOverride: nil,
             openedOn: ("SEP", "13"),
             spotlightSummary: "LIC’s newest burger lab focused on halal smashburgers and seasonal specials.",
             spotlightDetails: "All beef is halal; limited seating, take-out friendly."
