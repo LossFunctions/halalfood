@@ -1,0 +1,337 @@
+[
+  {
+    "token": "tribeca",
+    "label": "Tribeca",
+    "region": "Manhattan"
+  },
+  {
+    "token": "soho",
+    "label": "SoHo",
+    "region": "Manhattan"
+  },
+  {
+    "token": "greenwich village",
+    "label": "Greenwich Village",
+    "region": "Manhattan"
+  },
+  {
+    "token": "east village",
+    "label": "East Village",
+    "region": "Manhattan"
+  },
+  {
+    "token": "west village",
+    "label": "West Village",
+    "region": "Manhattan"
+  },
+  {
+    "token": "lower east side",
+    "label": "Lower East Side",
+    "region": "Manhattan"
+  },
+  {
+    "token": "harlem",
+    "label": "Harlem",
+    "region": "Manhattan"
+  },
+  {
+    "token": "washington heights",
+    "label": "Washington Heights",
+    "region": "Manhattan"
+  },
+  {
+    "token": "inwood",
+    "label": "Inwood",
+    "region": "Manhattan"
+  },
+  {
+    "token": "chelsea",
+    "label": "Chelsea",
+    "region": "Manhattan"
+  },
+  {
+    "token": "midtown",
+    "label": "Midtown",
+    "region": "Manhattan"
+  },
+  {
+    "token": "murray hill",
+    "label": "Murray Hill",
+    "region": "Manhattan"
+  },
+  {
+    "token": "gramercy",
+    "label": "Gramercy",
+    "region": "Manhattan"
+  },
+  {
+    "token": "financial district",
+    "label": "Financial District",
+    "region": "Manhattan"
+  },
+  {
+    "token": "fidi",
+    "label": "Financial District",
+    "region": "Manhattan"
+  },
+  {
+    "token": "upper east side",
+    "label": "Upper East Side",
+    "region": "Manhattan"
+  },
+  {
+    "token": "upper west side",
+    "label": "Upper West Side",
+    "region": "Manhattan"
+  },
+  {
+    "token": "sunnyside",
+    "label": "Sunnyside",
+    "region": "Queens"
+  },
+  {
+    "token": "astoria",
+    "label": "Astoria",
+    "region": "Queens"
+  },
+  {
+    "token": "long island city",
+    "label": "Long Island City",
+    "region": "Queens"
+  },
+  {
+    "token": " lic ",
+    "label": "Long Island City",
+    "region": "Queens"
+  },
+  {
+    "token": "jackson heights",
+    "label": "Jackson Heights",
+    "region": "Queens"
+  },
+  {
+    "token": "flushing",
+    "label": "Flushing",
+    "region": "Queens"
+  },
+  {
+    "token": "jamaica, ny",
+    "label": "Jamaica",
+    "region": "Queens"
+  },
+  {
+    "token": "woodside",
+    "label": "Woodside",
+    "region": "Queens"
+  },
+  {
+    "token": "elmhurst",
+    "label": "Elmhurst",
+    "region": "Queens"
+  },
+  {
+    "token": "forest hills",
+    "label": "Forest Hills",
+    "region": "Queens"
+  },
+  {
+    "token": "rego park",
+    "label": "Rego Park",
+    "region": "Queens"
+  },
+  {
+    "token": "kew gardens",
+    "label": "Kew Gardens",
+    "region": "Queens"
+  },
+  {
+    "token": "richmond hill",
+    "label": "Richmond Hill",
+    "region": "Queens"
+  },
+  {
+    "token": "ozone park",
+    "label": "Ozone Park",
+    "region": "Queens"
+  },
+  {
+    "token": "bayside",
+    "label": "Bayside",
+    "region": "Queens"
+  },
+  {
+    "token": "whitestone",
+    "label": "Whitestone",
+    "region": "Queens"
+  },
+  {
+    "token": "college point",
+    "label": "College Point",
+    "region": "Queens"
+  },
+  {
+    "token": "far rockaway",
+    "label": "Far Rockaway",
+    "region": "Queens"
+  },
+  {
+    "token": " rockaway",
+    "label": "Rockaway",
+    "region": "Queens"
+  },
+  {
+    "token": "williamsburg",
+    "label": "Williamsburg",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "greenpoint",
+    "label": "Greenpoint",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "bed-stuy",
+    "label": "Bed-Stuy",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "bedford-stuyvesant",
+    "label": "Bedford-Stuyvesant",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "bushwick",
+    "label": "Bushwick",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "park slope",
+    "label": "Park Slope",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "sunset park",
+    "label": "Sunset Park",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "downtown brooklyn",
+    "label": "Downtown Brooklyn",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "bay ridge",
+    "label": "Bay Ridge",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "dyker heights",
+    "label": "Dyker Heights",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "flatbush",
+    "label": "Flatbush",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "crown heights",
+    "label": "Crown Heights",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "brighton beach",
+    "label": "Brighton Beach",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "sheepshead bay",
+    "label": "Sheepshead Bay",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "brooklyn heights",
+    "label": "Brooklyn Heights",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "dumbo",
+    "label": "DUMBO",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "fort greene",
+    "label": "Fort Greene",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "clinton hill",
+    "label": "Clinton Hill",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "prospect heights",
+    "label": "Prospect Heights",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "carroll gardens",
+    "label": "Carroll Gardens",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "cobble hill",
+    "label": "Cobble Hill",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "boerum hill",
+    "label": "Boerum Hill",
+    "region": "Brooklyn"
+  },
+  {
+    "token": "riverdale",
+    "label": "Riverdale",
+    "region": "Bronx"
+  },
+  {
+    "token": "kingsbridge",
+    "label": "Kingsbridge",
+    "region": "Bronx"
+  },
+  {
+    "token": "fordham",
+    "label": "Fordham",
+    "region": "Bronx"
+  },
+  {
+    "token": "mott haven",
+    "label": "Mott Haven",
+    "region": "Bronx"
+  },
+  {
+    "token": "pelham bay",
+    "label": "Pelham Bay",
+    "region": "Bronx"
+  },
+  {
+    "token": "throgs neck",
+    "label": "Throgs Neck",
+    "region": "Bronx"
+  },
+  {
+    "token": "st. george",
+    "label": "St. George",
+    "region": "Staten Island"
+  },
+  {
+    "token": "st george",
+    "label": "St. George",
+    "region": "Staten Island"
+  },
+  {
+    "token": "westerleigh",
+    "label": "Westerleigh",
+    "region": "Staten Island"
+  }
+]

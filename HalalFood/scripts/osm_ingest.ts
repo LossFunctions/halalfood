@@ -6,6 +6,8 @@
 // Designed for seeding your Supabase `place` table so the iOS app
 // can fetch via the `get_places_in_bbox` RPC without hitting OSM at runtime.
 
+import { resolveDisplayLocation } from "./lib/display_location.ts";
+
 type BBox = { west: number; south: number; east: number; north: number };
 type BBoxTask = { bbox: BBox; label?: string };
 
@@ -158,6 +160,7 @@ type UpsertRow = {
   lat: number;
   lon: number;
   address?: string|null;
+  display_location?: string|null;
   halal_status?: string|null;
   rating?: number|null;
   rating_count?: number|null;
@@ -208,6 +211,13 @@ async function main() {
         if (!coord) continue;
         const tags = el.tags ?? {};
         const halal = normalizeHalalStatus(tags);
+        const address = addressFrom(tags);
+        const displayLocation = resolveDisplayLocation({ address });
+        const sourceRaw = { ...tags };
+        if (displayLocation) {
+          // Preserve display_location inside source_raw during rollout.
+          (sourceRaw as Record<string, unknown>).display_location = displayLocation;
+        }
         const row: UpsertRow = {
           external_id: `${el.type}:${el.id}`,
           source: 'osm',
@@ -215,12 +225,13 @@ async function main() {
           category,
           lat: coord.lat,
           lon: coord.lon,
-          address: addressFrom(tags),
+          address,
+          display_location: displayLocation ?? null,
           halal_status: halal,
           rating: null,
           rating_count: null,
           confidence: null,
-          source_raw: tags,
+          source_raw: sourceRaw,
           status: 'published',
         };
         aggregate.set(row.external_id, row);

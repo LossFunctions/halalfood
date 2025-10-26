@@ -14,6 +14,7 @@
  */
 
 const fs = require('fs');
+const { resolveDisplayLocation } = require('./lib/display_location');
 
 function normalizeName(name) {
   return name
@@ -30,6 +31,7 @@ const forcedFullyHalalPrefixes = [
   'fevyschicken',
   'nurthai',
   'halalmunchies',
+  'smasha',
   'pattanianthai',
   'melindashalalmeatmarket',
   'bakhterhalalfood',
@@ -40,7 +42,10 @@ const forcedFullyHalalPrefixes = [
   'terryandyaki',
   'shawarmaspot',
   'duzan',
+  // Kebabish variants — ensure KebabishQ and spelling variations are treated as fully halal
   'kababish',
+  'kebabish',
+  'kebabishq',
   'momocrave'
 ];
 
@@ -77,6 +82,18 @@ function mapRow(item) {
   const rating = typeof item.rating === 'number' ? item.rating : null;
   const ratingCount = typeof item.review_count === 'number' ? item.review_count : null;
   const confidence = 0.7; // heuristic default
+  const displayLocation = resolveDisplayLocation({ address });
+  const sourceRaw = {
+    url: item.url || null,
+    categories: item.categories || [],
+    match: item.match || null
+  };
+  if (note && note.length) {
+    sourceRaw.note = note;
+  }
+  if (displayLocation) {
+    sourceRaw.display_location = displayLocation;
+  }
 
   return {
     external_id: `yelp:${item.id}`,
@@ -86,13 +103,13 @@ function mapRow(item) {
     lat,
     lon,
     address: address.length ? address : null,
+    display_location: displayLocation || null,
     halal_status: halalStatus,
     rating: rating,
     rating_count: ratingCount,
     confidence: confidence,
-    note: note && note.length ? note : null,
-    source_raw: { url: item.url || null, categories: item.categories || [], match: item.match || null },
-    status: 'published',
+    source_raw: sourceRaw,
+    status: 'published'
   };
 }
 

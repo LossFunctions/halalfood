@@ -70,7 +70,7 @@ struct Place: Identifiable, Hashable, Sendable {
         source = dto.source
         applePlaceID = dto.apple_place_id
         note = dto.note
-        displayLocation = dto.source_raw?.display_location
+        displayLocation = dto.display_location ?? dto.source_raw?.display_location
     }
 }
 
@@ -162,6 +162,7 @@ extension Place: Codable {
         case category
         case rawCategory
         case address
+        case displayLocation
         case halalStatus
         case rating
         case ratingCount
@@ -180,6 +181,7 @@ extension Place: Codable {
         let category = try container.decode(PlaceCategory.self, forKey: .category)
         let rawCategory = try container.decodeIfPresent(String.self, forKey: .rawCategory) ?? category.rawValue
         let address = try container.decodeIfPresent(String.self, forKey: .address)
+        let displayLocation = try container.decodeIfPresent(String.self, forKey: .displayLocation)
         let halalStatus = try container.decode(Place.HalalStatus.self, forKey: .halalStatus)
         let rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         let ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
@@ -203,7 +205,7 @@ extension Place: Codable {
             source: source,
             applePlaceID: applePlaceID,
             note: note,
-            displayLocation: nil
+            displayLocation: displayLocation
         )
     }
 
@@ -216,6 +218,7 @@ extension Place: Codable {
         try container.encode(category, forKey: .category)
         try container.encode(rawCategory, forKey: .rawCategory)
         try container.encodeIfPresent(address, forKey: .address)
+        try container.encodeIfPresent(displayLocation, forKey: .displayLocation)
         try container.encode(halalStatus, forKey: .halalStatus)
         try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(ratingCount, forKey: .ratingCount)
@@ -223,7 +226,6 @@ extension Place: Codable {
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
-        // displayLocation is derived from server source_raw and not encoded here
     }
 }
 enum PlaceOverrides {
@@ -273,11 +275,24 @@ enum PlaceOverrides {
         let prioritized = places.sorted(by: duplicatePriorityPredicate(_:_:))
         let highPriority = dropOutdatedOSM ? prioritized.filter { sourcePriority(for: $0.source) > sourcePriority(for: "osm") } : []
         let highPriorityIndex = dropOutdatedOSM ? buildCoordinateIndex(for: highPriority) : [:]
-        let highPriorityTokenCache = dropOutdatedOSM ? Dictionary(uniqueKeysWithValues: highPriority.map { ($0.id, significantTokens(for: $0.name)) }) : [:]
-        let highPriorityLocationCache = dropOutdatedOSM ? Dictionary(uniqueKeysWithValues: highPriority.compactMap { place -> (UUID, CLLocation)? in
-            guard let location = location(for: place.coordinate) else { return nil }
-            return (place.id, location)
-        }) : [:]
+        let highPriorityTokenCache: [UUID: Set<String>] = {
+            guard dropOutdatedOSM else { return [:] }
+            var cache: [UUID: Set<String>] = [:]
+            for place in highPriority {
+                cache[place.id] = significantTokens(for: place.name)
+            }
+            return cache
+        }()
+        let highPriorityLocationCache: [UUID: CLLocation] = {
+            guard dropOutdatedOSM else { return [:] }
+            var cache: [UUID: CLLocation] = [:]
+            for place in highPriority {
+                if let location = location(for: place.coordinate) {
+                    cache[place.id] = location
+                }
+            }
+            return cache
+        }()
 
         var result: [Place] = []
         var addressIndex: [String: [Place]] = [:]

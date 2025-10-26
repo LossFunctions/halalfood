@@ -1,0 +1,1558 @@
+{
+  "06390": {
+    "locality": "Unknown",
+    "region": "Suffolk"
+  },
+  "063HH": {
+    "locality": "Unknown",
+    "region": "Suffolk"
+  },
+  "10001": {
+    "locality": "Hudson Yards",
+    "region": "Manhattan"
+  },
+  "10002": {
+    "locality": "Two Bridges",
+    "region": "Manhattan"
+  },
+  "10003": {
+    "locality": "East Village",
+    "region": "Manhattan"
+  },
+  "10004": {
+    "locality": "Financial District",
+    "region": "Manhattan"
+  },
+  "10005": {
+    "locality": "Financial District",
+    "region": "Manhattan"
+  },
+  "10006": {
+    "locality": "Financial District",
+    "region": "Manhattan"
+  },
+  "10007": {
+    "locality": "Civic Center",
+    "region": "Manhattan"
+  },
+  "10009": {
+    "locality": "East Village",
+    "region": "Manhattan"
+  },
+  "10010": {
+    "locality": "Kips Bay",
+    "region": "Manhattan"
+  },
+  "10011": {
+    "locality": "Flatiron",
+    "region": "Manhattan"
+  },
+  "10012": {
+    "locality": "Nolita",
+    "region": "Manhattan"
+  },
+  "10013": {
+    "locality": "Chinatown",
+    "region": "Manhattan"
+  },
+  "10014": {
+    "locality": "West Village",
+    "region": "Manhattan"
+  },
+  "10016": {
+    "locality": "Midtown East",
+    "region": "Manhattan"
+  },
+  "10017": {
+    "locality": "Midtown East",
+    "region": "Manhattan"
+  },
+  "10018": {
+    "locality": "Theater District",
+    "region": "Manhattan"
+  },
+  "10019": {
+    "locality": "Midtown West",
+    "region": "Manhattan"
+  },
+  "10020": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10021": {
+    "locality": "Upper East Side",
+    "region": "Manhattan"
+  },
+  "10022": {
+    "locality": "Midtown East",
+    "region": "Manhattan"
+  },
+  "10023": {
+    "locality": "Upper West Side",
+    "region": "Manhattan"
+  },
+  "10024": {
+    "locality": "Upper West Side",
+    "region": "Manhattan"
+  },
+  "10025": {
+    "locality": "Morningside Heights",
+    "region": "Manhattan"
+  },
+  "10026": {
+    "locality": "Harlem",
+    "region": "Manhattan"
+  },
+  "10027": {
+    "locality": "Harlem",
+    "region": "Manhattan"
+  },
+  "10028": {
+    "locality": "Upper East Side",
+    "region": "Manhattan"
+  },
+  "10029": {
+    "locality": "East Harlem",
+    "region": "Manhattan"
+  },
+  "10030": {
+    "locality": "Harlem",
+    "region": "Manhattan"
+  },
+  "10031": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10032": {
+    "locality": "Washington Heights",
+    "region": "Manhattan"
+  },
+  "10033": {
+    "locality": "Washington Heights",
+    "region": "Manhattan"
+  },
+  "10034": {
+    "locality": "Inwood",
+    "region": "Manhattan"
+  },
+  "10035": {
+    "locality": "East Harlem",
+    "region": "Manhattan"
+  },
+  "10036": {
+    "locality": "Theater District",
+    "region": "Manhattan"
+  },
+  "10037": {
+    "locality": "Harlem",
+    "region": "Manhattan"
+  },
+  "10038": {
+    "locality": "Financial District",
+    "region": "Manhattan"
+  },
+  "10039": {
+    "locality": "Harlem",
+    "region": "Manhattan"
+  },
+  "10040": {
+    "locality": "Washington Heights",
+    "region": "Manhattan"
+  },
+  "10041": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10044": {
+    "locality": "Roosevelt Island",
+    "region": "Manhattan"
+  },
+  "10048": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10065": {
+    "locality": "Upper East Side",
+    "region": "Manhattan"
+  },
+  "10069": {
+    "locality": "Upper West Side",
+    "region": "Manhattan"
+  },
+  "10075": {
+    "locality": "Upper East Side",
+    "region": "Manhattan"
+  },
+  "100HH": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10103": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10111": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10112": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10115": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10119": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10128": {
+    "locality": "Upper East Side",
+    "region": "Manhattan"
+  },
+  "10152": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10153": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10154": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10162": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10165": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10167": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10169": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10170": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10171": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10172": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10173": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10177": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10271": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10278": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10279": {
+    "locality": "New York",
+    "region": "Manhattan"
+  },
+  "10280": {
+    "locality": "Battery Park City",
+    "region": "Manhattan"
+  },
+  "10282": {
+    "locality": "Battery Park City",
+    "region": "Manhattan"
+  },
+  "102HH": {
+    "locality": "Zcta 102hh",
+    "region": "Manhattan"
+  },
+  "10301": {
+    "locality": "St. George / Tompkinsville",
+    "region": "Staten Island"
+  },
+  "10302": {
+    "locality": "Port Richmond / Mariners Harbor",
+    "region": "Staten Island"
+  },
+  "10303": {
+    "locality": "Port Richmond / Mariners Harbor",
+    "region": "Staten Island"
+  },
+  "10304": {
+    "locality": "Stapleton / Clifton",
+    "region": "Staten Island"
+  },
+  "10305": {
+    "locality": "Dongan Hills / Grant City",
+    "region": "Staten Island"
+  },
+  "10306": {
+    "locality": "New Dorp / Midland Beach",
+    "region": "Staten Island"
+  },
+  "10307": {
+    "locality": "Tottenville",
+    "region": "Staten Island"
+  },
+  "10308": {
+    "locality": "Great Kills",
+    "region": "Staten Island"
+  },
+  "10309": {
+    "locality": "Staten Island",
+    "region": "Staten Island"
+  },
+  "10310": {
+    "locality": "New Brighton / West Brighton",
+    "region": "Staten Island"
+  },
+  "10312": {
+    "locality": "Huguenot / Prince's Bay",
+    "region": "Staten Island"
+  },
+  "10314": {
+    "locality": "New Springville / Willowbrook",
+    "region": "Staten Island"
+  },
+  "103HH": {
+    "locality": "Zcta 103hh",
+    "region": "Staten Island"
+  },
+  "10451": {
+    "locality": "Concourse / Concourse Village",
+    "region": "Bronx"
+  },
+  "10452": {
+    "locality": "Concourse / Concourse Village",
+    "region": "Bronx"
+  },
+  "10453": {
+    "locality": "University Heights",
+    "region": "Bronx"
+  },
+  "10454": {
+    "locality": "Port Morris",
+    "region": "Bronx"
+  },
+  "10455": {
+    "locality": "Longwood",
+    "region": "Bronx"
+  },
+  "10456": {
+    "locality": "Morrisania",
+    "region": "Bronx"
+  },
+  "10457": {
+    "locality": "Bronx",
+    "region": "Bronx"
+  },
+  "10458": {
+    "locality": "Belmont",
+    "region": "Bronx"
+  },
+  "10459": {
+    "locality": "Longwood",
+    "region": "Bronx"
+  },
+  "10460": {
+    "locality": "Bronx",
+    "region": "Bronx"
+  },
+  "10461": {
+    "locality": "Pelham Bay",
+    "region": "Bronx"
+  },
+  "10462": {
+    "locality": "Castle Hill",
+    "region": "Bronx"
+  },
+  "10463": {
+    "locality": "Kingsbridge",
+    "region": "Bronx"
+  },
+  "10464": {
+    "locality": "City Island",
+    "region": "Bronx"
+  },
+  "10465": {
+    "locality": "Country Club",
+    "region": "Bronx"
+  },
+  "10466": {
+    "locality": "Wakefield",
+    "region": "Bronx"
+  },
+  "10467": {
+    "locality": "Norwood",
+    "region": "Bronx"
+  },
+  "10468": {
+    "locality": "Fordham / Bedford Park",
+    "region": "Bronx"
+  },
+  "10469": {
+    "locality": "Pelham Gardens",
+    "region": "Bronx"
+  },
+  "10470": {
+    "locality": "Wakefield",
+    "region": "Bronx"
+  },
+  "10471": {
+    "locality": "Riverdale",
+    "region": "Bronx"
+  },
+  "10472": {
+    "locality": "Soundview / Clason Point",
+    "region": "Bronx"
+  },
+  "10473": {
+    "locality": "Castle Hill",
+    "region": "Bronx"
+  },
+  "10474": {
+    "locality": "Hunts Point",
+    "region": "Bronx"
+  },
+  "10475": {
+    "locality": "Co-op City",
+    "region": "Bronx"
+  },
+  "104HH": {
+    "locality": "Zcta 104hh",
+    "region": "Bronx"
+  },
+  "11001": {
+    "locality": "Floral Park",
+    "region": "Nassau"
+  },
+  "11003": {
+    "locality": "Alden Manor",
+    "region": "Nassau"
+  },
+  "11004": {
+    "locality": "Glen Oaks",
+    "region": "Queens"
+  },
+  "11005": {
+    "locality": "Floral Park",
+    "region": "Queens"
+  },
+  "11010": {
+    "locality": "Franklin Square",
+    "region": "Nassau"
+  },
+  "11020": {
+    "locality": "Great Neck",
+    "region": "Nassau"
+  },
+  "11021": {
+    "locality": "Great Neck",
+    "region": "Nassau"
+  },
+  "11023": {
+    "locality": "Great Neck",
+    "region": "Nassau"
+  },
+  "11024": {
+    "locality": "Kings Point Cont",
+    "region": "Nassau"
+  },
+  "11030": {
+    "locality": "Plandome",
+    "region": "Nassau"
+  },
+  "11040": {
+    "locality": "Hillside Manor",
+    "region": "Nassau"
+  },
+  "11042": {
+    "locality": "New Hyde Park",
+    "region": "Nassau"
+  },
+  "11050": {
+    "locality": "Port Washington",
+    "region": "Nassau"
+  },
+  "11096": {
+    "locality": "Zcta 11096",
+    "region": "Nassau"
+  },
+  "110HH": {
+    "locality": "Zcta 110hh",
+    "region": "Nassau"
+  },
+  "11101": {
+    "locality": "Long Island City",
+    "region": "Queens"
+  },
+  "11102": {
+    "locality": "Astoria",
+    "region": "Queens"
+  },
+  "11103": {
+    "locality": "Astoria",
+    "region": "Queens"
+  },
+  "11104": {
+    "locality": "Sunnyside",
+    "region": "Queens"
+  },
+  "11105": {
+    "locality": "Astoria",
+    "region": "Queens"
+  },
+  "11106": {
+    "locality": "Astoria",
+    "region": "Queens"
+  },
+  "11109": {
+    "locality": "Long Island City",
+    "region": "Queens"
+  },
+  "111HH": {
+    "locality": "Zcta 111hh",
+    "region": "Queens"
+  },
+  "11201": {
+    "locality": "Downtown Brooklyn",
+    "region": "Brooklyn"
+  },
+  "11203": {
+    "locality": "East Flatbush",
+    "region": "Brooklyn"
+  },
+  "11204": {
+    "locality": "Bensonhurst",
+    "region": "Brooklyn"
+  },
+  "11205": {
+    "locality": "Clinton Hill",
+    "region": "Brooklyn"
+  },
+  "11206": {
+    "locality": "Bedford\u2013Stuyvesant",
+    "region": "Brooklyn"
+  },
+  "11207": {
+    "locality": "East New York",
+    "region": "Brooklyn"
+  },
+  "11208": {
+    "locality": "East New York",
+    "region": "Brooklyn"
+  },
+  "11209": {
+    "locality": "Bay Ridge",
+    "region": "Brooklyn"
+  },
+  "11210": {
+    "locality": "Midwood",
+    "region": "Brooklyn"
+  },
+  "11211": {
+    "locality": "Williamsburg",
+    "region": "Brooklyn"
+  },
+  "11212": {
+    "locality": "Brownsville",
+    "region": "Brooklyn"
+  },
+  "11213": {
+    "locality": "Crown Heights",
+    "region": "Brooklyn"
+  },
+  "11214": {
+    "locality": "Gravesend",
+    "region": "Brooklyn"
+  },
+  "11215": {
+    "locality": "Park Slope",
+    "region": "Brooklyn"
+  },
+  "11216": {
+    "locality": "Crown Heights",
+    "region": "Brooklyn"
+  },
+  "11217": {
+    "locality": "Downtown Brooklyn",
+    "region": "Brooklyn"
+  },
+  "11218": {
+    "locality": "Kensington",
+    "region": "Brooklyn"
+  },
+  "11219": {
+    "locality": "Borough Park",
+    "region": "Brooklyn"
+  },
+  "11220": {
+    "locality": "Sunset Park",
+    "region": "Brooklyn"
+  },
+  "11221": {
+    "locality": "Bedford\u2013Stuyvesant",
+    "region": "Brooklyn"
+  },
+  "11222": {
+    "locality": "Greenpoint",
+    "region": "Brooklyn"
+  },
+  "11223": {
+    "locality": "Gravesend",
+    "region": "Brooklyn"
+  },
+  "11224": {
+    "locality": "Coney Island",
+    "region": "Brooklyn"
+  },
+  "11225": {
+    "locality": "Crown Heights",
+    "region": "Brooklyn"
+  },
+  "11226": {
+    "locality": "Flatbush",
+    "region": "Brooklyn"
+  },
+  "11228": {
+    "locality": "Dyker Heights",
+    "region": "Brooklyn"
+  },
+  "11229": {
+    "locality": "Brooklyn",
+    "region": "Brooklyn"
+  },
+  "11230": {
+    "locality": "Midwood",
+    "region": "Brooklyn"
+  },
+  "11231": {
+    "locality": "Red Hook",
+    "region": "Brooklyn"
+  },
+  "11232": {
+    "locality": "Sunset Park",
+    "region": "Brooklyn"
+  },
+  "11233": {
+    "locality": "Bedford\u2013Stuyvesant",
+    "region": "Brooklyn"
+  },
+  "11234": {
+    "locality": "Marine Park",
+    "region": "Brooklyn"
+  },
+  "11235": {
+    "locality": "Brighton Beach",
+    "region": "Brooklyn"
+  },
+  "11236": {
+    "locality": "Canarsie",
+    "region": "Brooklyn"
+  },
+  "11237": {
+    "locality": "Bushwick",
+    "region": "Brooklyn"
+  },
+  "11238": {
+    "locality": "Clinton Hill",
+    "region": "Brooklyn"
+  },
+  "11239": {
+    "locality": "Brooklyn",
+    "region": "Brooklyn"
+  },
+  "11249": {
+    "locality": "Williamsburg",
+    "region": "Brooklyn"
+  },
+  "112HH": {
+    "locality": "Zcta 112hh",
+    "region": "Brooklyn"
+  },
+  "11354": {
+    "locality": "Flushing",
+    "region": "Queens"
+  },
+  "11355": {
+    "locality": "Flushing",
+    "region": "Queens"
+  },
+  "11356": {
+    "locality": "College Point",
+    "region": "Queens"
+  },
+  "11357": {
+    "locality": "Whitestone",
+    "region": "Queens"
+  },
+  "11358": {
+    "locality": "Auburndale",
+    "region": "Queens"
+  },
+  "11360": {
+    "locality": "Bayside",
+    "region": "Queens"
+  },
+  "11361": {
+    "locality": "Bayside",
+    "region": "Queens"
+  },
+  "11362": {
+    "locality": "Little Neck",
+    "region": "Queens"
+  },
+  "11363": {
+    "locality": "Little Neck",
+    "region": "Queens"
+  },
+  "11364": {
+    "locality": "Oakland Gardens",
+    "region": "Queens"
+  },
+  "11365": {
+    "locality": "Fresh Meadows",
+    "region": "Queens"
+  },
+  "11366": {
+    "locality": "Fresh Meadows",
+    "region": "Queens"
+  },
+  "11367": {
+    "locality": "Flushing",
+    "region": "Queens"
+  },
+  "11368": {
+    "locality": "Corona",
+    "region": "Queens"
+  },
+  "11369": {
+    "locality": "East Elmhurst",
+    "region": "Queens"
+  },
+  "11370": {
+    "locality": "East Elmhurst",
+    "region": "Queens"
+  },
+  "11371": {
+    "locality": "Flushing",
+    "region": "Queens"
+  },
+  "11372": {
+    "locality": "Jackson Heights",
+    "region": "Queens"
+  },
+  "11373": {
+    "locality": "Elmhurst",
+    "region": "Queens"
+  },
+  "11374": {
+    "locality": "Rego Park",
+    "region": "Queens"
+  },
+  "11375": {
+    "locality": "Forest Hills",
+    "region": "Queens"
+  },
+  "11377": {
+    "locality": "Woodside",
+    "region": "Queens"
+  },
+  "11378": {
+    "locality": "Maspeth",
+    "region": "Queens"
+  },
+  "11379": {
+    "locality": "Middle Village",
+    "region": "Queens"
+  },
+  "11385": {
+    "locality": "Ridgewood",
+    "region": "Queens"
+  },
+  "113HH": {
+    "locality": "Zcta 113hh",
+    "region": "Queens"
+  },
+  "11411": {
+    "locality": "Cambria Heights / Laurelton",
+    "region": "Queens"
+  },
+  "11412": {
+    "locality": "St. Albans / Hollis",
+    "region": "Queens"
+  },
+  "11413": {
+    "locality": "Cambria Heights / Laurelton",
+    "region": "Queens"
+  },
+  "11414": {
+    "locality": "Howard Beach",
+    "region": "Queens"
+  },
+  "11415": {
+    "locality": "Kew Gardens",
+    "region": "Queens"
+  },
+  "11416": {
+    "locality": "Ozone Park",
+    "region": "Queens"
+  },
+  "11417": {
+    "locality": "Ozone Park",
+    "region": "Queens"
+  },
+  "11418": {
+    "locality": "Richmond Hill",
+    "region": "Queens"
+  },
+  "11419": {
+    "locality": "Richmond Hill",
+    "region": "Queens"
+  },
+  "11420": {
+    "locality": "South Ozone Park",
+    "region": "Queens"
+  },
+  "11421": {
+    "locality": "Woodhaven",
+    "region": "Queens"
+  },
+  "11422": {
+    "locality": "Rosedale",
+    "region": "Queens"
+  },
+  "11423": {
+    "locality": "St. Albans / Hollis",
+    "region": "Queens"
+  },
+  "11426": {
+    "locality": "Bellerose",
+    "region": "Queens"
+  },
+  "11427": {
+    "locality": "Queens Village",
+    "region": "Queens"
+  },
+  "11428": {
+    "locality": "Queens Village",
+    "region": "Queens"
+  },
+  "11429": {
+    "locality": "Queens Village",
+    "region": "Queens"
+  },
+  "11430": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "11432": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "11433": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "11434": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "11435": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "11436": {
+    "locality": "Jamaica",
+    "region": "Queens"
+  },
+  "114HH": {
+    "locality": "Zcta 114hh",
+    "region": "Nassau"
+  },
+  "11501": {
+    "locality": "Mineola",
+    "region": "Nassau"
+  },
+  "11507": {
+    "locality": "Albertson",
+    "region": "Nassau"
+  },
+  "11509": {
+    "locality": "Atlantic Beach",
+    "region": "Nassau"
+  },
+  "11510": {
+    "locality": "Baldwin",
+    "region": "Nassau"
+  },
+  "11514": {
+    "locality": "Carle Place",
+    "region": "Nassau"
+  },
+  "11516": {
+    "locality": "Cedarhurst",
+    "region": "Nassau"
+  },
+  "11518": {
+    "locality": "East Rockaway",
+    "region": "Nassau"
+  },
+  "11520": {
+    "locality": "Freeport",
+    "region": "Nassau"
+  },
+  "11530": {
+    "locality": "Garden City",
+    "region": "Nassau"
+  },
+  "11542": {
+    "locality": "Glen Cove",
+    "region": "Nassau"
+  },
+  "11545": {
+    "locality": "Glen Head",
+    "region": "Nassau"
+  },
+  "11547": {
+    "locality": "Glenwood Landing",
+    "region": "Nassau"
+  },
+  "11548": {
+    "locality": "Greenvale",
+    "region": "Nassau"
+  },
+  "11550": {
+    "locality": "Hempstead",
+    "region": "Nassau"
+  },
+  "11552": {
+    "locality": "West Hempstead",
+    "region": "Nassau"
+  },
+  "11553": {
+    "locality": "Uniondale",
+    "region": "Nassau"
+  },
+  "11554": {
+    "locality": "East Meadow",
+    "region": "Nassau"
+  },
+  "11557": {
+    "locality": "Hewlett",
+    "region": "Nassau"
+  },
+  "11558": {
+    "locality": "Island Park",
+    "region": "Nassau"
+  },
+  "11559": {
+    "locality": "Lawrence",
+    "region": "Nassau"
+  },
+  "11560": {
+    "locality": "Locust Valley",
+    "region": "Nassau"
+  },
+  "11561": {
+    "locality": "Long Beach",
+    "region": "Nassau"
+  },
+  "11563": {
+    "locality": "Lynbrook",
+    "region": "Nassau"
+  },
+  "11565": {
+    "locality": "Malverne",
+    "region": "Nassau"
+  },
+  "11566": {
+    "locality": "North Merrick",
+    "region": "Nassau"
+  },
+  "11568": {
+    "locality": "Old Westbury",
+    "region": "Nassau"
+  },
+  "11569": {
+    "locality": "Point Lookout",
+    "region": "Nassau"
+  },
+  "11570": {
+    "locality": "Rockville Centre",
+    "region": "Nassau"
+  },
+  "11572": {
+    "locality": "Oceanside",
+    "region": "Nassau"
+  },
+  "11575": {
+    "locality": "Roosevelt",
+    "region": "Nassau"
+  },
+  "11576": {
+    "locality": "Roslyn",
+    "region": "Nassau"
+  },
+  "11577": {
+    "locality": "Roslyn Heights",
+    "region": "Nassau"
+  },
+  "11579": {
+    "locality": "Sea Cliff",
+    "region": "Nassau"
+  },
+  "11580": {
+    "locality": "Valley Stream",
+    "region": "Nassau"
+  },
+  "11581": {
+    "locality": "North Woodmere",
+    "region": "Nassau"
+  },
+  "11590": {
+    "locality": "Westbury",
+    "region": "Nassau"
+  },
+  "11596": {
+    "locality": "Williston Park",
+    "region": "Nassau"
+  },
+  "11598": {
+    "locality": "Woodmere",
+    "region": "Nassau"
+  },
+  "115HH": {
+    "locality": "Zcta 115hh",
+    "region": "Nassau"
+  },
+  "11691": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "11692": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "11693": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "11694": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "11695": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "11697": {
+    "locality": "The Rockaways",
+    "region": "Queens"
+  },
+  "116HH": {
+    "locality": "Zcta 116hh",
+    "region": "Queens"
+  },
+  "11701": {
+    "locality": "Amityville",
+    "region": "Suffolk"
+  },
+  "11702": {
+    "locality": "Oak Beach",
+    "region": "Suffolk"
+  },
+  "11703": {
+    "locality": "North Babylon",
+    "region": "Suffolk"
+  },
+  "11704": {
+    "locality": "West Babylon",
+    "region": "Suffolk"
+  },
+  "11705": {
+    "locality": "Bayport",
+    "region": "Suffolk"
+  },
+  "11706": {
+    "locality": "Kismet",
+    "region": "Suffolk"
+  },
+  "11709": {
+    "locality": "Bayville",
+    "region": "Nassau"
+  },
+  "11710": {
+    "locality": "North Bellmore",
+    "region": "Nassau"
+  },
+  "11713": {
+    "locality": "Bellport",
+    "region": "Suffolk"
+  },
+  "11714": {
+    "locality": "Bethpage",
+    "region": "Nassau"
+  },
+  "11715": {
+    "locality": "Blue Point",
+    "region": "Suffolk"
+  },
+  "11716": {
+    "locality": "Bohemia",
+    "region": "Suffolk"
+  },
+  "11717": {
+    "locality": "West Brentwood",
+    "region": "Suffolk"
+  },
+  "11718": {
+    "locality": "Brightwaters",
+    "region": "Suffolk"
+  },
+  "11719": {
+    "locality": "Brookhaven",
+    "region": "Suffolk"
+  },
+  "11720": {
+    "locality": "Centereach",
+    "region": "Suffolk"
+  },
+  "11721": {
+    "locality": "Centerport",
+    "region": "Suffolk"
+  },
+  "11722": {
+    "locality": "Central Islip",
+    "region": "Suffolk"
+  },
+  "11724": {
+    "locality": "Cold Spring Harb",
+    "region": "Suffolk"
+  },
+  "11725": {
+    "locality": "Commack",
+    "region": "Suffolk"
+  },
+  "11726": {
+    "locality": "Copiague",
+    "region": "Suffolk"
+  },
+  "11727": {
+    "locality": "Coram",
+    "region": "Suffolk"
+  },
+  "11729": {
+    "locality": "Deer Park",
+    "region": "Suffolk"
+  },
+  "11730": {
+    "locality": "East Islip",
+    "region": "Suffolk"
+  },
+  "11731": {
+    "locality": "Elwood",
+    "region": "Suffolk"
+  },
+  "11732": {
+    "locality": "East Norwich",
+    "region": "Nassau"
+  },
+  "11733": {
+    "locality": "Setauket",
+    "region": "Suffolk"
+  },
+  "11735": {
+    "locality": "South Farmingdal",
+    "region": "Nassau"
+  },
+  "11738": {
+    "locality": "Farmingville",
+    "region": "Suffolk"
+  },
+  "11740": {
+    "locality": "Greenlawn",
+    "region": "Suffolk"
+  },
+  "11741": {
+    "locality": "Holbrook",
+    "region": "Suffolk"
+  },
+  "11742": {
+    "locality": "Holtsville",
+    "region": "Suffolk"
+  },
+  "11743": {
+    "locality": "Halesite",
+    "region": "Suffolk"
+  },
+  "11746": {
+    "locality": "Dix Hills",
+    "region": "Suffolk"
+  },
+  "11747": {
+    "locality": "Melville",
+    "region": "Suffolk"
+  },
+  "11751": {
+    "locality": "Islip",
+    "region": "Suffolk"
+  },
+  "11752": {
+    "locality": "Islip Terrace",
+    "region": "Suffolk"
+  },
+  "11753": {
+    "locality": "Jericho",
+    "region": "Nassau"
+  },
+  "11754": {
+    "locality": "Kings Park",
+    "region": "Suffolk"
+  },
+  "11755": {
+    "locality": "Lake Grove",
+    "region": "Suffolk"
+  },
+  "11756": {
+    "locality": "Levittown",
+    "region": "Nassau"
+  },
+  "11757": {
+    "locality": "Lindenhurst",
+    "region": "Suffolk"
+  },
+  "11758": {
+    "locality": "North Massapequa",
+    "region": "Nassau"
+  },
+  "11762": {
+    "locality": "Massapequa Park",
+    "region": "Nassau"
+  },
+  "11763": {
+    "locality": "Medford",
+    "region": "Suffolk"
+  },
+  "11764": {
+    "locality": "Miller Place",
+    "region": "Suffolk"
+  },
+  "11765": {
+    "locality": "Mill Neck",
+    "region": "Nassau"
+  },
+  "11766": {
+    "locality": "Mount Sinai",
+    "region": "Suffolk"
+  },
+  "11767": {
+    "locality": "Nesconset",
+    "region": "Suffolk"
+  },
+  "11768": {
+    "locality": "Northport",
+    "region": "Suffolk"
+  },
+  "11769": {
+    "locality": "Oakdale",
+    "region": "Suffolk"
+  },
+  "11770": {
+    "locality": "Ocean Beach",
+    "region": "Suffolk"
+  },
+  "11771": {
+    "locality": "Oyster Bay",
+    "region": "Nassau"
+  },
+  "11772": {
+    "locality": "Davis Park",
+    "region": "Suffolk"
+  },
+  "11776": {
+    "locality": "Port Jefferson S",
+    "region": "Suffolk"
+  },
+  "11777": {
+    "locality": "Port Jefferson",
+    "region": "Suffolk"
+  },
+  "11778": {
+    "locality": "Rocky Point",
+    "region": "Suffolk"
+  },
+  "11779": {
+    "locality": "Lake Ronkonkoma",
+    "region": "Suffolk"
+  },
+  "11780": {
+    "locality": "Saint James",
+    "region": "Suffolk"
+  },
+  "11782": {
+    "locality": "Cherry Grove",
+    "region": "Suffolk"
+  },
+  "11783": {
+    "locality": "Seaford",
+    "region": "Nassau"
+  },
+  "11784": {
+    "locality": "Selden",
+    "region": "Suffolk"
+  },
+  "11786": {
+    "locality": "Shoreham",
+    "region": "Suffolk"
+  },
+  "11787": {
+    "locality": "Smithtown",
+    "region": "Suffolk"
+  },
+  "11788": {
+    "locality": "Hauppauge",
+    "region": "Suffolk"
+  },
+  "11789": {
+    "locality": "Sound Beach",
+    "region": "Suffolk"
+  },
+  "11790": {
+    "locality": "Stony Brook",
+    "region": "Suffolk"
+  },
+  "11791": {
+    "locality": "Syosset",
+    "region": "Nassau"
+  },
+  "11792": {
+    "locality": "Wading River",
+    "region": "Suffolk"
+  },
+  "11793": {
+    "locality": "Wantagh",
+    "region": "Nassau"
+  },
+  "11795": {
+    "locality": "West Islip",
+    "region": "Suffolk"
+  },
+  "11796": {
+    "locality": "West Sayville",
+    "region": "Suffolk"
+  },
+  "11797": {
+    "locality": "Woodbury",
+    "region": "Nassau"
+  },
+  "11798": {
+    "locality": "Wheatley Heights",
+    "region": "Suffolk"
+  },
+  "117HH": {
+    "locality": "Zcta 117hh",
+    "region": "Nassau"
+  },
+  "11801": {
+    "locality": "Hicksville",
+    "region": "Nassau"
+  },
+  "11803": {
+    "locality": "Plainview",
+    "region": "Nassau"
+  },
+  "11804": {
+    "locality": "Old Bethpage",
+    "region": "Nassau"
+  },
+  "11901": {
+    "locality": "Riverhead",
+    "region": "Suffolk"
+  },
+  "11930": {
+    "locality": "Amagansett",
+    "region": "Suffolk"
+  },
+  "11932": {
+    "locality": "Bridgehampton",
+    "region": "Suffolk"
+  },
+  "11933": {
+    "locality": "Calverton",
+    "region": "Suffolk"
+  },
+  "11934": {
+    "locality": "Center Moriches",
+    "region": "Suffolk"
+  },
+  "11935": {
+    "locality": "Cutchogue",
+    "region": "Suffolk"
+  },
+  "11937": {
+    "locality": "East Hampton",
+    "region": "Suffolk"
+  },
+  "11939": {
+    "locality": "East Marion",
+    "region": "Suffolk"
+  },
+  "11940": {
+    "locality": "East Moriches",
+    "region": "Suffolk"
+  },
+  "11941": {
+    "locality": "Eastport",
+    "region": "Suffolk"
+  },
+  "11942": {
+    "locality": "East Quogue",
+    "region": "Suffolk"
+  },
+  "11944": {
+    "locality": "Greenport",
+    "region": "Suffolk"
+  },
+  "11946": {
+    "locality": "Hampton Bays",
+    "region": "Suffolk"
+  },
+  "11947": {
+    "locality": "Jamesport",
+    "region": "Suffolk"
+  },
+  "11948": {
+    "locality": "Laurel",
+    "region": "Suffolk"
+  },
+  "11949": {
+    "locality": "Manorville",
+    "region": "Suffolk"
+  },
+  "11950": {
+    "locality": "Mastic",
+    "region": "Suffolk"
+  },
+  "11951": {
+    "locality": "Mastic Beach",
+    "region": "Suffolk"
+  },
+  "11952": {
+    "locality": "Mattituck",
+    "region": "Suffolk"
+  },
+  "11953": {
+    "locality": "Middle Island",
+    "region": "Suffolk"
+  },
+  "11954": {
+    "locality": "Montauk",
+    "region": "Suffolk"
+  },
+  "11955": {
+    "locality": "Moriches",
+    "region": "Suffolk"
+  },
+  "11956": {
+    "locality": "New Suffolk",
+    "region": "Suffolk"
+  },
+  "11957": {
+    "locality": "Orient",
+    "region": "Suffolk"
+  },
+  "11958": {
+    "locality": "Peconic",
+    "region": "Suffolk"
+  },
+  "11959": {
+    "locality": "Quogue",
+    "region": "Suffolk"
+  },
+  "11960": {
+    "locality": "Remsenburg",
+    "region": "Suffolk"
+  },
+  "11961": {
+    "locality": "Ridge",
+    "region": "Suffolk"
+  },
+  "11962": {
+    "locality": "Sagaponack",
+    "region": "Suffolk"
+  },
+  "11963": {
+    "locality": "Sag Harbor",
+    "region": "Suffolk"
+  },
+  "11964": {
+    "locality": "Shelter Island",
+    "region": "Suffolk"
+  },
+  "11965": {
+    "locality": "Shelter Island H",
+    "region": "Suffolk"
+  },
+  "11967": {
+    "locality": "Shirley",
+    "region": "Suffolk"
+  },
+  "11968": {
+    "locality": "Southampton",
+    "region": "Suffolk"
+  },
+  "11970": {
+    "locality": "South Jamesport",
+    "region": "Suffolk"
+  },
+  "11971": {
+    "locality": "Southold",
+    "region": "Suffolk"
+  },
+  "11972": {
+    "locality": "Speonk",
+    "region": "Suffolk"
+  },
+  "11975": {
+    "locality": "Wainscott",
+    "region": "Suffolk"
+  },
+  "11976": {
+    "locality": "Water Mill",
+    "region": "Suffolk"
+  },
+  "11977": {
+    "locality": "Westhampton",
+    "region": "Suffolk"
+  },
+  "11978": {
+    "locality": "Westhampton Beac",
+    "region": "Suffolk"
+  },
+  "11980": {
+    "locality": "Yaphank",
+    "region": "Suffolk"
+  },
+  "119HH": {
+    "locality": "Zcta 119hh",
+    "region": "Suffolk"
+  }
+}

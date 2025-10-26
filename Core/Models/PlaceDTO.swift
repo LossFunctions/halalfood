@@ -7,6 +7,7 @@ struct PlaceDTO: Decodable, Identifiable {
     let lat: Double
     let lon: Double
     let address: String?
+    let display_location: String?
     let halal_status: String?
     let rating: Double?
     let rating_count: Int?
@@ -28,6 +29,7 @@ struct PlaceDTO: Decodable, Identifiable {
         case lat
         case lon
         case address
+        case display_location
         case halal_status
         case rating
         case rating_count

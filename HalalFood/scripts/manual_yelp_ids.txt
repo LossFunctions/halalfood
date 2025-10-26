@@ -1,0 +1,9 @@
+# One Yelp business id or full Yelp URL per line.
+# Lines may include comments after a #. Blank lines are ignored.
+
+# Add KebabishQ (NYC)
+https://www.yelp.com/biz/kebabishq-new-york
+
+# Re-run photos for Sma.sha (ensure all Yelp photos are imported)
+https://www.yelp.com/biz/sma-sha-long-island-city-2
+

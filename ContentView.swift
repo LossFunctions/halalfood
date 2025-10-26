@@ -464,6 +464,8 @@ struct ContentView: View {
    @State private var viewportCache = ViewportCache()
    @State private var searchDebounceTask: DispatchWorkItem?
 
+    private let maxNewSpotsDisplayed = 10
+
     private let newSpotConfigs: [NewSpotConfig] = [
         NewSpotConfig(
             placeID: UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36")!,
@@ -486,13 +488,15 @@ struct ContentView: View {
             openedOn: ("SEP", "12")
         ),
         NewSpotConfig(
-            placeID: UUID(uuidString: "8741d8c4-140f-4e7c-960f-000d785da2bd")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/y1X51sVppZ8GPfFeEl0nzw/o.jpg")!,
-            photoDescription: "The Buttery artisan spread",
-            displayLocation: "Westerleigh, Staten Island",
+            placeID: UUID(uuidString: "06a506f7-e6e6-45f8-b5ed-00ffca921652")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/yRpkO3i-nWBM_Q4A32wzzQ/o.jpg")!,
+            photoDescription: "Sma.sha signature double smash",
+            displayLocation: "Long Island City, Queens",
             cuisine: "Burgers",
             halalStatusOverride: .only,
-            openedOn: ("JUL", "18")
+            openedOn: ("SEP", "13"),
+            spotlightSummary: "LIC’s newest burger lab focused on halal smashburgers and seasonal specials.",
+            spotlightDetails: "All beef is halal; limited seating, take-out friendly."
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "f2e7df0e-d0e9-4f21-b398-f8768639503c")!,
@@ -502,14 +506,39 @@ struct ContentView: View {
             cuisine: "Burgers",
             halalStatusOverride: .only,
             openedOn: ("OCT", "18")
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "5765d9f5-527d-400a-b13d-6a63fbe6d707")!,
+            imageURL: URL(string: "https://static-content.owner.com/funnel/images/5e65b52e-ece7-4a91-9e0a-d45a5913d7bf?v=2034024929&w=1600&q=80&auto=format")!,
+            photoDescription: "Steiny B’s halal smashburger spread",
+            displayLocation: "Flatbush, Brooklyn",
+            cuisine: "Burgers",
+            halalStatusOverride: .only,
+            openedOn: ("AUG", "02"),
+            spotlightSummary: "Flatbush smash shop named after the cheeseburger’s inventor, serving halal beef patties and Nashville hot chicken.",
+            spotlightDetails: "Halal beef confirmed; small counter-service spot perfect for takeout."
+        ),
+        // KebabishQ — fully halal; Yelp photos imported
+        NewSpotConfig(
+            placeID: UUID(uuidString: "bbe55fa0-3367-4624-8b5a-e45832395b63")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/Zt67Wjw3J7BKIR9jHyGxoA/o.jpg")!,
+            displayLocation: "East Village, Manhattan",
+            cuisine: "Pakistani",
+            halalStatusOverride: .only,
+            openedOn: ("AUG", "06"),
+            spotlightSummary: "East Village kebab spot serving a fully halal Pakistani grill menu.",
+            spotlightDetails: "Fully halal. Casual counter-service with classic kebabs and grill plates."
         )
     ]
 
     private var halalStatusOverrides: [UUID: Place.HalalStatus] {
-        Dictionary(uniqueKeysWithValues: newSpotConfigs.compactMap { config in
-            guard let status = config.halalStatusOverride else { return nil }
-            return (config.placeID, status)
-        })
+        var overrides: [UUID: Place.HalalStatus] = [:]
+        for config in newSpotConfigs {
+            if let status = config.halalStatusOverride {
+                overrides[config.placeID] = status
+            }
+        }
+        return overrides
     }
 
     private var newSpotEntries: [NewSpotEntry] {
@@ -535,9 +564,23 @@ struct ContentView: View {
     }
 
     private var featuredNewSpots: [NewSpotEntry] {
-        newSpotEntries.sorted { lhs, rhs in
+        let sorted = newSpotEntries.sorted { lhs, rhs in
             sortValue(for: lhs) > sortValue(for: rhs)
         }
+        guard let hero = spotlightEntry else {
+            return Array(sorted.prefix(maxNewSpotsDisplayed))
+        }
+        guard let heroIndex = sorted.firstIndex(where: { $0.id == hero.id }) else {
+            return Array(sorted.prefix(maxNewSpotsDisplayed))
+        }
+
+        var prioritized: [NewSpotEntry] = [sorted[heroIndex]]
+        var remaining = sorted
+        remaining.remove(at: heroIndex)
+        for entry in remaining where prioritized.count < maxNewSpotsDisplayed {
+            prioritized.append(entry)
+        }
+        return prioritized
     }
 
     private func sortValue(for entry: NewSpotEntry) -> Int {
@@ -878,6 +921,8 @@ struct ContentView: View {
         }
         .onAppear {
             viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
+            // Preload global dataset so New Spots can resolve specific place IDs immediately
+            viewModel.ensureGlobalDataset()
             locationManager.requestAuthorizationIfNeeded()
             let effective = RegionGate.enforcedRegion(for: mapRegion)
             appleHalalSearch.search(in: effective)
@@ -1012,6 +1057,8 @@ struct ContentView: View {
             case .newSpots:
                 selectedApplePlace = nil
                 isSearchOverlayPresented = false
+                // Ensure the global dataset is loaded so New Spots IDs resolve reliably
+                viewModel.ensureGlobalDataset()
                 refreshVisiblePlaces()
             case .topRated:
                 selectedApplePlace = nil
@@ -1996,7 +2043,10 @@ private struct TopRatedRow: View {
         return halalLabel
     }
 
-    private struct SourceRow: Decodable { let source_raw: SourceRaw? }
+    private struct SourceRow: Decodable {
+        let display_location: String?
+        let source_raw: SourceRaw?
+    }
     private struct SourceRaw: Decodable { let categories: [String]?, display_location: String? }
 
     private func titleCase(_ s: String) -> String {
@@ -2009,7 +2059,7 @@ private struct TopRatedRow: View {
     @MainActor
     private func loadCuisine() async {
         if displayLocOverride == nil {
-            displayLocOverride = DisplayLocationResolver.display(for: place)
+            displayLocOverride = place.displayLocation ?? DisplayLocationResolver.display(for: place)
         }
         do {
             var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
@@ -2019,7 +2069,7 @@ private struct TopRatedRow: View {
             comps.path = p
             comps.queryItems = [
                 URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
-                URLQueryItem(name: "select", value: "source_raw")
+                URLQueryItem(name: "select", value: "source_raw,display_location")
             ]
             var req = URLRequest(url: comps.url!)
             let key = Env.anonKey
@@ -2032,7 +2082,9 @@ private struct TopRatedRow: View {
                     if let categories = row.source_raw?.categories {
                         cuisine = preferredCuisine(from: categories)
                     }
-                    if let disp = row.source_raw?.display_location, !disp.isEmpty {
+                    if let disp = row.display_location?.trimmingCharacters(in: .whitespacesAndNewlines), !disp.isEmpty {
+                        displayLocOverride = disp
+                    } else if let disp = row.source_raw?.display_location, !disp.isEmpty {
                         displayLocOverride = disp
                     } else if displayLocOverride == nil {
                         displayLocOverride = DisplayLocationResolver.display(for: place)
@@ -2057,37 +2109,39 @@ private struct TopRatedRow: View {
         ]
 
         // Map Yelp aliases to display labels
-        let map: [String:String] = [
-            "thai":"Thai",
-            "lebanese":"Lebanese",
-            "mediterranean":"Mediterranean",
-            "turkish":"Turkish",
-            "middleeastern":"Middle Eastern",
-            "arabian":"Middle Eastern",
-            "indpak":"Indian",
-            "indian":"Indian",
-            "pakistani":"Pakistani",
-            "bangladeshi":"Bangladeshi",
-            "afghani":"Afghan",
-            "himalayan":"Himalayan",
-            "nepalese":"Nepalese",
-            "chinese":"Chinese",
-            "japanese":"Japanese",
-            "korean":"Korean",
-            "vietnamese":"Vietnamese",
-            "italian":"Italian",
-            "mexican":"Mexican",
-            "ethiopian":"Ethiopian",
-            "persian":"Persian",
-            "iranian":"Persian",
-            "uzbek":"Uzbek",
-            "bbq":"BBQ",
-            "pizza":"Pizza",
-            "burgers":"Burgers",
-            "sandwiches":"Sandwiches",
-            "seafood":"Seafood",
-            "chicken_wings":"Chicken Wings"
-        ]
+        let map: [String: String] = {
+            var map: [String: String] = [:]
+            map["thai"] = "Thai"
+            map["lebanese"] = "Lebanese"
+            map["mediterranean"] = "Mediterranean"
+            map["turkish"] = "Turkish"
+            map["middleeastern"] = "Middle Eastern"
+            map["arabian"] = "Middle Eastern"
+            map["indpak"] = "Indian"
+            map["indian"] = "Indian"
+            map["pakistani"] = "Pakistani"
+            map["bangladeshi"] = "Bangladeshi"
+            map["afghani"] = "Afghan"
+            map["himalayan"] = "Himalayan"
+            map["nepalese"] = "Nepalese"
+            map["chinese"] = "Chinese"
+            map["japanese"] = "Japanese"
+            map["korean"] = "Korean"
+            map["vietnamese"] = "Vietnamese"
+            map["italian"] = "Italian"
+            map["mexican"] = "Mexican"
+            map["ethiopian"] = "Ethiopian"
+            map["persian"] = "Persian"
+            map["iranian"] = "Persian"
+            map["uzbek"] = "Uzbek"
+            map["bbq"] = "BBQ"
+            map["pizza"] = "Pizza"
+            map["burgers"] = "Burgers"
+            map["sandwiches"] = "Sandwiches"
+            map["seafood"] = "Seafood"
+            map["chicken_wings"] = "Chicken Wings"
+            return map
+        }()
 
         // 1) Pick first mapped cuisine that's not excluded
         for c in cats where !excluded.contains(c) {
@@ -2276,106 +2330,399 @@ private enum DisplayLocationResolver {
         ("st george", "St. George", "Staten Island"),
         ("westerleigh", "Westerleigh", "Staten Island")
     ]
-    private static let zipNeighborhoodOverride: [String: String] = [
-        // Manhattan
-        "10001": "Chelsea", "10011": "Chelsea", "10012": "SoHo", "10013": "Tribeca", "10007": "Tribeca",
-        "10002": "Lower East Side", "10038": "Financial District",
-        "10280": "Battery Park City", "10282": "Battery Park City", "10004": "Financial District", "10005": "Financial District", "10006": "Financial District",
-        "10014": "West Village", "10003": "East Village", "10009": "East Village", "10010": "Gramercy",
-        "10016": "Murray Hill", "10017": "Midtown East", "10022": "Midtown East",
-        "10018": "Theater District / Times Square", "10036": "Midtown West / Hell’s Kitchen", "10019": "Midtown West / Hell’s Kitchen",
-        "10021": "Upper East Side", "10028": "Upper East Side", "10065": "Upper East Side", "10075": "Upper East Side", "10128": "Upper East Side",
-        "10044": "Roosevelt Island",
-        "10023": "Upper West Side", "10024": "Upper West Side", "10025": "Upper West Side", "10069": "Upper West Side",
-        "10027": "Morningside Heights", "10026": "Harlem", "10030": "Harlem", "10037": "Harlem", "10039": "Harlem",
-        "10029": "East Harlem", "10035": "East Harlem",
-        "10032": "Washington Heights", "10033": "Washington Heights", "10040": "Washington Heights", "10034": "Inwood",
-
-        // Queens (Astoria/LIC and beyond)
-        "11101": "Long Island City", "11109": "Long Island City",
-        "11102": "Astoria", "11103": "Astoria", "11105": "Astoria", "11106": "Astoria",
-        "11104": "Sunnyside",
-        "11377": "Woodside", "11372": "Jackson Heights", "11373": "Elmhurst",
-        "11368": "Corona", "11369": "East Elmhurst", "11370": "East Elmhurst",
-        "11354": "Flushing", "11355": "Flushing", "11356": "College Point", "11357": "Whitestone",
-        "11360": "Bayside", "11361": "Bayside",
-        "11362": "Douglaston – Little Neck", "11363": "Douglaston – Little Neck",
-        "11358": "Auburndale",
-        "11364": "Oakland Gardens",
-        "11365": "Fresh Meadows", "11366": "Fresh Meadows",
-        "11375": "Forest Hills", "11374": "Rego Park",
-        "11385": "Ridgewood", // overlaps Glendale/Ridgewood
-        "11378": "Maspeth", "11379": "Middle Village",
-        "11415": "Kew Gardens",
-        "11418": "Richmond Hill", "11419": "Richmond Hill",
-        "11416": "Ozone Park", "11417": "Ozone Park",
-        "11420": "South Ozone Park", "11436": "South Ozone Park",
-        "11414": "Howard Beach", "11421": "Woodhaven",
-        "11432": "Jamaica", "11433": "Jamaica", "11434": "Jamaica", "11435": "Jamaica",
-        "11412": "St. Albans / Hollis", "11423": "St. Albans / Hollis",
-        "11411": "Cambria Heights / Laurelton", "11413": "Cambria Heights / Laurelton",
-        "11428": "Queens Village", "11429": "Queens Village",
-        "11422": "Rosedale",
-        "11691": "The Rockaways", "11692": "The Rockaways", "11693": "The Rockaways", "11694": "The Rockaways", "11695": "The Rockaways", "11697": "The Rockaways",
-
-        // Brooklyn
-        "11206": "Williamsburg", "11211": "Williamsburg", "11249": "Williamsburg",
-        "11222": "Greenpoint",
-        "11207": "Bushwick", "11221": "Bushwick", "11237": "Bushwick",
-        "11205": "Bedford–Stuyvesant", "11216": "Bedford–Stuyvesant", "11233": "Bedford–Stuyvesant", "11238": "Bedford–Stuyvesant",
-        "11213": "Crown Heights", "11225": "Crown Heights",
-        "11238": "Prospect Heights",
-        "11215": "Park Slope",
-        "11217": "Gowanus", // also Downtown/Boerum Hill; prefer Gowanus
-        "11231": "Carroll Gardens", // also Cobble Hill/Red Hook
-        "11201": "Brooklyn Heights", // also DUMBO, Cobble Hill, Downtown BK
-        "11220": "Sunset Park", "11232": "Sunset Park",
-        "11209": "Bay Ridge",
-        "11204": "Bensonhurst", "11214": "Bensonhurst", "11223": "Bensonhurst",
-        "11228": "Dyker Heights",
-        "11219": "Borough Park",
-        "11218": "Kensington",
-        "11210": "Flatbush", "11226": "Flatbush",
-        "11203": "East Flatbush",
-        "11230": "Midwood",
-        "11235": "Sheepshead Bay", // also Brighton Beach
-        "11224": "Coney Island",
-        "11234": "Marine Park",
-        "11236": "Canarsie",
-        "11208": "East New York",
-        "11212": "Brownsville",
-
-        // Bronx
-        "10454": "Mott Haven", "10455": "Mott Haven",
-        "10451": "Melrose", "10452": "Concourse / Concourse Village",
-        "10474": "Hunts Point",
-        "10459": "Longwood",
-        "10472": "Soundview / Clason Point", "10473": "Soundview / Clason Point",
-        "10462": "Parkchester / Van Nest",
-        "10465": "Throgs Neck / Edgewater Park", // also Country Club
-        "10464": "City Island",
-        "10461": "Pelham Bay",
-        "10469": "Pelham Gardens",
-        "10466": "Wakefield", "10470": "Wakefield",
-        "10475": "Co-op City",
-        "10458": "Fordham / Bedford Park", "10468": "Fordham / Bedford Park",
-        "10463": "Kingsbridge", "10471": "Riverdale",
-        "10467": "Norwood",
-        "10453": "University Heights",
-
-        // Staten Island
-        "10301": "St. George / Tompkinsville",
-        "10310": "New Brighton / West Brighton",
-        "10304": "Stapleton / Clifton",
-        "10305": "South Beach / Arrochar",
-        "10306": "New Dorp / Midland Beach",
-        "10308": "Great Kills",
-        "10312": "Eltingville / Annadale", // also Huguenot / Prince's Bay
-        "10307": "Tottenville",
-        "10302": "Port Richmond / Mariners Harbor",
-        "10303": "Port Richmond / Mariners Harbor",
-        "10314": "New Springville / Willowbrook"
-    ]
+    private static let zipNeighborhoodOverride: [String: String] = {
+        var map: [String: String] = [:]
+        map["06390"] = "Unknown"
+        map["063HH"] = "Unknown"
+        map["10001"] = "Hudson Yards"
+        map["10002"] = "Two Bridges"
+        map["10003"] = "East Village"
+        map["10004"] = "Financial District"
+        map["10005"] = "Financial District"
+        map["10006"] = "Financial District"
+        map["10007"] = "Civic Center"
+        map["10009"] = "East Village"
+        map["10010"] = "Kips Bay"
+        map["10011"] = "Flatiron"
+        map["10012"] = "Nolita"
+        map["10013"] = "Chinatown"
+        map["10014"] = "West Village"
+        map["10016"] = "Midtown East"
+        map["10017"] = "Midtown East"
+        map["10018"] = "Theater District"
+        map["10019"] = "Midtown West"
+        map["10020"] = "New York"
+        map["10021"] = "Upper East Side"
+        map["10022"] = "Midtown East"
+        map["10023"] = "Upper West Side"
+        map["10024"] = "Upper West Side"
+        map["10025"] = "Morningside Heights"
+        map["10026"] = "Harlem"
+        map["10027"] = "Harlem"
+        map["10028"] = "Upper East Side"
+        map["10029"] = "East Harlem"
+        map["10030"] = "Harlem"
+        map["10031"] = "New York"
+        map["10032"] = "Washington Heights"
+        map["10033"] = "Washington Heights"
+        map["10034"] = "Inwood"
+        map["10035"] = "East Harlem"
+        map["10036"] = "Theater District"
+        map["10037"] = "Harlem"
+        map["10038"] = "Financial District"
+        map["10039"] = "Harlem"
+        map["10040"] = "Washington Heights"
+        map["10041"] = "New York"
+        map["10044"] = "Roosevelt Island"
+        map["10048"] = "New York"
+        map["10065"] = "Upper East Side"
+        map["10069"] = "Upper West Side"
+        map["10075"] = "Upper East Side"
+        map["100HH"] = "New York"
+        map["10103"] = "New York"
+        map["10111"] = "New York"
+        map["10112"] = "New York"
+        map["10115"] = "New York"
+        map["10119"] = "New York"
+        map["10128"] = "Upper East Side"
+        map["10152"] = "New York"
+        map["10153"] = "New York"
+        map["10154"] = "New York"
+        map["10162"] = "New York"
+        map["10165"] = "New York"
+        map["10167"] = "New York"
+        map["10169"] = "New York"
+        map["10170"] = "New York"
+        map["10171"] = "New York"
+        map["10172"] = "New York"
+        map["10173"] = "New York"
+        map["10177"] = "New York"
+        map["10271"] = "New York"
+        map["10278"] = "New York"
+        map["10279"] = "New York"
+        map["10280"] = "Battery Park City"
+        map["10282"] = "Battery Park City"
+        map["102HH"] = "Zcta 102hh"
+        map["10301"] = "St. George / Tompkinsville"
+        map["10302"] = "Port Richmond / Mariners Harbor"
+        map["10303"] = "Port Richmond / Mariners Harbor"
+        map["10304"] = "Stapleton / Clifton"
+        map["10305"] = "Dongan Hills / Grant City"
+        map["10306"] = "New Dorp / Midland Beach"
+        map["10307"] = "Tottenville"
+        map["10308"] = "Great Kills"
+        map["10309"] = "Staten Island"
+        map["10310"] = "New Brighton / West Brighton"
+        map["10312"] = "Huguenot / Prince's Bay"
+        map["10314"] = "New Springville / Willowbrook"
+        map["103HH"] = "Zcta 103hh"
+        map["10451"] = "Concourse / Concourse Village"
+        map["10452"] = "Concourse / Concourse Village"
+        map["10453"] = "University Heights"
+        map["10454"] = "Port Morris"
+        map["10455"] = "Longwood"
+        map["10456"] = "Morrisania"
+        map["10457"] = "Bronx"
+        map["10458"] = "Belmont"
+        map["10459"] = "Longwood"
+        map["10460"] = "Bronx"
+        map["10461"] = "Pelham Bay"
+        map["10462"] = "Castle Hill"
+        map["10463"] = "Kingsbridge"
+        map["10464"] = "City Island"
+        map["10465"] = "Country Club"
+        map["10466"] = "Wakefield"
+        map["10467"] = "Norwood"
+        map["10468"] = "Fordham / Bedford Park"
+        map["10469"] = "Pelham Gardens"
+        map["10470"] = "Wakefield"
+        map["10471"] = "Riverdale"
+        map["10472"] = "Soundview / Clason Point"
+        map["10473"] = "Castle Hill"
+        map["10474"] = "Hunts Point"
+        map["10475"] = "Co-op City"
+        map["104HH"] = "Zcta 104hh"
+        map["11001"] = "Floral Park"
+        map["11003"] = "Alden Manor"
+        map["11004"] = "Glen Oaks"
+        map["11005"] = "Floral Park"
+        map["11010"] = "Franklin Square"
+        map["11020"] = "Great Neck"
+        map["11021"] = "Great Neck"
+        map["11023"] = "Great Neck"
+        map["11024"] = "Kings Point Cont"
+        map["11030"] = "Plandome"
+        map["11040"] = "Hillside Manor"
+        map["11042"] = "New Hyde Park"
+        map["11050"] = "Port Washington"
+        map["11096"] = "Zcta 11096"
+        map["110HH"] = "Zcta 110hh"
+        map["11101"] = "Long Island City"
+        map["11102"] = "Astoria"
+        map["11103"] = "Astoria"
+        map["11104"] = "Sunnyside"
+        map["11105"] = "Astoria"
+        map["11106"] = "Astoria"
+        map["11109"] = "Long Island City"
+        map["111HH"] = "Zcta 111hh"
+        map["11201"] = "Downtown Brooklyn"
+        map["11203"] = "East Flatbush"
+        map["11204"] = "Bensonhurst"
+        map["11205"] = "Clinton Hill"
+        map["11206"] = "Bedford–Stuyvesant"
+        map["11207"] = "East New York"
+        map["11208"] = "East New York"
+        map["11209"] = "Bay Ridge"
+        map["11210"] = "Midwood"
+        map["11211"] = "Williamsburg"
+        map["11212"] = "Brownsville"
+        map["11213"] = "Crown Heights"
+        map["11214"] = "Gravesend"
+        map["11215"] = "Park Slope"
+        map["11216"] = "Crown Heights"
+        map["11217"] = "Downtown Brooklyn"
+        map["11218"] = "Kensington"
+        map["11219"] = "Borough Park"
+        map["11220"] = "Sunset Park"
+        map["11221"] = "Bedford–Stuyvesant"
+        map["11222"] = "Greenpoint"
+        map["11223"] = "Gravesend"
+        map["11224"] = "Coney Island"
+        map["11225"] = "Crown Heights"
+        map["11226"] = "Flatbush"
+        map["11228"] = "Dyker Heights"
+        map["11229"] = "Brooklyn"
+        map["11230"] = "Midwood"
+        map["11231"] = "Red Hook"
+        map["11232"] = "Sunset Park"
+        map["11233"] = "Bedford–Stuyvesant"
+        map["11234"] = "Marine Park"
+        map["11235"] = "Brighton Beach"
+        map["11236"] = "Canarsie"
+        map["11237"] = "Bushwick"
+        map["11238"] = "Clinton Hill"
+        map["11239"] = "Brooklyn"
+        map["11249"] = "Williamsburg"
+        map["112HH"] = "Zcta 112hh"
+        map["11354"] = "Flushing"
+        map["11355"] = "Flushing"
+        map["11356"] = "College Point"
+        map["11357"] = "Whitestone"
+        map["11358"] = "Auburndale"
+        map["11360"] = "Bayside"
+        map["11361"] = "Bayside"
+        map["11362"] = "Little Neck"
+        map["11363"] = "Little Neck"
+        map["11364"] = "Oakland Gardens"
+        map["11365"] = "Fresh Meadows"
+        map["11366"] = "Fresh Meadows"
+        map["11367"] = "Flushing"
+        map["11368"] = "Corona"
+        map["11369"] = "East Elmhurst"
+        map["11370"] = "East Elmhurst"
+        map["11371"] = "Flushing"
+        map["11372"] = "Jackson Heights"
+        map["11373"] = "Elmhurst"
+        map["11374"] = "Rego Park"
+        map["11375"] = "Forest Hills"
+        map["11377"] = "Woodside"
+        map["11378"] = "Maspeth"
+        map["11379"] = "Middle Village"
+        map["11385"] = "Ridgewood"
+        map["113HH"] = "Zcta 113hh"
+        map["11411"] = "Cambria Heights / Laurelton"
+        map["11412"] = "St. Albans / Hollis"
+        map["11413"] = "Cambria Heights / Laurelton"
+        map["11414"] = "Howard Beach"
+        map["11415"] = "Kew Gardens"
+        map["11416"] = "Ozone Park"
+        map["11417"] = "Ozone Park"
+        map["11418"] = "Richmond Hill"
+        map["11419"] = "Richmond Hill"
+        map["11420"] = "South Ozone Park"
+        map["11421"] = "Woodhaven"
+        map["11422"] = "Rosedale"
+        map["11423"] = "St. Albans / Hollis"
+        map["11426"] = "Bellerose"
+        map["11427"] = "Queens Village"
+        map["11428"] = "Queens Village"
+        map["11429"] = "Queens Village"
+        map["11430"] = "Jamaica"
+        map["11432"] = "Jamaica"
+        map["11433"] = "Jamaica"
+        map["11434"] = "Jamaica"
+        map["11435"] = "Jamaica"
+        map["11436"] = "Jamaica"
+        map["114HH"] = "Zcta 114hh"
+        map["11501"] = "Mineola"
+        map["11507"] = "Albertson"
+        map["11509"] = "Atlantic Beach"
+        map["11510"] = "Baldwin"
+        map["11514"] = "Carle Place"
+        map["11516"] = "Cedarhurst"
+        map["11518"] = "East Rockaway"
+        map["11520"] = "Freeport"
+        map["11530"] = "Garden City"
+        map["11542"] = "Glen Cove"
+        map["11545"] = "Glen Head"
+        map["11547"] = "Glenwood Landing"
+        map["11548"] = "Greenvale"
+        map["11550"] = "Hempstead"
+        map["11552"] = "West Hempstead"
+        map["11553"] = "Uniondale"
+        map["11554"] = "East Meadow"
+        map["11557"] = "Hewlett"
+        map["11558"] = "Island Park"
+        map["11559"] = "Lawrence"
+        map["11560"] = "Locust Valley"
+        map["11561"] = "Long Beach"
+        map["11563"] = "Lynbrook"
+        map["11565"] = "Malverne"
+        map["11566"] = "North Merrick"
+        map["11568"] = "Old Westbury"
+        map["11569"] = "Point Lookout"
+        map["11570"] = "Rockville Centre"
+        map["11572"] = "Oceanside"
+        map["11575"] = "Roosevelt"
+        map["11576"] = "Roslyn"
+        map["11577"] = "Roslyn Heights"
+        map["11579"] = "Sea Cliff"
+        map["11580"] = "Valley Stream"
+        map["11581"] = "North Woodmere"
+        map["11590"] = "Westbury"
+        map["11596"] = "Williston Park"
+        map["11598"] = "Woodmere"
+        map["115HH"] = "Zcta 115hh"
+        map["11691"] = "The Rockaways"
+        map["11692"] = "The Rockaways"
+        map["11693"] = "The Rockaways"
+        map["11694"] = "The Rockaways"
+        map["11695"] = "The Rockaways"
+        map["11697"] = "The Rockaways"
+        map["116HH"] = "Zcta 116hh"
+        map["11701"] = "Amityville"
+        map["11702"] = "Oak Beach"
+        map["11703"] = "North Babylon"
+        map["11704"] = "West Babylon"
+        map["11705"] = "Bayport"
+        map["11706"] = "Kismet"
+        map["11709"] = "Bayville"
+        map["11710"] = "North Bellmore"
+        map["11713"] = "Bellport"
+        map["11714"] = "Bethpage"
+        map["11715"] = "Blue Point"
+        map["11716"] = "Bohemia"
+        map["11717"] = "West Brentwood"
+        map["11718"] = "Brightwaters"
+        map["11719"] = "Brookhaven"
+        map["11720"] = "Centereach"
+        map["11721"] = "Centerport"
+        map["11722"] = "Central Islip"
+        map["11724"] = "Cold Spring Harb"
+        map["11725"] = "Commack"
+        map["11726"] = "Copiague"
+        map["11727"] = "Coram"
+        map["11729"] = "Deer Park"
+        map["11730"] = "East Islip"
+        map["11731"] = "Elwood"
+        map["11732"] = "East Norwich"
+        map["11733"] = "Setauket"
+        map["11735"] = "South Farmingdal"
+        map["11738"] = "Farmingville"
+        map["11740"] = "Greenlawn"
+        map["11741"] = "Holbrook"
+        map["11742"] = "Holtsville"
+        map["11743"] = "Halesite"
+        map["11746"] = "Dix Hills"
+        map["11747"] = "Melville"
+        map["11751"] = "Islip"
+        map["11752"] = "Islip Terrace"
+        map["11753"] = "Jericho"
+        map["11754"] = "Kings Park"
+        map["11755"] = "Lake Grove"
+        map["11756"] = "Levittown"
+        map["11757"] = "Lindenhurst"
+        map["11758"] = "North Massapequa"
+        map["11762"] = "Massapequa Park"
+        map["11763"] = "Medford"
+        map["11764"] = "Miller Place"
+        map["11765"] = "Mill Neck"
+        map["11766"] = "Mount Sinai"
+        map["11767"] = "Nesconset"
+        map["11768"] = "Northport"
+        map["11769"] = "Oakdale"
+        map["11770"] = "Ocean Beach"
+        map["11771"] = "Oyster Bay"
+        map["11772"] = "Davis Park"
+        map["11776"] = "Port Jefferson S"
+        map["11777"] = "Port Jefferson"
+        map["11778"] = "Rocky Point"
+        map["11779"] = "Lake Ronkonkoma"
+        map["11780"] = "Saint James"
+        map["11782"] = "Cherry Grove"
+        map["11783"] = "Seaford"
+        map["11784"] = "Selden"
+        map["11786"] = "Shoreham"
+        map["11787"] = "Smithtown"
+        map["11788"] = "Hauppauge"
+        map["11789"] = "Sound Beach"
+        map["11790"] = "Stony Brook"
+        map["11791"] = "Syosset"
+        map["11792"] = "Wading River"
+        map["11793"] = "Wantagh"
+        map["11795"] = "West Islip"
+        map["11796"] = "West Sayville"
+        map["11797"] = "Woodbury"
+        map["11798"] = "Wheatley Heights"
+        map["117HH"] = "Zcta 117hh"
+        map["11801"] = "Hicksville"
+        map["11803"] = "Plainview"
+        map["11804"] = "Old Bethpage"
+        map["11901"] = "Riverhead"
+        map["11930"] = "Amagansett"
+        map["11932"] = "Bridgehampton"
+        map["11933"] = "Calverton"
+        map["11934"] = "Center Moriches"
+        map["11935"] = "Cutchogue"
+        map["11937"] = "East Hampton"
+        map["11939"] = "East Marion"
+        map["11940"] = "East Moriches"
+        map["11941"] = "Eastport"
+        map["11942"] = "East Quogue"
+        map["11944"] = "Greenport"
+        map["11946"] = "Hampton Bays"
+        map["11947"] = "Jamesport"
+        map["11948"] = "Laurel"
+        map["11949"] = "Manorville"
+        map["11950"] = "Mastic"
+        map["11951"] = "Mastic Beach"
+        map["11952"] = "Mattituck"
+        map["11953"] = "Middle Island"
+        map["11954"] = "Montauk"
+        map["11955"] = "Moriches"
+        map["11956"] = "New Suffolk"
+        map["11957"] = "Orient"
+        map["11958"] = "Peconic"
+        map["11959"] = "Quogue"
+        map["11960"] = "Remsenburg"
+        map["11961"] = "Ridge"
+        map["11962"] = "Sagaponack"
+        map["11963"] = "Sag Harbor"
+        map["11964"] = "Shelter Island"
+        map["11965"] = "Shelter Island H"
+        map["11967"] = "Shirley"
+        map["11968"] = "Southampton"
+        map["11970"] = "South Jamesport"
+        map["11971"] = "Southold"
+        map["11972"] = "Speonk"
+        map["11975"] = "Wainscott"
+        map["11976"] = "Water Mill"
+        map["11977"] = "Westhampton"
+        map["11978"] = "Westhampton Beac"
+        map["11980"] = "Yaphank"
+        map["119HH"] = "Zcta 119hh"
+        return map
+    }()
 }
 
 private final class DisplayLocationCache {
@@ -2891,7 +3238,13 @@ private struct NewSpotsScreen: View {
 
     var body: some View {
         let spotlightEntry = spotlight
-        let listEntries = spots
+        // Exclude the hero (spotlight) from the list so the top row reflects the latest new spot
+        let listEntries: [NewSpotEntry] = {
+            if let hero = spotlightEntry {
+                return spots.filter { $0.id != hero.id }
+            }
+            return spots
+        }()
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if listEntries.isEmpty {
@@ -3189,7 +3542,7 @@ private struct NewSpotsScreen: View {
                     .padding(.top, 4)
                     .padding(.bottom, 1)
                     .background(Color(UIColor.systemRed))
-                Text(day)
+                Text(dayDisplay)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity)
@@ -3207,6 +3560,14 @@ private struct NewSpotsScreen: View {
 
         private var borderColor: Color {
             colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.08)
+        }
+
+        private var dayDisplay: String {
+            if let value = Int(day.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                return String(value)
+            }
+            // Fallback to raw if parsing fails
+            return day
         }
     }
 }
@@ -4404,35 +4765,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                     .filter(self.isTrustedPlace(_:))
 
                 try Task.checkCancellation()
-                var combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
-                // Inline fetch of persisted display_location to avoid first-render flicker.
-                let ids = combined.map { $0.id }
-                let dlMap = try await Task.detached(priority: .utility) {
-                    try await PlaceAPI.fetchDisplayLocations(for: ids)
-                }.value
-                if !dlMap.isEmpty {
-                    combined = combined.map { p in
-                        if let dl = dlMap[p.id] {
-                            return Place(
-                                id: p.id,
-                                name: p.name,
-                                coordinate: p.coordinate,
-                                category: p.category,
-                                rawCategory: p.rawCategory,
-                                address: p.address,
-                                halalStatus: p.halalStatus,
-                                rating: p.rating,
-                                ratingCount: p.ratingCount,
-                                confidence: p.confidence,
-                                source: p.source,
-                                applePlaceID: p.applePlaceID,
-                                note: p.note,
-                                displayLocation: dl
-                            )
-                        }
-                        return p
-                    }
-                }
+                let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
                 let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
                 self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
                 self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))
@@ -4583,7 +4916,14 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     }
 
     func topRatedPlaces(limit: Int = 50, minimumReviews: Int = 10) -> [Place] {
-        let candidates = allPlaces.filter { place in
+        let source: [Place]
+        if !globalDataset.isEmpty {
+            source = globalDataset
+        } else {
+            source = allPlaces
+        }
+
+        let candidates = source.filter { place in
             guard let rating = place.rating, rating > 0 else { return false }
             return (place.ratingCount ?? 0) >= minimumReviews
         }

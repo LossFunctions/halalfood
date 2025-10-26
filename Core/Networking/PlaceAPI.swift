@@ -36,6 +36,7 @@ enum PlaceAPI {
     private static let subdivisionDepthLimit = 3
     private static let minimumSubdivisionSpan: Double = 0.01
     private static let minimumRequestedLimit = 100
+    private static var displayLocationV2Enabled: Bool { Env.displayLocationV2Enabled }
 
     static func getPlaces(bbox: BBox, category: String = "all", limit: Int = 750) async throws -> [PlaceDTO] {
         let sanitizedLimit = sanitize(limit)
@@ -112,7 +113,7 @@ enum PlaceAPI {
     static func fetchAllPlaces(limit: Int = 3000, pageSize: Int = 800) async throws -> [PlaceDTO] {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
-        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id,note,source_raw"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,confidence,source,apple_place_id,note,source_raw"
         let baseQueryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
@@ -211,7 +212,8 @@ enum PlaceAPI {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let payload = try encoder.encode(params)
 
-        let request = try makeRequest(body: payload, endpoint: "rest/v1/rpc/get_places_in_bbox")
+        let endpoint = displayLocationV2Enabled ? "rest/v1/rpc/get_places_in_bbox_v2" : "rest/v1/rpc/get_places_in_bbox"
+        let request = try makeRequest(body: payload, endpoint: endpoint)
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -239,43 +241,6 @@ enum PlaceAPI {
         return max(1, clamped)
     }
 
-    // Fetch persisted display_location values for a set of place IDs.
-    static func fetchDisplayLocations(for ids: [UUID], batchSize: Int = 150) async throws -> [UUID: String] {
-        guard !ids.isEmpty else { return [:] }
-        var result: [UUID: String] = [:]
-        let chunks: [[UUID]] = stride(from: 0, to: ids.count, by: batchSize).map { start in
-            Array(ids[start..<min(start + batchSize, ids.count)])
-        }
-        for chunk in chunks {
-            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
-            var path = comps.path
-            if !path.hasSuffix("/") { path.append("/") }
-            path.append("rest/v1/place")
-            comps.path = path
-            let idList = chunk.map { $0.uuidString }.joined(separator: ",")
-            comps.queryItems = [
-                URLQueryItem(name: "select", value: "id,source_raw"),
-                URLQueryItem(name: "id", value: "in.(\(idList))")
-            ]
-            var request = URLRequest(url: comps.url!)
-            let key = Env.anonKey
-            request.setValue(key, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            request.setValue("public", forHTTPHeaderField: "Accept-Profile")
-            let (data, resp) = try await URLSession.shared.data(for: request)
-            guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { continue }
-            struct Row: Decodable { let id: UUID; let source_raw: SourceRaw? }
-            struct SourceRaw: Decodable { let display_location: String? }
-            let rows = try JSONDecoder().decode([Row].self, from: data)
-            for r in rows {
-                if let dl = r.source_raw?.display_location, !dl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    result[r.id] = dl
-                }
-            }
-        }
-        return result
-    }
-
     private static func normalizedSearchQuery(_ query: String) -> String {
         let folded = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
         let scalars = folded.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
@@ -287,7 +252,8 @@ enum PlaceAPI {
         let encoder = JSONEncoder()
         let body = try encoder.encode(params)
 
-        let request = try makeRequest(body: body, endpoint: "rest/v1/rpc/search_places")
+        let endpoint = displayLocationV2Enabled ? "rest/v1/rpc/search_places_v2" : "rest/v1/rpc/search_places"
+        let request = try makeRequest(body: body, endpoint: endpoint)
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -307,7 +273,7 @@ enum PlaceAPI {
         let encodedQuery = query.replacingOccurrences(of: "*", with: "")
         let likePattern = "*\(encodedQuery)*"
 
-        let selectColumns = "id,name,category,lat,lon,address,halal_status,rating,rating_count,confidence,source,apple_place_id,note"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,confidence,source,apple_place_id,note"
 
         let queryItems = [
             URLQueryItem(name: "select", value: selectColumns),

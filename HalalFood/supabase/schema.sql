@@ -19,6 +19,18 @@ as $$
     end;
 $$;
 
+create or replace function public.normalize_display_location(input text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+    select case
+        when input is null then null
+        else nullif(regexp_replace(trim(input), '\s+', ' ', 'g'), '')
+    end;
+$$;
+
 do $$
 begin
   if to_regclass('public.place') is null then
@@ -29,6 +41,7 @@ begin
       lat double precision not null,
       lon double precision not null,
       address text,
+      display_location text,
       name_normalized text generated always as (
         public.normalize_text(name)
       ) stored,
@@ -65,6 +78,9 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='address') then
       alter table public.place add column address text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='display_location') then
+      alter table public.place add column display_location text;
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='name_normalized') then
       alter table public.place add column name_normalized text generated always as (
@@ -124,6 +140,39 @@ create index if not exists place_status_idx on public.place (status);
 create index if not exists place_halal_status_idx on public.place (halal_status);
 create index if not exists place_name_normalized_trgm_idx on public.place using gin (name_normalized gin_trgm_ops);
 create index if not exists place_address_normalized_trgm_idx on public.place using gin (address_normalized gin_trgm_ops);
+
+comment on column public.place.display_location is
+  'Normalized display location label (e.g., "Neighborhood, Borough" in NYC or "Locality, Nassau/Suffolk").';
+
+create or replace function public.place_display_location_sync()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_display text;
+begin
+  v_display := public.normalize_display_location(
+    coalesce(new.display_location, (new.source_raw ->> 'display_location'))
+  );
+  new.display_location := v_display;
+
+  if v_display is not null then
+    new.source_raw := coalesce(new.source_raw, '{}'::jsonb);
+    new.source_raw := jsonb_set(new.source_raw, '{display_location}', to_jsonb(v_display), true);
+  elsif new.source_raw ? 'display_location' then
+    new.source_raw := new.source_raw - 'display_location';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists place_display_location_sync on public.place;
+create trigger place_display_location_sync
+before insert or update on public.place
+for each row
+execute function public.place_display_location_sync();
 
 -- Basic RLS: readable by anon, writable by service role only
 alter table public.place enable row level security;
@@ -222,6 +271,53 @@ $$;
 grant execute on function public.get_places_in_bbox(double precision,double precision,double precision,double precision,text,integer)
   to anon, authenticated;
 
+drop function if exists public.get_places_in_bbox_v2(double precision,double precision,double precision,double precision,text,integer);
+create or replace function public.get_places_in_bbox_v2(
+  west double precision,
+  south double precision,
+  east double precision,
+  north double precision,
+  cat text default 'all',
+  max_count integer default 500
+)
+returns table (
+  id uuid,
+  name text,
+  category text,
+  lat double precision,
+  lon double precision,
+  address text,
+  display_location text,
+  halal_status text,
+  rating double precision,
+  rating_count integer,
+  confidence double precision,
+  source text,
+  apple_place_id text,
+  note text
+)
+language sql stable parallel safe as $$
+  select p.id, p.name, p.category, p.lat, p.lon, p.address, p.display_location, p.halal_status,
+         p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+  from public.place as p
+  where p.status = 'published'
+    and p.halal_status in ('yes', 'only')
+    and (cat = 'all' or p.category = cat)
+    and ST_Intersects(p.geog::geometry, ST_MakeEnvelope(west, south, east, north, 4326))
+  order by
+    ST_Distance(
+      p.geog,
+      ST_SetSRID(ST_MakePoint((west + east) / 2.0, (south + north) / 2.0), 4326)::geography
+    ) asc,
+    p.rating desc nulls last,
+    p.confidence desc nulls last,
+    p.name asc
+  limit greatest(1, least(max_count, 1000));
+$$;
+
+grant execute on function public.get_places_in_bbox_v2(double precision,double precision,double precision,double precision,text,integer)
+  to anon, authenticated;
+
 drop function if exists public.search_places(text, text, integer);
 create or replace function public.search_places(
   p_query text,
@@ -282,9 +378,70 @@ $$;
 grant execute on function public.search_places(text, text, integer)
   to anon, authenticated;
 
--- Optional: convenience view for manual browsing
-create or replace view public.place_preview as
-  select id, name, category, lat, lon, address, halal_status, rating, rating_count, source, status, note
+drop function if exists public.search_places_v2(text, text, integer);
+create or replace function public.search_places_v2(
+  p_query text,
+  p_normalized_query text default null,
+  p_limit integer default 40
+)
+returns table (
+  id uuid,
+  name text,
+  category text,
+  lat double precision,
+  lon double precision,
+  address text,
+  display_location text,
+  halal_status text,
+  rating double precision,
+  rating_count integer,
+  confidence double precision,
+  source text,
+  apple_place_id text,
+  note text
+)
+language sql
+stable
+parallel safe
+set search_path = public
+as $$
+  with input as (
+    select
+      coalesce(trim(p_query), '') as raw_query,
+      case
+        when coalesce(trim(p_normalized_query), '') <> '' then lower(trim(p_normalized_query))
+        else public.normalize_text(p_query)
+      end as norm_query,
+      greatest(1, least(coalesce(p_limit, 40), 1000)) as resolved_limit
+  )
+  select p.id, p.name, p.category, p.lat, p.lon, p.address, p.display_location,
+         p.halal_status, p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+  from public.place as p
+  cross join input as i
+  where p.status = 'published'
+    and p.halal_status in ('yes', 'only')
+    and (
+      (i.raw_query <> '' and (
+        p.name ilike '%' || i.raw_query || '%' or
+        (p.address is not null and p.address ilike '%' || i.raw_query || '%')
+      ))
+      or (i.norm_query <> '' and (
+        p.name_normalized like '%' || i.norm_query || '%' or
+        (p.address_normalized is not null and p.address_normalized like '%' || i.norm_query || '%')
+      ))
+    )
+  order by p.rating desc nulls last,
+           p.confidence desc nulls last,
+           p.name asc
+  limit (select resolved_limit from input);
+$$;
+
+grant execute on function public.search_places_v2(text, text, integer)
+  to anon, authenticated;
+
+drop view if exists public.place_preview;
+create view public.place_preview as
+  select id, name, category, lat, lon, address, display_location, halal_status, rating, rating_count, source, status, note
   from public.place;
 
 -- Allow clients to persist Place IDs provided by Apple without exposing other writable fields.
@@ -321,13 +478,14 @@ $$;
 
 grant execute on function public.save_apple_place_id(uuid, text) to anon, authenticated;
 
-drop function if exists public.upsert_apple_place(text, text, double precision, double precision, text, text, double precision, integer, double precision);
+drop function if exists public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer, double precision);
 create or replace function public.upsert_apple_place(
   p_apple_place_id text,
   p_name text,
   p_lat double precision,
   p_lon double precision,
   p_address text default null,
+  p_display_location text default null,
   p_halal_status text default 'unknown',
   p_rating double precision default null,
   p_rating_count integer default null,
@@ -340,6 +498,7 @@ returns table (
   lat double precision,
   lon double precision,
   address text,
+  display_location text,
   halal_status text,
   rating double precision,
   rating_count integer,
@@ -355,6 +514,7 @@ declare
   v_external_id text;
   v_halal text;
   v_trimmed_address text;
+  v_display_location text;
 begin
   if coalesce(trim(p_apple_place_id), '') = '' then
     raise exception 'apple_place_id must be provided';
@@ -371,6 +531,7 @@ begin
   end if;
 
   v_trimmed_address := nullif(trim(p_address), '');
+  v_display_location := public.normalize_display_location(p_display_location);
 
   return query
     insert into public.place as tgt (
@@ -379,6 +540,7 @@ begin
       lat,
       lon,
       address,
+      display_location,
       halal_status,
       rating,
       rating_count,
@@ -393,6 +555,7 @@ begin
       p_lat,
       p_lon,
       v_trimmed_address,
+      v_display_location,
       v_halal,
       p_rating,
       p_rating_count,
@@ -407,6 +570,7 @@ begin
           lat = excluded.lat,
           lon = excluded.lon,
           address = coalesce(excluded.address, tgt.address),
+          display_location = coalesce(excluded.display_location, tgt.display_location),
           halal_status = excluded.halal_status,
           rating = coalesce(excluded.rating, tgt.rating),
           rating_count = coalesce(excluded.rating_count, tgt.rating_count),
@@ -415,10 +579,10 @@ begin
           source = 'apple',
           status = 'published'
     returning tgt.id, tgt.name, tgt.category, tgt.lat, tgt.lon, tgt.address,
-              tgt.halal_status, tgt.rating, tgt.rating_count, tgt.confidence,
+              tgt.display_location, tgt.halal_status, tgt.rating, tgt.rating_count, tgt.confidence,
               tgt.source, tgt.apple_place_id;
 end;
 $$;
 
-grant execute on function public.upsert_apple_place(text, text, double precision, double precision, text, text, double precision, integer, double precision)
+grant execute on function public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer, double precision)
   to anon, authenticated;

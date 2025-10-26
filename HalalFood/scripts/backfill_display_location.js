@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 /**
- * Backfill source_raw.display_location for places in Supabase.
+ * Backfill display_location for places in Supabase, syncing both the column and source_raw field.
  *
  * Usage:
  *   node scripts/backfill_display_location.js --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY [--limit=0]
  */
 
 const fetch = globalThis.fetch;
+const {
+  resolveDisplayLocation,
+  normalizeLabel,
+} = require('./lib/display_location');
 
 function parseArgs() {
   const args = new Map();
@@ -18,83 +22,100 @@ function parseArgs() {
   return { SUPABASE_URL, SERVICE_KEY, limit };
 }
 
-function extractZip(address) {
-  if (!address) return null;
-  const m = String(address).match(/(\d{5})(?:[-\s]\d{4})?$/);
-  return m ? m[1] : null;
-}
-
-function boroughFromZip(zip) {
-  if (!zip) return null;
-  if (/^112/.test(zip)) return 'Brooklyn';
-  if (/^(111|113|114|116)/.test(zip)) return 'Queens';
-  if (/^104/.test(zip)) return 'Bronx';
-  if (/^103/.test(zip)) return 'Staten Island';
-  if (/^(100|101|102)/.test(zip)) return 'Manhattan';
-  if (/^(110|115|117|118|119)/.test(zip)) return 'Long Island';
-  return null;
-}
-
-const zipNeighborhood = new Map(Object.entries({
-  // Queens
-  11101: 'Long Island City', 11106: 'Long Island City', 11109: 'Long Island City', 11104: 'Sunnyside',
-  11377: 'Woodside', 11372: 'Jackson Heights', 11354: 'Flushing', 11368: 'Corona',
-  // Manhattan core
-  10001: 'Chelsea', 10002: 'Lower East Side', 10003: 'East Village', 10004: 'Financial District', 10005: 'Financial District', 10006: 'Financial District',
-  10007: 'Tribeca', 10009: 'East Village', 10010: 'Gramercy', 10011: 'Chelsea', 10012: 'SoHo', 10013: 'Tribeca', 10014: 'West Village',
-  10016: 'Murray Hill', 10017: 'Midtown East', 10018: 'Garment District', 10019: 'Midtown West', 10020: 'Midtown', 10021: 'Upper East Side', 10022: 'Midtown East',
-  10023: 'Upper West Side', 10024: 'Upper West Side', 10025: 'Upper West Side', 10026: 'Harlem', 10027: 'Harlem', 10030: 'Harlem', 10031: 'Hamilton Heights',
-  10032: 'Washington Heights', 10033: 'Washington Heights', 10034: 'Inwood', 10035: 'East Harlem', 10036: 'Hell\'s Kitchen', 10037: 'Harlem', 10039: 'Harlem', 10040: 'Inwood'
-}));
-
-function detectNeighborhood(addr, zip) {
-  const z = zipNeighborhood.get(String(zip));
-  if (z) return z;
-  const lower = String(addr || '').toLowerCase();
-  const tokens = [
-    ['tribeca','Tribeca'],['soho','SoHo'],['greenwich village','Greenwich Village'],['west village','West Village'],['east village','East Village'],
-    ['chelsea','Chelsea'],['lower east side','Lower East Side'],['midtown','Midtown'],['murray hill','Murray Hill'],['gramercy','Gramercy'],
-    ['financial district','Financial District'],['battery park','Battery Park City'],['harlem','Harlem'],['washington heights','Washington Heights'],
-    ['inwood','Inwood'],['hell\'s kitchen','Hell\'s Kitchen'],['lincoln square','Lincoln Square'],
-    // Queens
-    ['long island city','Long Island City'],[' lic ','Long Island City'],['sunnyside','Sunnyside'],['woodside','Woodside'],['jackson heights','Jackson Heights'],
-    ['elmhurst','Elmhurst'],['flushing','Flushing'],['rego park','Rego Park'],['forest hills','Forest Hills'],['jamaica','Jamaica']
-  ];
-  for (const [t, label] of tokens) if (lower.includes(t)) return label;
-  return null;
-}
-
-async function listPlaces(SUPABASE_URL, SERVICE_KEY, limit) {
-  let url = new URL(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/place`);
-  url.searchParams.set('select','id,address')
-  url.searchParams.set('status','eq.published')
-  if (limit>0) url.searchParams.set('limit', String(limit));
-  const resp = await fetch(url, { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
+async function listPlaces(SUPABASE_URL, SERVICE_KEY, rangeStart, pageSize, limit) {
+  const url = new URL(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/place`);
+  url.searchParams.set('select', 'id,address,display_location,source_raw');
+  url.searchParams.set('status', 'eq.published');
+  if (limit > 0) {
+    url.searchParams.set('limit', String(Math.min(pageSize, limit - rangeStart)));
+  }
+  const headers = {
+    apikey: SERVICE_KEY,
+    Authorization: `Bearer ${SERVICE_KEY}`,
+    Prefer: 'count=exact'
+  };
+  headers['Range-Unit'] = 'items';
+  headers.Range = `${rangeStart}-${rangeStart + pageSize - 1}`;
+  const resp = await fetch(url, { headers });
   if (!resp.ok) throw new Error(`list failed ${resp.status}`);
-  return await resp.json();
+  const totalHeader = resp.headers.get('content-range');
+  let total = null;
+  if (totalHeader) {
+    const parts = totalHeader.split('/');
+    if (parts.length === 2) {
+      const maybeTotal = parseInt(parts[1], 10);
+      if (!Number.isNaN(maybeTotal)) {
+        total = maybeTotal;
+      }
+    }
+  }
+  const rows = await resp.json();
+  return { rows, total };
 }
 
-async function patchDisplay(SUPABASE_URL, SERVICE_KEY, id, value) {
+function mergeSourceRaw(sourceRaw, display) {
+  const next = sourceRaw && typeof sourceRaw === 'object' && !Array.isArray(sourceRaw)
+    ? { ...sourceRaw }
+    : {};
+  if (display) {
+    next.display_location = display;
+  } else {
+    delete next.display_location;
+  }
+  return next;
+}
+
+async function patchDisplay(SUPABASE_URL, SERVICE_KEY, id, display, sourceRaw) {
   const url = new URL(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/place`);
   url.searchParams.set('id', `eq.${id}`);
-  const body = { source_raw: { display_location: value } };
-  const resp = await fetch(url, { method: 'PATCH', headers: { 'Content-Type':'application/json', apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  const body = {
+    display_location: display,
+    source_raw: mergeSourceRaw(sourceRaw, display)
+  };
+  const resp = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type':'application/json',
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      Prefer: 'return=representation'
+    },
+    body: JSON.stringify(body)
+  });
   if (!resp.ok) throw new Error(`patch failed ${resp.status}`);
   await resp.json();
 }
 
 (async function main(){
   const { SUPABASE_URL, SERVICE_KEY, limit } = parseArgs();
-  const places = await listPlaces(SUPABASE_URL, SERVICE_KEY, limit);
   let updated=0, skipped=0;
-  for (const p of places) {
-    const zip = extractZip(p.address);
-    const borough = boroughFromZip(zip) || '';
-    const n = detectNeighborhood(p.address, zip);
-    const display = n && borough ? `${n}, ${borough}` : (borough || null);
-    if (!display) { skipped++; continue; }
-    try { await patchDisplay(SUPABASE_URL, SERVICE_KEY, p.id, display); updated++; }
-    catch { skipped++; }
+  const pageSize = 1000;
+  let offset = 0;
+  let total = null;
+  while (total === null || offset < total) {
+    const { rows, total: reportedTotal } = await listPlaces(SUPABASE_URL, SERVICE_KEY, offset, pageSize, limit);
+    if (reportedTotal !== null) {
+      total = reportedTotal;
+    } else if (rows.length < pageSize) {
+      total = offset + rows.length;
+    }
+    if (!rows.length) { break; }
+    for (const p of rows) {
+      const existingColumn = normalizeLabel(p.display_location);
+      const existingSource = normalizeLabel(p.source_raw && p.source_raw.display_location);
+      const computed = resolveDisplayLocation({ address: p.address });
+      const final = normalizeLabel(computed || existingColumn || existingSource);
+      if (!final) { skipped++; continue; }
+      if (existingColumn === final && existingSource === final) { continue; }
+      try {
+        await patchDisplay(SUPABASE_URL, SERVICE_KEY, p.id, final, p.source_raw);
+        updated++;
+      } catch {
+        skipped++;
+      }
+    }
+    offset += rows.length;
+    if (limit > 0 && offset >= limit) { break; }
   }
   console.log(`Updated ${updated} places with display_location; skipped ${skipped}.`);
 })();

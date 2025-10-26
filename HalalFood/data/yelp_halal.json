@@ -1,6 +1,6 @@
 {
-  "total": 1960,
-  "generated_at": "2025-10-25T19:15:51.216Z",
+  "total": 1964,
+  "generated_at": "2025-10-25T23:52:23.263Z",
   "items": [
     {
       "id": "wGFSTTB6b4MHJJUzBnVJeg",
@@ -43928,6 +43928,95 @@
       "state": "NY",
       "country": "US",
       "zip_code": "11203",
+      "match": "manual"
+    },
+    {
+      "id": "LZmielSPY8clleky7TpkLQ",
+      "name": "Sma.sha",
+      "alias": "sma-sha-long-island-city-2",
+      "url": "https://www.yelp.com/biz/sma-sha-long-island-city-2",
+      "rating": 5,
+      "review_count": 1,
+      "is_closed": false,
+      "phone": null,
+      "categories": [
+        "burgers",
+        "halal"
+      ],
+      "latitude": 40.750458,
+      "longitude": -73.948239,
+      "address": "43-40 12th St, Long Island City, NY 11101",
+      "city": "Long Island City",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11101",
+      "match": "manual",
+      "note": "Fully halal; signage confirmed via in-store photo on 2024-09-13."
+    },
+    {
+      "id": "81wq_JhtZfRFNmL63afX3A",
+      "name": "Butter Smashburgers",
+      "alias": "butter-smashburgers-new-york-2",
+      "url": "https://www.yelp.com/biz/butter-smashburgers-new-york-2?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_search&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 4,
+      "review_count": 8,
+      "is_closed": false,
+      "phone": null,
+      "categories": [
+        "halal",
+        "burgers"
+      ],
+      "latitude": 40.72933,
+      "longitude": -73.988763,
+      "address": "17 St Marks Pl, New York, NY 10003",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "10003",
+      "match": "category"
+    },
+    {
+      "id": "steiny-bs-smashburgers-brooklyn",
+      "name": "Steiny B's Smashburgers",
+      "alias": "steiny-bs-smashburgers-brooklyn",
+      "url": "https://www.yelp.com/biz/steiny-bs-smashburgers-brooklyn",
+      "rating": 0,
+      "review_count": 0,
+      "is_closed": false,
+      "phone": null,
+      "categories": [
+        "burgers",
+        "halal"
+      ],
+      "latitude": 40.6484916,
+      "longitude": -73.9585813,
+      "address": "942 Flatbush Ave, Brooklyn, NY 11226",
+      "city": "Brooklyn",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11226",
+      "match": "manual"
+    },
+    {
+      "id": "up1JPLqcNkGk_UVcOOkjTQ",
+      "name": "Kebabishq",
+      "alias": "kebabishq-new-york",
+      "url": "https://www.yelp.com/biz/kebabishq-new-york?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 5,
+      "review_count": 3,
+      "is_closed": false,
+      "phone": "+16466094747",
+      "categories": [
+        "indpak",
+        "kebab"
+      ],
+      "latitude": 40.72834454259039,
+      "longitude": -73.98762959999999,
+      "address": "128 2nd Ave, New York, NY 10003",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "10003",
       "match": "manual"
     }
   ]
