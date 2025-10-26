@@ -47,7 +47,9 @@ const forcedFullyHalalPrefixes = [
   'kebabishq',
   'momocrave',
   // Request: Treat Guac Island as fully halal
-  'guacisland'
+  'guacisland',
+  // Request: Treat Karachi Kabab Boiz as fully halal
+  'karachikababboiz', 'karachikabab'
 ];
 
 function parseArgs() {

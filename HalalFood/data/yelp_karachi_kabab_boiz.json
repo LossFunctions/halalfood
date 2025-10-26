@@ -1,0 +1,29 @@
+{
+  "total": 1,
+  "generated_at": "2025-10-26T22:29:37.420Z",
+  "items": [
+    {
+      "id": "ozXcN5aCTI_6y3lTMU8KVw",
+      "name": "Karachi Kabab Boiz",
+      "alias": "karachi-kabab-boiz-long-island-city",
+      "url": "https://www.yelp.com/biz/karachi-kabab-boiz-long-island-city?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 3.8,
+      "review_count": 8,
+      "is_closed": false,
+      "phone": null,
+      "categories": [
+        "pakistani",
+        "foodtrucks",
+        "halal"
+      ],
+      "latitude": 40.75072,
+      "longitude": -73.94103,
+      "address": "28-43 Jackson Ave, Long Island City, NY 11101",
+      "city": "Long Island City",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11101",
+      "match": "manual"
+    }
+  ]
+}
