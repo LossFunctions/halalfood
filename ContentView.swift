@@ -371,13 +371,17 @@ private enum CommunityTopRatedEngine {
         // Interleave the regional lists for the `.all` view so that
         // 1st of each region appears first (1..N), then 2nd of each (N+1..2N), etc.
         var combined: [Place] = []
+        var seen = Set<UUID>()
         let lists = CommunityTopRatedConfig.regions.compactMap { regionResults[$0] }
         let maxLen = lists.map { $0.count }.max() ?? 0
         if maxLen > 0 {
             for i in 0..<maxLen {
                 for region in CommunityTopRatedConfig.regions {
                     if let list = regionResults[region], i < list.count {
-                        combined.append(list[i])
+                        let p = list[i]
+                        if seen.insert(p.id).inserted {
+                            combined.append(p)
+                        }
                     }
                 }
             }
@@ -428,17 +432,10 @@ private enum CommunityTopRatedEngine {
     }
 
     private static func deduplicateCombined(_ places: [Place]) -> [Place] {
-        var seen = Set<String>()
+        var seen = Set<UUID>()
         var result: [Place] = []
         result.reserveCapacity(places.count)
-
-        for place in places {
-            let key = place.id.uuidString + PlaceOverrides.normalizedName(for: place.name)
-            if seen.insert(key).inserted {
-                result.append(place)
-            }
-        }
-
+        for p in places { if seen.insert(p.id).inserted { result.append(p) } }
         return result
     }
 }
@@ -723,10 +720,10 @@ struct ContentView: View {
 
     private func communityTopRated(for region: TopRatedRegion) -> [Place] {
         if let cached = communityCache[region] {
-            return cached
+            return ensureUniqueIDs(cached)
         }
         scheduleCommunityPrecomputationIfNeeded()
-        return communityFallback(for: region)
+        return ensureUniqueIDs(communityFallback(for: region))
     }
 
     private func resetCommunityCaches() {
@@ -746,17 +743,21 @@ struct ContentView: View {
                 perRegion[r] = Array(base.filter { CommunityRegionClassifier.matches($0, region: r) }.prefix(5))
             }
             var combined: [Place] = []
+            var seen = Set<UUID>()
             let maxLen = perRegion.values.map { $0.count }.max() ?? 0
             if maxLen > 0 {
                 for i in 0..<maxLen {
                     for r in CommunityTopRatedConfig.regions {
                         if let list = perRegion[r], i < list.count {
-                            combined.append(list[i])
+                            let p = list[i]
+                            if seen.insert(p.id).inserted {
+                                combined.append(p)
+                            }
                         }
                     }
                 }
             }
-            return deduplicateCombinedList(combined)
+            return ensureUniqueIDs(combined)
         default:
             return Array(
                 base
@@ -766,16 +767,13 @@ struct ContentView: View {
         }
     }
 
-    private func deduplicateCombinedList(_ places: [Place]) -> [Place] {
-        var seen = Set<String>()
+    private func deduplicateCombinedList(_ places: [Place]) -> [Place] { ensureUniqueIDs(places) }
+
+    private func ensureUniqueIDs(_ places: [Place]) -> [Place] {
+        var seen = Set<UUID>()
         var result: [Place] = []
         result.reserveCapacity(places.count)
-        for place in places {
-            let key = place.id.uuidString + PlaceOverrides.normalizedName(for: place.name)
-            if seen.insert(key).inserted {
-                result.append(place)
-            }
-        }
+        for p in places { if seen.insert(p.id).inserted { result.append(p) } }
         return result
     }
 
