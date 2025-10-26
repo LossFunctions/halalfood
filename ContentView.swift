@@ -368,10 +368,18 @@ private enum CommunityTopRatedEngine {
             regionResults[region] = Array(curatedResults.prefix(5))
         }
 
+        // Interleave the regional lists for the `.all` view so that
+        // 1st of each region appears first (1..N), then 2nd of each (N+1..2N), etc.
         var combined: [Place] = []
-        for region in CommunityTopRatedConfig.regions {
-            if let list = regionResults[region] {
-                combined.append(contentsOf: list)
+        let lists = CommunityTopRatedConfig.regions.compactMap { regionResults[$0] }
+        let maxLen = lists.map { $0.count }.max() ?? 0
+        if maxLen > 0 {
+            for i in 0..<maxLen {
+                for region in CommunityTopRatedConfig.regions {
+                    if let list = regionResults[region], i < list.count {
+                        combined.append(list[i])
+                    }
+                }
             }
         }
         let dedupedCombined = deduplicateCombined(combined)
@@ -744,9 +752,21 @@ struct ContentView: View {
         let base = viewModel.topRatedPlaces(limit: 60, minimumReviews: 5)
         switch region {
         case .all:
+            // Build per‑region top 5 lists then interleave by rank (1st of each, then 2nd of each, etc.)
+            var perRegion: [TopRatedRegion: [Place]] = [:]
+            for r in CommunityTopRatedConfig.regions {
+                perRegion[r] = Array(base.filter { CommunityRegionClassifier.matches($0, region: r) }.prefix(5))
+            }
             var combined: [Place] = []
-            for region in CommunityTopRatedConfig.regions {
-                combined.append(contentsOf: base.filter { CommunityRegionClassifier.matches($0, region: region) }.prefix(5))
+            let maxLen = perRegion.values.map { $0.count }.max() ?? 0
+            if maxLen > 0 {
+                for i in 0..<maxLen {
+                    for r in CommunityTopRatedConfig.regions {
+                        if let list = perRegion[r], i < list.count {
+                            combined.append(list[i])
+                        }
+                    }
+                }
             }
             return deduplicateCombinedList(combined)
         default:
