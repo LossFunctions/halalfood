@@ -301,6 +301,7 @@ private struct CommunityTopRatedSnapshot: Sendable {
     let globalPlaces: [Place]
     let searchResults: [Place]
     let yelpFallback: [Place]
+    let hasTrustedData: Bool
 }
 
 private struct CommunityComputationResult: Sendable {
@@ -472,6 +473,14 @@ struct ContentView: View {
     private let maxNewSpotsDisplayed = 10
 
     private let newSpotConfigs: [NewSpotConfig] = [
+        NewSpotConfig(
+            placeID: UUID(uuidString: "4cdda0c5-f0dd-4556-874f-628fa019d81b")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/1sECdztwsrcCt7Pq4JKE5g/o.jpg")!,
+            displayLocation: "Lake Ronkonkoma, Long Island",
+            cuisine: "Mexican",
+            halalStatusOverride: .only,
+            openedOn: ("OCT", "22")
+        ),
         NewSpotConfig(
             placeID: UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36")!,
             imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/cgpfmYM7TAJB3fekoQAiEA/o.jpg")!,
@@ -722,8 +731,20 @@ struct ContentView: View {
         if let cached = communityCache[region] {
             return ensureUniqueIDs(cached)
         }
-        scheduleCommunityPrecomputationIfNeeded()
-        return ensureUniqueIDs(communityFallback(for: region))
+        let snapshot = viewModel.communityTopRatedSnapshot()
+        guard snapshot.hasTrustedData else {
+            viewModel.ensureGlobalDataset(forceRefresh: true)
+            return []
+        }
+        communityPrecomputeTask?.cancel()
+        communityPrecomputeTask = nil
+        communityComputationGeneration &+= 1
+        let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
+        applyCommunityComputation(result)
+        if let cached = communityCache[region] {
+            return ensureUniqueIDs(cached)
+        }
+        return []
     }
 
     private func resetCommunityCaches() {
@@ -732,42 +753,6 @@ struct ContentView: View {
         communityPrecomputeTask = nil
         communityCache.removeAll(keepingCapacity: false)
     }
-
-    private func communityFallback(for region: TopRatedRegion) -> [Place] {
-        let base = viewModel.topRatedPlaces(limit: 60, minimumReviews: 5)
-        switch region {
-        case .all:
-            // Build per‑region top 5 lists then interleave by rank (1st of each, then 2nd of each, etc.)
-            var perRegion: [TopRatedRegion: [Place]] = [:]
-            for r in CommunityTopRatedConfig.regions {
-                perRegion[r] = Array(base.filter { CommunityRegionClassifier.matches($0, region: r) }.prefix(5))
-            }
-            var combined: [Place] = []
-            var seen = Set<UUID>()
-            let maxLen = perRegion.values.map { $0.count }.max() ?? 0
-            if maxLen > 0 {
-                for i in 0..<maxLen {
-                    for r in CommunityTopRatedConfig.regions {
-                        if let list = perRegion[r], i < list.count {
-                            let p = list[i]
-                            if seen.insert(p.id).inserted {
-                                combined.append(p)
-                            }
-                        }
-                    }
-                }
-            }
-            return ensureUniqueIDs(combined)
-        default:
-            return Array(
-                base
-                    .filter { CommunityRegionClassifier.matches($0, region: region) }
-                    .prefix(5)
-            )
-        }
-    }
-
-    private func deduplicateCombinedList(_ places: [Place]) -> [Place] { ensureUniqueIDs(places) }
 
     private func ensureUniqueIDs(_ places: [Place]) -> [Place] {
         var seen = Set<UUID>()
@@ -788,7 +773,12 @@ struct ContentView: View {
         }
 
         communityPrecomputeTask?.cancel()
+        communityPrecomputeTask = nil
         let snapshot = viewModel.communityTopRatedSnapshot()
+        guard snapshot.hasTrustedData else {
+            viewModel.ensureGlobalDataset(forceRefresh: true)
+            return
+        }
         communityComputationGeneration &+= 1
         let generation = communityComputationGeneration
 
@@ -796,11 +786,15 @@ struct ContentView: View {
             let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
             await MainActor.run {
                 guard communityComputationGeneration == generation else { return }
-                for (region, list) in result.regionResults {
-                    communityCache[region] = list
-                }
+                applyCommunityComputation(result)
                 communityPrecomputeTask = nil
             }
+        }
+    }
+
+    private func applyCommunityComputation(_ result: CommunityComputationResult) {
+        for (region, list) in result.regionResults {
+            communityCache[region] = list
         }
     }
 
@@ -904,6 +898,9 @@ struct ContentView: View {
                         region: topRatedRegion,
                         topInset: currentTopSafeAreaInset(),
                         bottomInset: currentBottomSafeAreaInset(),
+                        isCommunityLoading: topRatedSort == .community
+                            && communityCache[.all] == nil
+                            && (communityPrecomputeTask != nil || !viewModel.hasTrustedCommunityDataset()),
                         onSelect: { place in
                             focus(on: place)
                         },
@@ -1847,6 +1844,7 @@ private struct TopRatedScreen: View {
     let region: TopRatedRegion
     let topInset: CGFloat
     let bottomInset: CGFloat
+    let isCommunityLoading: Bool
     let onSelect: (Place) -> Void
     let onSortChange: (TopRatedSortOption) -> Void
     let onRegionChange: (TopRatedRegion) -> Void
@@ -1900,10 +1898,20 @@ private struct TopRatedScreen: View {
             }
 
             if places.isEmpty {
-                Text("No matches yet. Try a different location.")
-                    .font(.footnote)
-                    .foregroundStyle(detailColor)
-                    .fixedSize(horizontal: false, vertical: true)
+                if sortOption == .community && isCommunityLoading {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Loading community favorites...")
+                            .font(.footnote)
+                            .foregroundStyle(detailColor)
+                    }
+                } else {
+                    Text("No matches yet. Try a different location.")
+                        .font(.footnote)
+                        .foregroundStyle(detailColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
@@ -3410,6 +3418,8 @@ private struct NewSpotsScreen: View {
 
         var body: some View {
             Button {
+                let currentlyFavorite = isFavorite
+                Haptics.favoriteToggled(isNowFavorite: !currentlyFavorite)
                 favoritesStore.toggleFavorite(
                     for: place,
                     name: place.name,
@@ -3666,6 +3676,8 @@ struct PlaceDetailView: View {
     private func toggleFavorite() {
         let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            let currentlyFavorite = isFavorite
+            Haptics.favoriteToggled(isNowFavorite: !currentlyFavorite)
             favoritesStore.toggleFavorite(
                 for: place,
                 name: displayName,
@@ -3872,28 +3884,33 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private func appleLoadedSection(_ details: ApplePlaceDetails, availableHeight: CGFloat) -> some View {
-        VStack(spacing: 16) {
-            if !viewModel.photos.isEmpty {
-                PhotoCarouselView(photos: viewModel.photos) { index, _ in
-                    expandedPhotoSelection = PhotoSelection(index: index)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 16) {
+                if !viewModel.photos.isEmpty {
+                    PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                        expandedPhotoSelection = PhotoSelection(index: index)
+                    }
                 }
-            }
-            if #available(iOS 18.0, *) {
-                // Order: photos → halal details → rating → Apple place card
-                partialHalalMessageView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                if let ratingModel, !isRatingEmbeddedInAppleCard {
-                    YelpRatingRow(model: ratingModel, style: .prominent)
+                if #available(iOS 18.0, *) {
+                    // Order: photos → halal details → rating → Apple place card
+                    partialHalalMessageView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
+                    if let ratingModel, !isRatingEmbeddedInAppleCard {
+                        YelpRatingRow(model: ratingModel, style: .prominent)
+                            .padding(.horizontal, 16)
+                    }
+                    applePlaceCard(details)
+                } else {
+                    appleDetailsSection(details)
                 }
-                applePlaceCard(details)
-            } else {
-                appleDetailsSection(details)
+                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .padding(.bottom, 20)
+            .frame(minHeight: availableHeight, alignment: .top)
         }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .frame(minHeight: availableHeight, alignment: .top)
+        .scrollIndicators(.hidden)
     }
 
     private var displayName: String {
@@ -4759,9 +4776,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 // so they always appear on the map within the current region.
                 // Always evaluate manual places across the broader NYC + Long Island scope
                 // so outliers (e.g., LIC while viewing Manhattan) still appear on the map.
+                // Exclude any known Supabase places globally to avoid manual/seed duplicates
+                let exclusion = cleaned + self.allPlaces + self.globalDataset
                 let manual = await ManualPlaceResolver
                     .shared
-                    .manualPlaces(in: Self.appleFallbackRegion, excluding: halalOnly)
+                    .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
                     .filteredByCurrentGeoScope()
                     .filter(self.isTrustedPlace(_:))
 
@@ -4912,8 +4931,15 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             allPlaces: allPlaces,
             globalPlaces: globalDataset,
             searchResults: searchResults,
-            yelpFallback: topRatedPlaces(limit: 80, minimumReviews: 5)
+            yelpFallback: topRatedPlaces(limit: 80, minimumReviews: 5),
+            hasTrustedData: hasTrustedCommunityDataset()
         )
+    }
+
+    func hasTrustedCommunityDataset() -> Bool {
+        let combined = allPlaces + globalDataset
+        guard !combined.isEmpty else { return false }
+        return combined.contains { !isSeedPlace($0) }
     }
 
     func topRatedPlaces(limit: Int = 50, minimumReviews: Int = 10) -> [Place] {
@@ -4947,6 +4973,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
         if sorted.count <= limit { return sorted }
         return Array(sorted.prefix(limit))
+    }
+
+    private func isSeedPlace(_ place: Place) -> Bool {
+        guard let source = place.source?.lowercased() else { return false }
+        return source == "seed"
     }
 
     private func regionIsSimilar(lhs: MKCoordinateRegion, rhs: MKCoordinateRegion) -> Bool {
@@ -5116,40 +5147,56 @@ private static let nonHalalChainBlocklist: Set<String> = {
     }
 
     func ensureGlobalDataset(forceRefresh: Bool = false) {
-        if forceRefresh {
-            guard globalDatasetTask == nil else { return }
-        } else {
+        if !forceRefresh {
             guard globalDataset.isEmpty, globalDatasetTask == nil else { return }
+        } else {
+            guard globalDatasetTask == nil else { return }
         }
-        globalDatasetTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+
+        let task = Task(priority: .utility) { [weak self] in
             do {
-                let dtos = try await Task.detached(priority: .utility) {
-                    try await PlaceAPI.fetchAllPlaces(limit: 3500)
-                }.value
+                let dtos = try await PlaceAPI.fetchAllPlaces(limit: 3500)
                 let places = dtos
                     .compactMap(Place.init(dto:))
                     .filteredByCurrentGeoScope()
                     .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    .filter(self.isTrustedPlace(_:))
+                    .filter(MapScreenViewModel.trustedSourceFilter)
                 try Task.checkCancellation()
-                self.mergeIntoGlobalDataset(places, replacingSources: Set(["seed"]))
-                if let query = self.lastSearchQuery, !query.isEmpty {
-                    let seeded = self.combinedMatches(for: query).filteredByCurrentGeoScope()
-                    self.searchResults = PlaceOverrides.sorted(seeded)
+                await MainActor.run {
+                    guard let self else { return }
+                    self.mergeIntoGlobalDataset(places, replacingSources: Set(["seed"]))
+                    if let query = self.lastSearchQuery, !query.isEmpty {
+                        let seeded = self.combinedMatches(for: query).filteredByCurrentGeoScope()
+                        self.searchResults = PlaceOverrides.sorted(seeded)
+                    }
+                    self.globalDatasetTask = nil
+                    self.updateSearchActivityIndicator()
                 }
             } catch is CancellationError {
 #if DEBUG
                 print("[MapScreenViewModel] Global dataset fetch cancelled")
 #endif
+                await MainActor.run {
+                    if let self {
+                        self.globalDatasetTask = nil
+                        self.updateSearchActivityIndicator()
+                    }
+                }
             } catch {
 #if DEBUG
                 print("[MapScreenViewModel] Failed to load global dataset:", error)
 #endif
+                await MainActor.run {
+                    if let self {
+                        self.globalDatasetTask = nil
+                        self.updateSearchActivityIndicator()
+                    }
+                }
             }
-            self.globalDatasetTask = nil
-            self.updateSearchActivityIndicator()
         }
+
+        globalDatasetTask = task
+        updateSearchActivityIndicator()
     }
 
     func mergeIntoGlobalDataset(_ newPlaces: [Place], replacingSources: Set<String> = [], persist: Bool = true) {
@@ -5303,8 +5350,8 @@ private struct PlaceCache {
 }
 
 private extension MapScreenViewModel {
-    func isTrustedPlace(_ place: Place) -> Bool {
-        if Self.isBlocklistedChain(place) { return false }
+    nonisolated static func trustedSourceFilter(_ place: Place) -> Bool {
+        if isBlocklistedChain(place) { return false }
         guard let rawSource = place.source?.trimmingCharacters(in: .whitespacesAndNewlines), !rawSource.isEmpty else {
             return true
         }
@@ -5313,6 +5360,10 @@ private extension MapScreenViewModel {
             return normalized.hasPrefix("apple")
         }
         return true
+    }
+
+    func isTrustedPlace(_ place: Place) -> Bool {
+        Self.trustedSourceFilter(place)
     }
 }
 
