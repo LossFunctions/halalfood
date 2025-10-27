@@ -2075,6 +2075,8 @@ private struct TopRatedScreen: View {
     let onRegionChange: (TopRatedRegion) -> Void
 
     private let detailColor = Color.primary.opacity(0.65)
+    @State private var communityVisibleLimit: Int = 20
+    private let communityPageSize: Int = 20
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -2138,11 +2140,20 @@ private struct TopRatedScreen: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
+                let displayPairs: [(offset: Int, element: Place)] = {
+                    let enumerated = Array(places.enumerated())
+                    if sortOption == .community {
+                        return Array(enumerated.prefix(communityVisibleLimit))
+                    }
+                    return enumerated
+                }()
+                let lastDisplayedOffset = displayPairs.last?.offset
+
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
                         // Card style similar to NewSpots
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
+                            ForEach(displayPairs, id: \.element.id) { index, place in
                                 if index != 0 {
                                     Divider()
                                         .background(Color.black.opacity(0.06))
@@ -2156,17 +2167,42 @@ private struct TopRatedScreen: View {
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.vertical, 10)
+                                .onAppear {
+                                    guard sortOption == .community,
+                                          let lastDisplayedOffset,
+                                          index == lastDisplayedOffset,
+                                          communityVisibleLimit < places.count else { return }
+                                    communityVisibleLimit = min(communityVisibleLimit + communityPageSize, places.count)
+                                }
                             }
                         }
                         .padding(18)
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+
+                        if sortOption == .community, communityVisibleLimit < places.count {
+                            Button {
+                                communityVisibleLimit = min(communityVisibleLimit + communityPageSize, places.count)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .progressViewStyle(.circular)
+                                        .tint(detailColor)
+                                    Text("Show more favorites")
+                                        .font(.footnote.weight(.semibold))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.primary.opacity(0.06), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.vertical, 8)
                 }
-                .task(id: places.map { $0.id }) {
+                .task(id: displayPairs.map { $0.element.id }) {
                     // Warm prefetch a small number of thumbnails for instant display
-                    for id in places.prefix(20).map({ $0.id }) {
+                    for id in displayPairs.prefix(communityPageSize).map({ $0.element.id }) {
                         TopRatedPhotoThumb.prefetch(for: id)
                     }
                 }
@@ -2177,6 +2213,19 @@ private struct TopRatedScreen: View {
         .padding(.bottom, bottomInset + 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
+        .onChange(of: sortOption) { newValue in
+            if newValue == .community {
+                communityVisibleLimit = communityPageSize
+            }
+        }
+        .onChange(of: region) { _ in
+            communityVisibleLimit = communityPageSize
+        }
+        .onChange(of: places.count) { _ in
+            if sortOption == .community {
+                communityVisibleLimit = min(communityVisibleLimit, max(places.count, communityPageSize))
+            }
+        }
     }
 
     private func sortButton(for option: TopRatedSortOption) -> some View {
@@ -2998,6 +3047,10 @@ private struct TopRatedPhotoThumb: View {
     @State private var imageURL: URL?
     @State private var attempted = false
     private static var urlCache: [UUID: URL] = [:]
+    private static let supabaseObjectPrefix = "/storage/v1/object/public/"
+    private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
+    private static let preferredWidth = "320"
+    private static let preferredQuality = "75"
 
     var body: some View {
         if let local = TopRatedPhotoThumb.localThumb(for: placeID) {
@@ -3059,10 +3112,12 @@ private struct TopRatedPhotoThumb: View {
             if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
                 if let row = try? JSONDecoder().decode([PhotoRow].self, from: data).first,
                    let url = URL(string: row.image_url) {
-                    imageURL = url
-                    TopRatedPhotoThumb.urlCache[placeID] = url
-                    // Prefetch the bitmap into cache for near-instant reuse
-                    _ = try? await URLSession.shared.data(from: url).0
+                    let optimized = TopRatedPhotoThumb.optimizedURL(from: url)
+                    imageURL = optimized
+                    TopRatedPhotoThumb.urlCache[placeID] = optimized
+                    Task.detached {
+                        await TopRatedPhotoThumb.warmCache(for: optimized)
+                    }
                 }
             }
         } catch {
@@ -3101,13 +3156,54 @@ private struct TopRatedPhotoThumb: View {
                 if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
                     if let row = try? JSONDecoder().decode([PhotoRow].self, from: data).first,
                        let url = URL(string: row.image_url) {
-                        urlCache[id] = url
+                        let optimized = optimizedURL(from: url)
+                        await cache(optimized, for: id)
                         // Fetch to populate image cache
-                        _ = try? await URLSession.shared.data(from: url)
+                        await warmCache(for: optimized)
                     }
                 }
             } catch { /* ignore */ }
         }
+    }
+
+    static func optimizedURL(from original: URL) -> URL {
+        if let host = original.host, host.contains("yelpcdn.com") {
+            let absolute = original.absoluteString
+            if absolute.hasSuffix("/o.jpg") {
+                if let converted = URL(string: absolute.replacingOccurrences(of: "/o.jpg", with: "/l.jpg")) {
+                    return converted
+                }
+            }
+        }
+
+        guard let baseHost = Env.url.host,
+              original.host == baseHost,
+              original.path.contains(supabaseObjectPrefix) else {
+            return original
+        }
+
+        var components = URLComponents(url: original, resolvingAgainstBaseURL: false)
+        components?.scheme = Env.url.scheme
+        components?.host = baseHost
+        if let path = components?.path {
+            components?.path = path.replacingOccurrences(of: supabaseObjectPrefix, with: supabaseRenderPrefix)
+        }
+        var items = components?.queryItems ?? []
+        items.removeAll { $0.name == "width" || $0.name == "quality" }
+        items.append(URLQueryItem(name: "width", value: preferredWidth))
+        items.append(URLQueryItem(name: "quality", value: preferredQuality))
+        components?.queryItems = items
+        return components?.url ?? original
+    }
+
+    static func cache(_ url: URL, for id: UUID) async {
+        await MainActor.run {
+            urlCache[id] = url
+        }
+    }
+
+    private static func warmCache(for url: URL) async {
+        _ = try? await URLSession.shared.data(from: url)
     }
 }
 
@@ -5383,6 +5479,10 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             let dto = record.toPlaceDTO()
             guard let place = Place(dto: dto) else { continue }
             guard trustedSourceFilter(place) else { continue }
+            if let rawURL = record.primaryImageURL, let original = URL(string: rawURL) {
+                let optimized = TopRatedPhotoThumb.optimizedURL(from: original)
+                await TopRatedPhotoThumb.cache(optimized, for: place.id)
+            }
             buckets[region, default: []].append((rank: record.regionRank, place: place))
         }
 

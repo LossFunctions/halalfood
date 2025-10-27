@@ -18,6 +18,7 @@ struct CommunityTopRatedRecord: Decodable {
     let applePlaceID: String?
     let note: String?
     let sourceRaw: PlaceDTO.SourceRaw?
+    let primaryImageURL: String?
 
     enum CodingKeys: String, CodingKey {
         case region
@@ -37,6 +38,7 @@ struct CommunityTopRatedRecord: Decodable {
         case applePlaceID = "apple_place_id"
         case note
         case sourceRaw = "source_raw"
+        case primaryImageURL = "primary_image_url"
     }
 
     init(from decoder: Decoder) throws {
@@ -58,6 +60,7 @@ struct CommunityTopRatedRecord: Decodable {
         applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         sourceRaw = try container.decodeIfPresent(PlaceDTO.SourceRaw.self, forKey: .sourceRaw)
+        primaryImageURL = try container.decodeIfPresent(String.self, forKey: .primaryImageURL)
     }
 
     func toPlaceDTO() -> PlaceDTO {
@@ -80,4 +83,3 @@ struct CommunityTopRatedRecord: Decodable {
         )
     }
 }
-

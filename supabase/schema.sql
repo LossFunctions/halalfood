@@ -156,8 +156,16 @@ with base as (
         pl.apple_place_id,
         pl.note,
         pl.source_raw,
+        photo.image_url as primary_image_url,
         community_region_for_place(pl.lat, pl.lon, pl.address) as region
     from public.place pl
+    left join lateral (
+        select ph.image_url
+        from public.place_photo ph
+        where ph.place_id = pl.id
+        order by coalesce(ph.priority, 999), ph.id
+        limit 1
+    ) photo on true
     where pl.status = 'published'
       and pl.category = 'restaurant'
       and pl.halal_status in ('yes', 'only')
@@ -182,6 +190,7 @@ with base as (
         base.apple_place_id,
         base.note,
         base.source_raw,
+        base.primary_image_url,
         row_number() over (
             partition by base.region
             order by
@@ -211,6 +220,7 @@ with base as (
         base.apple_place_id,
         base.note,
         base.source_raw,
+        base.primary_image_url,
         row_number() over (
             order by
                 coalesce(base.rating, 0) desc,
@@ -237,7 +247,8 @@ select
     ranked.source,
     ranked.apple_place_id,
     ranked.note,
-    ranked.source_raw
+    ranked.source_raw,
+    ranked.primary_image_url
 from (
     select * from regional where region_rank <= 40
     union all
@@ -278,7 +289,8 @@ returns table (
     source text,
     apple_place_id text,
     note text,
-    source_raw jsonb
+    source_raw jsonb,
+    primary_image_url text
 )
 as $$
     select
@@ -298,7 +310,8 @@ as $$
         ctr.source,
         ctr.apple_place_id,
         ctr.note,
-        ctr.source_raw
+        ctr.source_raw,
+        ctr.primary_image_url
     from public.community_top_rated_v1 ctr
     where ctr.region_rank <= least(greatest(limit_per_region, 1), 80)
     order by case ctr.region when 'all' then 0 else 1 end, ctr.region, ctr.region_rank;
