@@ -132,7 +132,7 @@ struct HalalMapView: UIViewRepresentable {
 
         // Make the map look more vibrant and closer to the Apple Maps app
         if #available(iOS 15.0, *) {
-            var config = MKStandardMapConfiguration(elevationStyle: .realistic)
+            let config = MKStandardMapConfiguration(elevationStyle: .realistic)
             // Use default emphasis (more vibrant than muted)
             config.emphasisStyle = .default
             // Keep POIs hidden; your app overlays restaurants via your own logic
@@ -140,12 +140,10 @@ struct HalalMapView: UIViewRepresentable {
             mapView.preferredConfiguration = config
         } else {
             mapView.mapType = .standard
-            if #available(iOS 13.0, *) {
-                mapView.pointOfInterestFilter = .excludingAll
-            }
+            mapView.pointOfInterestFilter = .excludingAll
         }
         mapView.setRegion(region, animated: false)
-        context.coordinator.configureDisplayMode(using: region)
+        context.coordinator.configureDisplayMode(using: region, placeCount: places.count)
         context.coordinator.mapView = mapView
         context.coordinator.addTapRecognizer(to: mapView)
         context.coordinator.syncSelection(in: mapView)
@@ -165,7 +163,8 @@ struct HalalMapView: UIViewRepresentable {
         static let appleReuseIdentifier = "ApplePlaceMarker"
         static let dotReuseIdentifier = "PlaceDot"
 
-        private let dotSpanThreshold: CLLocationDegrees = 0.09
+        private let dotSpanThreshold: CLLocationDegrees = 0.1
+        private let denseMarkerCountThreshold: Int = 120
         private let regionChangeDebounceNanoseconds: UInt64 = 200_000_000
 
         private var parent: HalalMapView
@@ -190,8 +189,8 @@ struct HalalMapView: UIViewRepresentable {
             mapView.addGestureRecognizer(tap)
         }
 
-        func configureDisplayMode(using region: MKCoordinateRegion) {
-            usesDotAnnotations = shouldUseDotAppearance(for: region)
+        func configureDisplayMode(using region: MKCoordinateRegion, placeCount: Int) {
+            usesDotAnnotations = shouldUseDotAppearance(for: region, placeCount: placeCount)
         }
 
         func update(parent: HalalMapView) {
@@ -200,7 +199,7 @@ struct HalalMapView: UIViewRepresentable {
             syncAppleAnnotations(with: parent.appleMapItems)
 
             if let mapView, let region = mapView.safeRegion ?? lastRenderedRegion {
-                updateAnnotationDisplayMode(for: mapView, region: region)
+                updateAnnotationDisplayMode(for: mapView, region: region, placeCount: parent.places.count)
                 syncSelection(in: mapView)
             }
         }
@@ -208,7 +207,7 @@ struct HalalMapView: UIViewRepresentable {
         func applyRegionIfNeeded(_ region: MKCoordinateRegion, to mapView: MKMapView, animated: Bool) {
             guard !isSettingRegion else { return }
 
-            updateAnnotationDisplayMode(for: mapView, region: region)
+            updateAnnotationDisplayMode(for: mapView, region: region, placeCount: parent.places.count)
 
             let tolerance: CLLocationDegrees = 7e-4
 
@@ -232,6 +231,18 @@ struct HalalMapView: UIViewRepresentable {
 
         private func syncAnnotations(with places: [Place]) {
             guard let mapView else { return }
+#if DEBUG
+            let span = PerformanceMetrics.begin(
+                event: .mapAnnotationSync,
+                metadata: "incoming=\(places.count)"
+            )
+            var addedCount = 0
+            var removedCount = 0
+            defer {
+                let metadata = "rendered=\(placeAnnotationsByID.count) added=\(addedCount) removed=\(removedCount)"
+                PerformanceMetrics.end(span, metadata: metadata)
+            }
+#endif
 
             let incomingIDs = Set(places.map { $0.id })
 
@@ -247,6 +258,9 @@ struct HalalMapView: UIViewRepresentable {
                     placeAnnotationsByID.removeValue(forKey: annotation.place.id)
                 }
             }
+#if DEBUG
+            removedCount = annotationsToRemove.count
+#endif
 
             var annotationsToAdd: [PlaceAnnotation] = []
             for place in places {
@@ -266,6 +280,9 @@ struct HalalMapView: UIViewRepresentable {
             if !annotationsToAdd.isEmpty {
                 mapView.addAnnotations(annotationsToAdd)
             }
+#if DEBUG
+            addedCount = annotationsToAdd.count
+#endif
 
             currentAnnotations = Array(placeAnnotationsByID.values)
         }
@@ -303,8 +320,15 @@ struct HalalMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             guard let parentMap = mapView.safeRegion else { return }
-
-            updateAnnotationDisplayMode(for: mapView, region: parentMap)
+#if DEBUG
+            let centerLat = String(format: "%.4f", parentMap.center.latitude)
+            let centerLon = String(format: "%.4f", parentMap.center.longitude)
+            let spanLat = String(format: "%.4f", parentMap.span.latitudeDelta)
+            let spanLon = String(format: "%.4f", parentMap.span.longitudeDelta)
+            let metadata = "center=(\(centerLat),\(centerLon)) span=(\(spanLat)x\(spanLon)) animated=\(animated)"
+            PerformanceMetrics.point(event: .mapRegionChange, metadata: metadata)
+#endif
+            updateAnnotationDisplayMode(for: mapView, region: parentMap, placeCount: parent.places.count)
 
             let previousRegion = lastRenderedRegion
             lastRenderedRegion = parentMap
@@ -328,13 +352,17 @@ struct HalalMapView: UIViewRepresentable {
             regionChangeTask?.cancel()
             regionChangeTask = Task { [weak self] in
                 do {
-                    try await Task.sleep(nanoseconds: regionChangeDebounceNanoseconds)
+                    guard let self else { return }
+                    try await Task.sleep(nanoseconds: self.regionChangeDebounceNanoseconds)
                 } catch {
                     return
                 }
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     guard let self else { return }
+#if DEBUG
+                    PerformanceMetrics.point(event: .mapRegionChange, metadata: "Debounced callback fired")
+#endif
                     callback(region)
                     self.regionChangeTask = nil
                 }
@@ -425,8 +453,8 @@ struct HalalMapView: UIViewRepresentable {
             true
         }
 
-        private func updateAnnotationDisplayMode(for mapView: MKMapView, region: MKCoordinateRegion) {
-            let shouldUseDots = shouldUseDotAppearance(for: region)
+        private func updateAnnotationDisplayMode(for mapView: MKMapView, region: MKCoordinateRegion, placeCount: Int) {
+            let shouldUseDots = shouldUseDotAppearance(for: region, placeCount: placeCount)
             guard shouldUseDots != usesDotAnnotations else { return }
 
             usesDotAnnotations = shouldUseDots
@@ -437,8 +465,10 @@ struct HalalMapView: UIViewRepresentable {
             mapView.addAnnotations(baseAnnotations)
         }
 
-        private func shouldUseDotAppearance(for region: MKCoordinateRegion) -> Bool {
-            max(region.span.latitudeDelta, region.span.longitudeDelta) >= dotSpanThreshold
+        private func shouldUseDotAppearance(for region: MKCoordinateRegion, placeCount: Int) -> Bool {
+            let spanBased = max(region.span.latitudeDelta, region.span.longitudeDelta) >= dotSpanThreshold
+            let densityBased = placeCount >= denseMarkerCountThreshold
+            return spanBased || densityBased
         }
 
         fileprivate func syncSelection(in mapView: MKMapView) {

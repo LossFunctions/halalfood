@@ -32,16 +32,33 @@ extension BBox {
 }
 
 enum PlaceAPI {
-    private static let supabaseHardLimit = 1000
+    private static let supabaseHardLimit = 800
+    static let mapFetchDefaultLimit = 220
     private static let subdivisionDepthLimit = 3
     private static let minimumSubdivisionSpan: Double = 0.01
     private static let minimumRequestedLimit = 100
     private static var displayLocationV2Enabled: Bool { Env.displayLocationV2Enabled }
 
-    static func getPlaces(bbox: BBox, category: String = "all", limit: Int = 750) async throws -> [PlaceDTO] {
+    static func getPlaces(bbox: BBox, category: String = "all", limit: Int = mapFetchDefaultLimit) async throws -> [PlaceDTO] {
         let sanitizedLimit = sanitize(limit)
+#if DEBUG
+        let metadata = String(
+            format: "bbox=(%.4f,%.4f,%.4f,%.4f) category=%@ limit=%d",
+            bbox.west, bbox.south, bbox.east, bbox.north, category, sanitizedLimit
+        )
+        let span = PerformanceMetrics.begin(event: .apiGetPlaces, metadata: metadata)
+        var resultMetadata = "count=0"
+        defer {
+            PerformanceMetrics.end(span, metadata: resultMetadata)
+        }
+#endif
         let accumulator = try await collectPlaces(bbox: bbox, category: category, limit: sanitizedLimit, depth: 0)
-        return sortPlaces(Array(accumulator.values))
+        let sorted = sortPlaces(Array(accumulator.values))
+        let limited = Array(sorted.prefix(sanitizedLimit))
+#if DEBUG
+        resultMetadata = "count=\(limited.count)"
+#endif
+        return limited
     }
 
     static func saveApplePlaceID(for placeID: UUID, applePlaceID: String) async throws -> Bool {
@@ -125,6 +142,19 @@ enum PlaceAPI {
         var collected: [PlaceDTO] = []
         var start = 0
         let decoder = JSONDecoder()
+#if DEBUG
+        let span = PerformanceMetrics.begin(
+            event: .apiFetchAllPlaces,
+            metadata: "desired=\(desired) pageSize=\(size)"
+        )
+        var pageCount = 0
+        defer {
+            PerformanceMetrics.end(
+                span,
+                metadata: "pages=\(pageCount) total=\(collected.count)"
+            )
+        }
+#endif
 
         while start < desired {
             let end = min(start + size - 1, desired - 1)
@@ -136,22 +166,33 @@ enum PlaceAPI {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
+#if DEBUG
+                PerformanceMetrics.point(
+                    event: .apiFetchAllPlaces,
+                    metadata: "Invalid response for range \(start)-\(end)"
+                )
+#endif
                 throw PlaceAPIError.invalidResponse
             }
 
             guard (200..<300).contains(httpResponse.statusCode) || httpResponse.statusCode == 206 else {
 #if DEBUG
-                if let bodyString = String(data: data, encoding: .utf8) {
-                    print("Supabase fetchAllPlaces error", httpResponse.statusCode, bodyString)
-                } else {
-                    print("Supabase fetchAllPlaces error", httpResponse.statusCode)
-                }
+                let bodyString = String(data: data, encoding: .utf8) ?? "<unreadable>"
+                let metadata = "HTTP \(httpResponse.statusCode) range \(start)-\(end) body=\(bodyString)"
+                PerformanceMetrics.point(event: .apiFetchAllPlaces, metadata: metadata)
 #endif
                 throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
             }
 
             let page = try decoder.decode([PlaceDTO].self, from: data)
             collected.append(contentsOf: page)
+#if DEBUG
+            pageCount += 1
+            PerformanceMetrics.point(
+                event: .apiFetchAllPlaces,
+                metadata: "Fetched page \(pageCount) range \(start)-\(end) count=\(page.count)"
+            )
+#endif
 
             if page.count < size { break }
             start += size
@@ -166,10 +207,19 @@ enum PlaceAPI {
         limit: Int,
         depth: Int
     ) async throws -> [UUID: PlaceDTO] {
+        try Task.checkCancellation()
         var accumulator: [UUID: PlaceDTO] = [:]
         let page = try await fetchPlacesPage(bbox: bbox, category: category, limit: limit)
         for dto in page {
             accumulator[dto.id] = dto
+            if accumulator.count >= limit {
+                return accumulator
+            }
+        }
+        try Task.checkCancellation()
+
+        if accumulator.count >= limit {
+            return accumulator
         }
 
         let hitLimit = page.count >= limit
@@ -185,12 +235,17 @@ enum PlaceAPI {
         return try await withThrowingTaskGroup(of: [UUID: PlaceDTO].self) { group in
             for subBox in subBoxes {
                 group.addTask {
-                    try await collectPlaces(bbox: subBox, category: category, limit: limit, depth: depth + 1)
+                    try Task.checkCancellation()
+                    return try await collectPlaces(bbox: subBox, category: category, limit: limit, depth: depth + 1)
                 }
             }
 
             for try await child in group {
                 accumulator.merge(child) { existing, _ in existing }
+                if accumulator.count >= limit {
+                    group.cancelAll()
+                    break
+                }
             }
 
             return accumulator
@@ -198,6 +253,7 @@ enum PlaceAPI {
     }
 
     private static func fetchPlacesPage(bbox: BBox, category: String, limit: Int) async throws -> [PlaceDTO] {
+        try Task.checkCancellation()
         let resolvedLimit = sanitize(limit)
         let params = GetPlacesParams(
             west: bbox.west,
@@ -212,9 +268,10 @@ enum PlaceAPI {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let payload = try encoder.encode(params)
 
-        let endpoint = displayLocationV2Enabled ? "rest/v1/rpc/get_places_in_bbox_v2" : "rest/v1/rpc/get_places_in_bbox"
+        let endpoint = "rest/v1/rpc/get_places_in_bbox_v3"
         let request = try makeRequest(body: payload, endpoint: endpoint)
         let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PlaceAPIError.invalidResponse

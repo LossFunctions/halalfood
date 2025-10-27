@@ -24,6 +24,7 @@
 		B505BA262E7CF000008D2917 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B505BA272E7CF000008D2917 /* Supabase */; };
 		B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA2A2E7CF100008D2917 /* LocationProvider.swift */; };
 		B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */; };
+		B5D4E2022EA50ABC008D2917 /* PerformanceInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */; };
 		F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */; };
 		E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C42E8C000100000001 /* PlacePhoto.swift */; };
 		F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */; };
@@ -76,6 +77,7 @@
 		D67A1CEB830861DC6F4F88D6 /* ManualPlaceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPlaceResolver.swift; sourceTree = "<group>"; };
         E1A2B3C42E8C000100000001 /* PlacePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
         D1E2F3A42F9AB12300AAA222 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceInstrumentation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -200,6 +202,7 @@
 				B505BA142E7CE233008D2917 /* Extensions */,
 				B505BA172E7CE233008D2917 /* Models */,
 				B505BA1A2E7CE233008D2917 /* Networking */,
+				B5D4E2002EA50ABC008D2917 /* Instrumentation */,
 				B505BA2C2E7CF100008D2917 /* Location */,
 				6A34C28283D9ED5A558210E7 /* Services */,
 				63D0CF215B7650CC4BA52C5F /* UI */,
@@ -213,6 +216,14 @@
 				B505BA2A2E7CF100008D2917 /* LocationProvider.swift */,
 			);
 			path = Location;
+			sourceTree = "<group>";
+		};
+		B5D4E2002EA50ABC008D2917 /* Instrumentation */ = {
+			isa = PBXGroup;
+			children = (
+				B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */,
+			);
+			path = Instrumentation;
 			sourceTree = "<group>";
 		};
 		C1F0B2C52F123457008D2917 /* data */ = {
@@ -374,6 +385,7 @@
 				B505B9DC2E7CC7FA008D2917 /* ContentView.swift in Sources */,
 				B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */,
 				B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */,
+				B5D4E2022EA50ABC008D2917 /* PerformanceInstrumentation.swift in Sources */,
 				B505BA1C2E7CE233008D2917 /* PlaceAPI.swift in Sources */,
 				B505BA1D2E7CE233008D2917 /* PlaceDTO.swift in Sources */,
 				B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */,

@@ -122,6 +122,77 @@ private enum CommunityTopRatedConfig {
 
 }
 
+#if DEBUG
+@MainActor
+final class CommunityInstrumentation: ObservableObject {
+    private var loadSpan: PerformanceSpan?
+    private var firstRenderLogged = false
+
+    fileprivate func resetAll() {
+        loadSpan = nil
+        firstRenderLogged = false
+    }
+
+    fileprivate func resetFirstRender() {
+        firstRenderLogged = false
+    }
+
+    fileprivate func startLoadIfNeeded(metadata: String) {
+        guard loadSpan == nil else { return }
+        loadSpan = PerformanceMetrics.begin(event: .communityFetch, metadata: metadata)
+        firstRenderLogged = false
+    }
+
+    fileprivate func markWarmCache(region: TopRatedRegion, count: Int) {
+        if loadSpan != nil {
+            PerformanceMetrics.end(loadSpan, metadata: "Region switch with warm cache")
+            loadSpan = nil
+        }
+        PerformanceMetrics.point(
+            event: .communityDisplay,
+            metadata: "Region \(region.rawValue) warm cache – \(count) places"
+        )
+        logFirstBatch(region: region, count: count)
+    }
+
+    fileprivate func markCancel(reason: String) {
+        guard loadSpan != nil else { return }
+        PerformanceMetrics.point(event: .communityFetch, metadata: reason)
+        loadSpan = nil
+        firstRenderLogged = false
+    }
+
+    fileprivate func markCachesPopulated(regionBucketCount: Int) {
+        PerformanceMetrics.end(loadSpan, metadata: "Populated \(regionBucketCount) region caches")
+        loadSpan = nil
+    }
+
+    fileprivate func logCacheHit(region: TopRatedRegion, count: Int) {
+        guard !firstRenderLogged else { return }
+        PerformanceMetrics.point(
+            event: .communityDisplay,
+            metadata: "Cache hit for \(region.rawValue) – \(count) places"
+        )
+        firstRenderLogged = true
+    }
+
+    fileprivate func logFirstBatch(region: TopRatedRegion, count: Int) {
+        if !firstRenderLogged {
+            PerformanceMetrics.point(
+                event: .communityDisplay,
+                metadata: "First batch ready for \(region.rawValue) – \(count) places"
+            )
+            firstRenderLogged = true
+        } else {
+            PerformanceMetrics.point(
+                event: .communityDisplay,
+                metadata: "Updated caches for \(region.rawValue) – \(count) places"
+            )
+        }
+    }
+}
+#endif
+
 private struct NewSpotConfig: Identifiable {
     let id = UUID()
     let placeID: UUID
@@ -469,9 +540,13 @@ struct ContentView: View {
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
     @State private var communityPrecomputeTask: Task<Void, Never>?
     @State private var communityComputationGeneration: Int = 0
-   @State private var visiblePlaces: [Place] = []
-   @State private var viewportCache = ViewportCache()
-   @State private var searchDebounceTask: DispatchWorkItem?
+    @State private var visiblePlaces: [Place] = []
+    @State private var viewportCache = ViewportCache()
+    @State private var searchDebounceTask: DispatchWorkItem?
+#if DEBUG
+    @State private var didLogInitialAppear = false
+    @StateObject private var communityInstrumentation = CommunityInstrumentation()
+#endif
 
     private let maxNewSpotsDisplayed = 10
 
@@ -732,6 +807,9 @@ struct ContentView: View {
 
     private func communityTopRated(for region: TopRatedRegion) -> [Place] {
         if let cached = communityCache[region] {
+#if DEBUG
+            communityInstrumentation.logCacheHit(region: region, count: cached.count)
+#endif
             return ensureUniqueIDs(cached)
         }
         let snapshot = viewModel.communityTopRatedSnapshot()
@@ -739,10 +817,28 @@ struct ContentView: View {
             viewModel.ensureGlobalDataset(forceRefresh: true)
             return []
         }
+#if DEBUG
+        if bottomTab == .topRated,
+           topRatedSort == .community {
+            communityInstrumentation.startLoadIfNeeded(
+                metadata: "Compute -> region=\(region.rawValue)"
+            )
+        }
+        let computeSpan = PerformanceMetrics.begin(
+            event: .communityFetch,
+            metadata: "Community compute region=\(region.rawValue)"
+        )
+#endif
         communityPrecomputeTask?.cancel()
         communityPrecomputeTask = nil
         communityComputationGeneration &+= 1
         let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
+#if DEBUG
+        PerformanceMetrics.end(
+            computeSpan,
+            metadata: "Computed \(result.regionResults.count) region buckets"
+        )
+#endif
         applyCommunityComputation(result)
         if let cached = communityCache[region] {
             return ensureUniqueIDs(cached)
@@ -755,6 +851,9 @@ struct ContentView: View {
         communityPrecomputeTask?.cancel()
         communityPrecomputeTask = nil
         communityCache.removeAll(keepingCapacity: false)
+#if DEBUG
+        communityInstrumentation.resetAll()
+#endif
     }
 
     private func ensureUniqueIDs(_ places: [Place]) -> [Place] {
@@ -786,7 +885,20 @@ struct ContentView: View {
         let generation = communityComputationGeneration
 
         communityPrecomputeTask = Task.detached(priority: .utility) {
+#if DEBUG
+            let metadata = force ? "Precompute(force) gen=\(generation)" : "Precompute gen=\(generation)"
+            let computeSpan = PerformanceMetrics.begin(
+                event: .communityFetch,
+                metadata: metadata
+            )
+#endif
             let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
+#if DEBUG
+            PerformanceMetrics.end(
+                computeSpan,
+                metadata: "Computed \(result.regionResults.count) region buckets"
+            )
+#endif
             await MainActor.run {
                 guard communityComputationGeneration == generation else { return }
                 applyCommunityComputation(result)
@@ -799,6 +911,11 @@ struct ContentView: View {
         for (region, list) in result.regionResults {
             communityCache[region] = list
         }
+#if DEBUG
+        communityInstrumentation.markCachesPopulated(regionBucketCount: result.regionResults.count)
+        let currentRegionCount = communityCache[topRatedRegion]?.count ?? communityCache[.all]?.count ?? 0
+        communityInstrumentation.logFirstBatch(region: topRatedRegion, count: currentRegionCount)
+#endif
     }
 
     private var mapPlaces: [Place] {
@@ -854,11 +971,14 @@ struct ContentView: View {
                 )
                 .environmentObject(favoritesStore)
             } else {
-                HalalMapView(
-                    region: $mapRegion,
+                MapTabContainer(
+                    mapRegion: $mapRegion,
                     selectedPlace: $selectedPlace,
+                    selectedApplePlace: $selectedApplePlace,
                     places: mapPlaces,
                     appleMapItems: mapAppleItems,
+                    isLoading: viewModel.isLoading,
+                    shouldShowLoadingIndicator: viewModel.isLoading && viewModel.places.isEmpty,
                     onRegionChange: { region in
                         viewModel.regionDidChange(to: region, filter: selectedFilter)
                         let effective = RegionGate.enforcedRegion(for: region)
@@ -878,7 +998,6 @@ struct ContentView: View {
                         }
                     }
                 )
-                .ignoresSafeArea()
 
                 VStack(alignment: .leading, spacing: 0) {
                     searchBar
@@ -886,13 +1005,6 @@ struct ContentView: View {
                 }
                 .padding(.top, 16)
                 .padding(.horizontal, 16)
-
-                if viewModel.isLoading && viewModel.places.isEmpty {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .padding(16)
-                        .background(.thinMaterial, in: Capsule())
-                }
 
                 if bottomTab == .topRated {
                     TopRatedScreen(
@@ -933,6 +1045,12 @@ struct ContentView: View {
             let effective = RegionGate.enforcedRegion(for: mapRegion)
             appleHalalSearch.search(in: effective)
             refreshVisiblePlaces()
+#if DEBUG
+            if !didLogInitialAppear {
+                AppPerformanceTracker.shared.end(.appLaunch, metadata: "ContentView onAppear")
+                didLogInitialAppear = true
+            }
+#endif
         }
         .onChange(of: selectedFilter) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -1051,6 +1169,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: bottomTab) { tab in
+#if DEBUG
+            if tab != .topRated {
+                communityInstrumentation.markCancel(reason: "Exited community tab before completion")
+                communityInstrumentation.resetAll()
+            }
+#endif
             switch tab {
             case .favorites:
                 selectedApplePlace = nil
@@ -1075,6 +1199,13 @@ struct ContentView: View {
                 if topRatedSort == .community {
                     scheduleCommunityPrecomputationIfNeeded()
                 }
+#if DEBUG
+                if topRatedSort == .community {
+                    communityInstrumentation.startLoadIfNeeded(
+                        metadata: "Tab switch -> community region=\(topRatedRegion.rawValue)"
+                    )
+                }
+#endif
             default:
                 break
             }
@@ -1088,6 +1219,16 @@ struct ContentView: View {
             if newValue == .community {
                 scheduleCommunityPrecomputationIfNeeded()
             }
+#if DEBUG
+            if newValue == .community, bottomTab == .topRated {
+                communityInstrumentation.startLoadIfNeeded(
+                    metadata: "Sort -> community region=\(topRatedRegion.rawValue)"
+                )
+            } else {
+                communityInstrumentation.markCancel(reason: "Community sort deactivated")
+                communityInstrumentation.resetAll()
+            }
+#endif
         }
         .onChange(of: topRatedRegion) { _, _ in
             if bottomTab == .topRated,
@@ -1095,6 +1236,19 @@ struct ContentView: View {
                !topRatedDisplay.contains(where: { $0.id == selected.id }) {
                 selectedPlace = nil
             }
+#if DEBUG
+            if bottomTab == .topRated, topRatedSort == .community {
+                if let cached = communityCache[topRatedRegion] {
+                    communityInstrumentation.resetFirstRender()
+                    communityInstrumentation.markWarmCache(region: topRatedRegion, count: cached.count)
+                } else {
+                    communityInstrumentation.markCancel(reason: "Region changed before data ready")
+                    communityInstrumentation.startLoadIfNeeded(
+                        metadata: "Region -> \(topRatedRegion.rawValue)"
+                    )
+                }
+            }
+#endif
         }
         .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
     }
@@ -3071,9 +3225,27 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
     }
 
     private func load() async {
+#if DEBUG
+        var loadSpan: PerformanceSpan?
+        var loadSource = "unknown"
+        if let url {
+            loadSpan = PerformanceMetrics.begin(
+                event: .imageLoad,
+                metadata: url.absoluteString
+            )
+        } else {
+            loadSource = "missing-url"
+        }
+        defer {
+            PerformanceMetrics.end(loadSpan, metadata: "source=\(loadSource)")
+        }
+#endif
         guard let url else { return }
         if let cached = ImageCache.shared.image(for: url) {
             image = cached
+#if DEBUG
+            loadSource = "cache"
+#endif
             return
         }
         do {
@@ -3081,8 +3253,18 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
             if let img = UIImage(data: data) {
                 ImageCache.shared.store(img, for: url)
                 image = img
+#if DEBUG
+                loadSource = "network"
+#endif
             }
         } catch {
+#if DEBUG
+            loadSource = "error"
+            PerformanceMetrics.point(
+                event: .imageLoad,
+                metadata: "Failed for \(url.absoluteString) – \(error.localizedDescription)"
+            )
+#endif
             // ignore
         }
     }
@@ -4739,6 +4921,17 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     private func fetch(region: MKCoordinateRegion, filter: MapFilter, eager: Bool) {
         let requestRegion = normalizedRegion(for: region)
+        let fetchLimit = dynamicResultLimit(for: requestRegion)
+        let fetchMetadata: String
+#if DEBUG
+        let centerLat = String(format: "%.4f", requestRegion.center.latitude)
+        let centerLon = String(format: "%.4f", requestRegion.center.longitude)
+        let spanLat = String(format: "%.4f", requestRegion.span.latitudeDelta)
+        let spanLon = String(format: "%.4f", requestRegion.span.longitudeDelta)
+        fetchMetadata = "center=(\(centerLat),\(centerLon)) span=(\(spanLat)x\(spanLon)) filter=\(filter) eager=\(eager) limit=\(fetchLimit)"
+#else
+        fetchMetadata = ""
+#endif
         let cacheHit = cache.value(for: requestRegion)
         let cachedOverride = cacheHit.map {
             PlaceOverrides
@@ -4757,69 +4950,132 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         if let last = lastRequestedRegion,
            regionIsSimilar(lhs: last, rhs: requestRegion),
            !(cacheHit == nil || cacheHit?.isFresh == false || eager) {
+#if DEBUG
+            PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped – similar region \(fetchMetadata)")
+#endif
             return
         }
 
+#if DEBUG
+        PerformanceMetrics.point(
+            event: .mapFetch,
+            metadata: "Scheduled fetch \(fetchMetadata) cacheHit=\(cacheHit != nil)"
+        )
+#endif
         fetchTask?.cancel()
         isLoading = true
         errorMessage = nil
         presentingError = false
         lastRequestedRegion = requestRegion
 
-        fetchTask = Task { @MainActor [weak self] in
+        fetchTask = Task<Void, Never> { [weak self] in
             guard let self else { return }
-            if !eager {
-                try? await Task.sleep(nanoseconds: 350_000_000)
-            }
-            do {
-                let dtos = try await Task.detached(priority: .userInitiated) {
-                    try await PlaceAPI.getPlaces(bbox: requestRegion.bbox)
-                }.value
-                // Convert and enforce NYC + Long Island scope
-                let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
-                let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
-                let cleaned = overridden
-                    .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    .filter(self.isTrustedPlace(_:))
-                // Only surface verified halal places by default
-                let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
+            await self.performFetchTask(
+                requestRegion: requestRegion,
+                filter: filter,
+                eager: eager,
+                cachedOverride: cachedOverride,
+                fetchMetadata: fetchMetadata,
+                fetchLimit: fetchLimit
+            )
+        }
+    }
 
-                // Bring in manual outliers (e.g., venues not tagged halal in OSM/Apple)
-                // so they always appear on the map within the current region.
-                // Always evaluate manual places across the broader NYC + Long Island scope
-                // so outliers (e.g., LIC while viewing Manhattan) still appear on the map.
-                // Exclude any known Supabase places globally to avoid manual/seed duplicates
-                let exclusion = cleaned + self.allPlaces + self.globalDataset
-                let manual = await ManualPlaceResolver
+    @MainActor
+    private func performFetchTask(
+        requestRegion: MKCoordinateRegion,
+        filter: MapFilter,
+        eager: Bool,
+        cachedOverride: [Place]?,
+        fetchMetadata: String,
+        fetchLimit: Int
+    ) async {
+#if DEBUG
+        let fetchSpan = PerformanceMetrics.begin(
+            event: .mapFetch,
+            metadata: fetchMetadata
+        )
+        var resultMetadata = "cancelled-before-start"
+        defer { PerformanceMetrics.end(fetchSpan, metadata: resultMetadata) }
+#endif
+        if !eager {
+            do {
+                try Task.checkCancellation()
+                try await Task.sleep(nanoseconds: 200_000_000)
+                try Task.checkCancellation()
+#if DEBUG
+                resultMetadata = "debounce-complete"
+#endif
+            } catch {
+#if DEBUG
+                resultMetadata = "cancelled-during-debounce"
+#endif
+                return
+            }
+        }
+
+        do {
+            try Task.checkCancellation()
+            let dtos = try await PlaceAPI.getPlaces(bbox: requestRegion.bbox, limit: fetchLimit)
+            try Task.checkCancellation()
+
+            let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
+            let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
+            let cleaned = overridden
+                .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .filter(self.isTrustedPlace(_:))
+            let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
+
+            let exclusion = cleaned + self.allPlaces + self.globalDataset
+            try Task.checkCancellation()
+            let manual: [Place]
+            if cleaned.count >= fetchLimit {
+                manual = []
+#if DEBUG
+                PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped manual overlay – hit limit \(fetchLimit)")
+#endif
+            } else {
+                manual = await ManualPlaceResolver
                     .shared
                     .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
                     .filteredByCurrentGeoScope()
                     .filter(self.isTrustedPlace(_:))
-
-                try Task.checkCancellation()
-                let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
-                let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
-                self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
-                self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))
-                self.apply(filter: self.currentFilter)
-                self.isLoading = false
-                self.cache.store(sanitizedCombined, region: requestRegion)
-            } catch is CancellationError {
-                // Swallow cancellation; any inflight request will manage loading state.
-            } catch {
-                if let urlError = error as? URLError, urlError.code == .cancelled {
-                    return
-                }
-                self.errorMessage = Self.message(for: error)
-                self.presentingError = true
-                if self.places.isEmpty, let cachedPlaces = cachedOverride {
-                    self.allPlaces = cachedPlaces
-                        .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                        .filter(self.isTrustedPlace(_:))
-                    self.apply(filter: self.currentFilter)
-                }
-                self.isLoading = false
             }
+
+            try Task.checkCancellation()
+            let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
+            let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
+            self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
+            self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))
+            self.apply(filter: self.currentFilter)
+            self.isLoading = false
+            self.cache.store(sanitizedCombined, region: requestRegion)
+#if DEBUG
+            resultMetadata = "success places=\(sanitizedCombined.count)"
+#endif
+        } catch is CancellationError {
+#if DEBUG
+            resultMetadata = "cancelled"
+#endif
+        } catch {
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+#if DEBUG
+                resultMetadata = "url-cancelled"
+#endif
+                return
+            }
+            self.errorMessage = Self.message(for: error)
+            self.presentingError = true
+            if self.places.isEmpty, let cachedPlaces = cachedOverride {
+                self.allPlaces = cachedPlaces
+                    .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .filter(self.isTrustedPlace(_:))
+                self.apply(filter: self.currentFilter)
+            }
+            self.isLoading = false
+#if DEBUG
+            resultMetadata = "error \(error.localizedDescription)"
+#endif
         }
     }
 
@@ -4879,6 +5135,14 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         let longitudeDelta = min(baseLon * multiplier, maxDelta)
 
         return MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta))
+    }
+
+    private func dynamicResultLimit(for region: MKCoordinateRegion) -> Int {
+        let area = region.span.latitudeDelta * region.span.longitudeDelta
+        if area < 0.003 { return PlaceAPI.mapFetchDefaultLimit }
+        if area < 0.01 { return 200 }
+        if area < 0.025 { return 170 }
+        return 140
     }
 
     private func schedulePersistGlobalDataset() {
@@ -5160,12 +5424,35 @@ private static let nonHalalChainBlocklist: Set<String> = {
 
     func ensureGlobalDataset(forceRefresh: Bool = false) {
         if !forceRefresh {
-            guard globalDataset.isEmpty, globalDatasetTask == nil else { return }
+            guard globalDataset.isEmpty, globalDatasetTask == nil else {
+#if DEBUG
+                PerformanceMetrics.point(
+                    event: .globalDatasetFetch,
+                    metadata: "Skipped ensureGlobalDataset – cached=\(!globalDataset.isEmpty) taskRunning=\(globalDatasetTask != nil)"
+                )
+#endif
+                return
+            }
         } else {
-            guard globalDatasetTask == nil else { return }
+#if DEBUG
+            PerformanceMetrics.point(event: .globalDatasetFetch, metadata: "Force refresh requested")
+#endif
+            guard globalDatasetTask == nil else {
+#if DEBUG
+                PerformanceMetrics.point(event: .globalDatasetFetch, metadata: "Skipped force refresh – task already running")
+#endif
+                return
+            }
         }
 
         let task = Task(priority: .utility) { [weak self] in
+#if DEBUG
+            let span = PerformanceMetrics.begin(
+                event: .globalDatasetFetch,
+                metadata: "fetchAllPlaces force=\(forceRefresh)"
+            )
+            var resultMetadata = "cancelled-before-start"
+#endif
             do {
                 let dtos = try await PlaceAPI.fetchAllPlaces(limit: 3500)
                 let places = dtos
@@ -5184,9 +5471,13 @@ private static let nonHalalChainBlocklist: Set<String> = {
                     self.globalDatasetTask = nil
                     self.updateSearchActivityIndicator()
                 }
+#if DEBUG
+                resultMetadata = "success places=\(places.count)"
+#endif
             } catch is CancellationError {
 #if DEBUG
-                print("[MapScreenViewModel] Global dataset fetch cancelled")
+                resultMetadata = "cancelled"
+                PerformanceMetrics.point(event: .globalDatasetFetch, metadata: "Global dataset fetch cancelled")
 #endif
                 await MainActor.run {
                     if let self {
@@ -5196,7 +5487,11 @@ private static let nonHalalChainBlocklist: Set<String> = {
                 }
             } catch {
 #if DEBUG
-                print("[MapScreenViewModel] Failed to load global dataset:", error)
+                resultMetadata = "error \(error.localizedDescription)"
+                PerformanceMetrics.point(
+                    event: .globalDatasetFetch,
+                    metadata: "Failed to load global dataset – \(error.localizedDescription)"
+                )
 #endif
                 await MainActor.run {
                     if let self {
@@ -5205,6 +5500,9 @@ private static let nonHalalChainBlocklist: Set<String> = {
                     }
                 }
             }
+#if DEBUG
+            PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
         }
 
         globalDatasetTask = task
@@ -5357,7 +5655,9 @@ private struct PlaceCache {
             return nil
         }
 
-        return (entry.places, age < ttl)
+        let refreshedEntry = Entry(places: entry.places, timestamp: Date())
+        storage[key] = refreshedEntry
+        return (refreshedEntry.places, age < ttl)
     }
 }
 
@@ -5394,6 +5694,43 @@ private struct RegionCacheKey: Hashable {
 
     private static func bucket(for value: Double) -> Int {
         Int((value * 100).rounded())
+    }
+}
+
+private struct MapTabContainer: View {
+    @Binding var mapRegion: MKCoordinateRegion
+    @Binding var selectedPlace: Place?
+    @Binding var selectedApplePlace: ApplePlaceSelection?
+    let places: [Place]
+    let appleMapItems: [MKMapItem]
+    let isLoading: Bool
+    let shouldShowLoadingIndicator: Bool
+    let onRegionChange: (MKCoordinateRegion) -> Void
+    let onPlaceSelected: (Place) -> Void
+    let onAppleItemSelected: (MKMapItem) -> Void
+    let onMapTap: () -> Void
+
+    var body: some View {
+        ZStack {
+            HalalMapView(
+                region: $mapRegion,
+                selectedPlace: $selectedPlace,
+                places: places,
+                appleMapItems: appleMapItems,
+                onRegionChange: onRegionChange,
+                onPlaceSelected: onPlaceSelected,
+                onAppleItemSelected: onAppleItemSelected,
+                onMapTap: onMapTap
+            )
+            .ignoresSafeArea()
+
+            if shouldShowLoadingIndicator {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .padding(16)
+                    .background(.thinMaterial, in: Capsule())
+            }
+        }
     }
 }
 
