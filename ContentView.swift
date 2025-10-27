@@ -812,36 +812,18 @@ struct ContentView: View {
 #endif
             return ensureUniqueIDs(cached)
         }
-        let snapshot = viewModel.communityTopRatedSnapshot()
-        guard snapshot.hasTrustedData else {
-            viewModel.ensureGlobalDataset(forceRefresh: true)
-            return []
-        }
 #if DEBUG
         if bottomTab == .topRated,
            topRatedSort == .community {
-            communityInstrumentation.startLoadIfNeeded(
-                metadata: "Compute -> region=\(region.rawValue)"
-            )
+            communityInstrumentation.logCacheHit(region: region, count: 0)
         }
-        let computeSpan = PerformanceMetrics.begin(
-            event: .communityFetch,
-            metadata: "Community compute region=\(region.rawValue)"
-        )
-#endif
-        communityPrecomputeTask?.cancel()
-        communityPrecomputeTask = nil
-        communityComputationGeneration &+= 1
-        let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
-#if DEBUG
-        PerformanceMetrics.end(
-            computeSpan,
-            metadata: "Computed \(result.regionResults.count) region buckets"
-        )
-#endif
-        applyCommunityComputation(result)
-        if let cached = communityCache[region] {
-            return ensureUniqueIDs(cached)
+        #endif
+        if communityPrecomputeTask == nil {
+            let snapshot = viewModel.communityTopRatedSnapshot()
+            if !snapshot.hasTrustedData {
+                viewModel.ensureGlobalDataset(forceRefresh: true)
+            }
+            scheduleCommunityPrecomputationIfNeeded(force: true)
         }
         return []
     }
@@ -877,32 +859,91 @@ struct ContentView: View {
         communityPrecomputeTask?.cancel()
         communityPrecomputeTask = nil
         let snapshot = viewModel.communityTopRatedSnapshot()
-        guard snapshot.hasTrustedData else {
-            viewModel.ensureGlobalDataset(forceRefresh: true)
-            return
-        }
         communityComputationGeneration &+= 1
         let generation = communityComputationGeneration
 
-        communityPrecomputeTask = Task.detached(priority: .utility) {
 #if DEBUG
-            let metadata = force ? "Precompute(force) gen=\(generation)" : "Precompute gen=\(generation)"
+        if bottomTab == .topRated,
+           topRatedSort == .community {
+            let metadata = force ? "Server fetch(force)" : "Server fetch"
+            communityInstrumentation.startLoadIfNeeded(metadata: metadata)
+        }
+#endif
+
+        communityPrecomputeTask = Task(priority: .utility) {
+#if DEBUG
+            let metadata = force ? "Fetch(force) gen=\(generation)" : "Fetch gen=\(generation)"
             let computeSpan = PerformanceMetrics.begin(
                 event: .communityFetch,
                 metadata: metadata
             )
 #endif
-            let result = CommunityTopRatedEngine.compute(snapshot: snapshot)
+            do {
+                let serverResults = try await MapScreenViewModel.fetchCommunityTopRated(limitPerRegion: 25)
+                try Task.checkCancellation()
 #if DEBUG
-            PerformanceMetrics.end(
-                computeSpan,
-                metadata: "Computed \(result.regionResults.count) region buckets"
-            )
+                PerformanceMetrics.end(
+                    computeSpan,
+                    metadata: "Server community results regions=\(serverResults.count)"
+                )
 #endif
-            await MainActor.run {
-                guard communityComputationGeneration == generation else { return }
-                applyCommunityComputation(result)
-                communityPrecomputeTask = nil
+                let mergedPlaces = serverResults.flatMap { $0.value }
+                let updatedSnapshot = await MainActor.run { () -> CommunityTopRatedSnapshot? in
+                    guard communityComputationGeneration == generation else { return nil }
+                    if !mergedPlaces.isEmpty {
+                        viewModel.mergeIntoGlobalDataset(mergedPlaces, persist: false)
+                    }
+                    return viewModel.communityTopRatedSnapshot()
+                }
+                guard let updatedSnapshot else { return }
+                let curated = CommunityTopRatedEngine.compute(snapshot: updatedSnapshot)
+                await MainActor.run {
+                    guard communityComputationGeneration == generation else { return }
+                    applyCommunityComputation(curated)
+                    communityPrecomputeTask = nil
+                }
+            } catch is CancellationError {
+#if DEBUG
+                PerformanceMetrics.end(computeSpan, metadata: "cancelled")
+#endif
+                if communityComputationGeneration == generation {
+                    communityPrecomputeTask = nil
+                }
+            } catch {
+#if DEBUG
+                PerformanceMetrics.point(
+                    event: .communityFetch,
+                    metadata: "Server community fetch failed – \(error.localizedDescription)"
+                )
+#endif
+                if Task.isCancelled {
+                    communityPrecomputeTask = nil
+                    return
+                }
+                if snapshot.hasTrustedData {
+                    let fallback = CommunityTopRatedEngine.compute(snapshot: snapshot)
+#if DEBUG
+                    PerformanceMetrics.point(
+                        event: .communityFetch,
+                        metadata: "Fallback local compute regions=\(fallback.regionResults.count)"
+                    )
+                    PerformanceMetrics.end(
+                        computeSpan,
+                        metadata: "fallback-success regions=\(fallback.regionResults.count)"
+                    )
+#endif
+                    guard communityComputationGeneration == generation else { return }
+                    applyCommunityComputation(fallback)
+                    communityPrecomputeTask = nil
+                } else {
+#if DEBUG
+                    PerformanceMetrics.end(computeSpan, metadata: "fallback-unavailable")
+#endif
+                    if communityComputationGeneration == generation {
+                        communityPrecomputeTask = nil
+                        viewModel.ensureGlobalDataset(forceRefresh: true)
+                    }
+                }
             }
         }
     }
@@ -911,6 +952,7 @@ struct ContentView: View {
         for (region, list) in result.regionResults {
             communityCache[region] = list
         }
+        viewModel.persistCommunityTopRated(result.regionResults)
 #if DEBUG
         communityInstrumentation.markCachesPopulated(regionBucketCount: result.regionResults.count)
         let currentRegionCount = communityCache[topRatedRegion]?.count ?? communityCache[.all]?.count ?? 0
@@ -1093,6 +1135,32 @@ struct ContentView: View {
             hasCenteredOnUser = true
             appleHalalSearch.search(in: effective)
             refreshVisiblePlaces()
+        }
+        .onReceive(viewModel.$persistedCommunityTopRated) { snapshot in
+            guard !snapshot.isEmpty else { return }
+            var merged = communityCache
+            var didUpdate = false
+            if merged.isEmpty {
+                merged = snapshot
+                didUpdate = true
+            } else {
+                for (region, list) in snapshot where !list.isEmpty {
+                    if let existing = merged[region], !existing.isEmpty {
+                        continue
+                    }
+                    merged[region] = list
+                    didUpdate = true
+                }
+            }
+            guard didUpdate else { return }
+            communityCache = merged
+#if DEBUG
+            if bottomTab == .topRated, topRatedSort == .community {
+                communityInstrumentation.resetFirstRender()
+                let count = merged[topRatedRegion]?.count ?? merged[.all]?.count ?? 0
+                communityInstrumentation.markWarmCache(region: topRatedRegion, count: count)
+            }
+#endif
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
             guard let info = notification.userInfo,
@@ -4731,6 +4799,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     @Published private(set) var isSearching = false
     @Published private(set) var filteredPlacesVersion: Int = 0
     @Published private(set) var searchResultsVersion: Int = 0
+    @Published fileprivate private(set) var persistedCommunityTopRated: [TopRatedRegion: [Place]] = [:]
 
     var subtitleMessage: String? {
         guard !isLoading else { return "We're looking for new halal spots." }
@@ -4761,10 +4830,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private let diskCache = PlaceDiskCache()
     private var didAttemptDiskBootstrap = false
     private var persistTask: Task<Void, Never>?
-    private var lastPersistedFingerprint: Int?
-    private var pendingPersistFingerprint: Int?
+    private var lastPersistedSnapshotSignature: Int?
+    private var pendingPersistSnapshotSignature: Int?
     private let persistDebounceNanoseconds: UInt64 = 1_500_000_000
     private let diskSnapshotStalenessInterval: TimeInterval = 60 * 60 * 6
+    private var globalDatasetETag: String?
 
     func place(with id: UUID) -> Place? {
         if let match = places.first(where: { $0.id == id }) { return match }
@@ -5095,12 +5165,18 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                     self.ensureGlobalDataset(forceRefresh: true)
                     return
                 }
+                self.globalDatasetETag = snapshot.globalDatasetETag
+                self.restoreCommunitySnapshot(from: snapshot.communityTopRated)
                 self.mergeIntoGlobalDataset(filtered, persist: false)
                 self.allPlaces = self.globalDataset
                 self.apply(filter: filter)
                 self.cache.store(self.allPlaces, region: seedRegion)
-                self.lastPersistedFingerprint = self.persistenceFingerprint(for: self.globalDataset)
-                await self.diskCache.saveSnapshot(places: self.globalDataset)
+                self.pendingPersistSnapshotSignature = nil
+                self.lastPersistedSnapshotSignature = self.persistenceSnapshotSignature()
+
+                if snapshot.communityTopRated == nil, !self.persistedCommunityTopRated.isEmpty {
+                    await self.persistSnapshotImmediately()
+                }
 
                 let isStale = Date().timeIntervalSince(snapshot.savedAt) > self.diskSnapshotStalenessInterval
                 if isStale {
@@ -5147,18 +5223,18 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     private func schedulePersistGlobalDataset() {
         guard !globalDataset.isEmpty else { return }
-        let fingerprint = persistenceFingerprint(for: globalDataset)
-        if fingerprint == lastPersistedFingerprint || fingerprint == pendingPersistFingerprint {
+        let snapshotSignature = persistenceSnapshotSignature()
+        if snapshotSignature == lastPersistedSnapshotSignature || snapshotSignature == pendingPersistSnapshotSignature {
             return
         }
 
-        pendingPersistFingerprint = fingerprint
+        pendingPersistSnapshotSignature = snapshotSignature
         persistTask?.cancel()
         persistTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                if self.pendingPersistFingerprint == fingerprint {
-                    self.pendingPersistFingerprint = nil
+                if self.pendingPersistSnapshotSignature == snapshotSignature {
+                    self.pendingPersistSnapshotSignature = nil
                 }
             }
             do {
@@ -5168,8 +5244,14 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             }
             let snapshot = self.globalDataset
             guard !snapshot.isEmpty else { return }
-            await self.diskCache.saveSnapshot(places: snapshot)
-            self.lastPersistedFingerprint = fingerprint
+            let communityPayload = self.serializedCommunityTopRated()
+            let etag = self.globalDatasetETag
+            await self.diskCache.saveSnapshot(
+                places: snapshot,
+                communityTopRated: communityPayload,
+                eTag: etag
+            )
+            self.lastPersistedSnapshotSignature = snapshotSignature
         }
     }
 
@@ -5187,6 +5269,83 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             hasher.combine(place.source ?? "")
         }
         return hasher.finalize()
+    }
+
+    private func persistenceSnapshotSignature() -> Int {
+        var hasher = Hasher()
+        hasher.combine(persistenceFingerprint(for: globalDataset))
+        hasher.combine(globalDatasetETag ?? "")
+        let sortedRegions = persistedCommunityTopRated.keys.sorted { $0.rawValue < $1.rawValue }
+        for region in sortedRegions {
+            hasher.combine(region.rawValue)
+            let list = persistedCommunityTopRated[region] ?? []
+            hasher.combine(list.count)
+            for place in list.prefix(20) {
+                hasher.combine(place.id)
+                hasher.combine(place.rating ?? -1)
+                hasher.combine(place.ratingCount ?? -1)
+            }
+        }
+        return hasher.finalize()
+    }
+
+    private func serializedCommunityTopRated() -> [String: [Place]]? {
+        guard !persistedCommunityTopRated.isEmpty else { return nil }
+        var payload: [String: [Place]] = [:]
+        for (region, list) in persistedCommunityTopRated {
+            guard !list.isEmpty else { continue }
+            payload[region.rawValue] = Array(list.prefix(20))
+        }
+        return payload.isEmpty ? nil : payload
+    }
+
+    private func restoreCommunitySnapshot(from raw: [String: [Place]]?) {
+        guard let raw else {
+            persistedCommunityTopRated = [:]
+            return
+        }
+        var restored: [TopRatedRegion: [Place]] = [:]
+        for (key, list) in raw {
+            guard let region = TopRatedRegion(rawValue: key) else { continue }
+            let cleaned = list
+                .filteredByCurrentGeoScope()
+                .filter(isTrustedPlace)
+            guard !cleaned.isEmpty else { continue }
+            let deduped = PlaceOverrides.deduplicate(cleaned)
+            let sorted = PlaceOverrides.sorted(deduped)
+            guard !sorted.isEmpty else { continue }
+            restored[region] = Array(sorted.prefix(20))
+        }
+        persistedCommunityTopRated = restored
+    }
+
+    private func normalizedCommunityResults(_ results: [TopRatedRegion: [Place]]) -> [TopRatedRegion: [Place]] {
+        var normalized: [TopRatedRegion: [Place]] = [:]
+        for (region, list) in results {
+            guard !list.isEmpty else { continue }
+            let cleaned = list
+                .filteredByCurrentGeoScope()
+                .filter(isTrustedPlace)
+            guard !cleaned.isEmpty else { continue }
+            let deduped = PlaceOverrides.deduplicate(cleaned)
+            let sorted = PlaceOverrides.sorted(deduped)
+            guard !sorted.isEmpty else { continue }
+            normalized[region] = Array(sorted.prefix(20))
+        }
+        return normalized
+    }
+
+    private func persistSnapshotImmediately() async {
+        guard !globalDataset.isEmpty else { return }
+        let payload = serializedCommunityTopRated()
+        let etag = globalDatasetETag
+        await diskCache.saveSnapshot(
+            places: globalDataset,
+            communityTopRated: payload,
+            eTag: etag
+        )
+        lastPersistedSnapshotSignature = persistenceSnapshotSignature()
+        pendingPersistSnapshotSignature = nil
     }
 
     private func apply(filter: MapFilter) {
@@ -5210,6 +5369,68 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             yelpFallback: topRatedPlaces(limit: 80, minimumReviews: 5),
             hasTrustedData: hasTrustedCommunityDataset()
         )
+    }
+
+    fileprivate nonisolated static func fetchCommunityTopRated(limitPerRegion: Int = 20) async throws -> [TopRatedRegion: [Place]] {
+        let rows = try await PlaceAPI.fetchCommunityTopRated(limitPerRegion: limitPerRegion)
+        try Task.checkCancellation()
+
+        var buckets: [TopRatedRegion: [(rank: Int, place: Place)]] = [:]
+        buckets.reserveCapacity(rows.count)
+
+        for record in rows {
+            guard let region = TopRatedRegion(rawValue: record.region) else { continue }
+            let dto = record.toPlaceDTO()
+            guard let place = Place(dto: dto) else { continue }
+            guard trustedSourceFilter(place) else { continue }
+            buckets[region, default: []].append((rank: record.regionRank, place: place))
+        }
+
+        var result: [TopRatedRegion: [Place]] = [:]
+        for (region, entries) in buckets {
+            let ordered = entries.sorted { lhs, rhs in
+                if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
+                return lhs.place.name < rhs.place.name
+            }.map { $0.place }
+            let filtered = ordered
+                .filteredByCurrentGeoScope()
+                .filter(trustedSourceFilter)
+            var deduplicated: [Place] = []
+            deduplicated.reserveCapacity(filtered.count)
+            var seen = Set<UUID>()
+            for place in filtered where seen.insert(place.id).inserted {
+                deduplicated.append(place)
+            }
+            guard !deduplicated.isEmpty else { continue }
+            let regionLimit = region == .all ? max(limitPerRegion * 3, limitPerRegion) : limitPerRegion
+            result[region] = Array(deduplicated.prefix(regionLimit))
+        }
+
+        if result[.all] == nil {
+            let combined = CommunityTopRatedConfig.regions
+                .flatMap { result[$0] ?? [] }
+            if !combined.isEmpty {
+                var seen = Set<UUID>()
+                var deduplicated: [Place] = []
+                deduplicated.reserveCapacity(combined.count)
+                for place in combined where seen.insert(place.id).inserted {
+                    deduplicated.append(place)
+                }
+                if !deduplicated.isEmpty {
+                    let fallbackLimit = max(limitPerRegion * 3, limitPerRegion)
+                    result[.all] = Array(deduplicated.prefix(fallbackLimit))
+                }
+            }
+        }
+
+        return result
+    }
+
+    fileprivate func persistCommunityTopRated(_ results: [TopRatedRegion: [Place]]) {
+        let normalized = normalizedCommunityResults(results)
+        guard normalized != persistedCommunityTopRated else { return }
+        persistedCommunityTopRated = normalized
+        schedulePersistGlobalDataset()
     }
 
     func hasTrustedCommunityDataset() -> Bool {
@@ -5445,6 +5666,8 @@ private static let nonHalalChainBlocklist: Set<String> = {
             }
         }
 
+        let cachedETag = globalDatasetETag
+
         let task = Task(priority: .utility) { [weak self] in
 #if DEBUG
             let span = PerformanceMetrics.begin(
@@ -5454,8 +5677,31 @@ private static let nonHalalChainBlocklist: Set<String> = {
             var resultMetadata = "cancelled-before-start"
 #endif
             do {
-                let dtos = try await PlaceAPI.fetchAllPlaces(limit: 3500)
-                let places = dtos
+                let response = try await PlaceAPI.fetchAllPlaces(
+                    limit: 3500,
+                    pageSize: 800,
+                    ifNoneMatch: cachedETag
+                )
+
+                if response.notModified {
+#if DEBUG
+                    resultMetadata = "not-modified"
+                    PerformanceMetrics.point(
+                        event: .globalDatasetFetch,
+                        metadata: "Supabase returned 304 for global dataset"
+                    )
+                    PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+                    await MainActor.run {
+                        guard let self else { return }
+                        self.globalDatasetETag = response.eTag ?? cachedETag
+                        self.globalDatasetTask = nil
+                        self.updateSearchActivityIndicator()
+                    }
+                    return
+                }
+
+                let places = response.places
                     .compactMap(Place.init(dto:))
                     .filteredByCurrentGeoScope()
                     .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -5463,6 +5709,7 @@ private static let nonHalalChainBlocklist: Set<String> = {
                 try Task.checkCancellation()
                 await MainActor.run {
                     guard let self else { return }
+                    self.globalDatasetETag = response.eTag
                     self.mergeIntoGlobalDataset(places, replacingSources: Set(["seed"]))
                     if let query = self.lastSearchQuery, !query.isEmpty {
                         let seeded = self.combinedMatches(for: query).filteredByCurrentGeoScope()

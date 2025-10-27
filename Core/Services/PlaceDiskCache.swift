@@ -5,6 +5,8 @@ actor PlaceDiskCache {
         let version: Int
         let savedAt: Date
         let places: [Place]
+        let communityTopRated: [String: [Place]]?
+        let globalDatasetETag: String?
     }
 
     private enum Constants {
@@ -47,13 +49,24 @@ actor PlaceDiskCache {
         }
     }
 
-    func saveSnapshot(places: [Place]) {
+    func saveSnapshot(
+        places: [Place],
+        communityTopRated: [String: [Place]]? = nil,
+        eTag: String? = nil
+    ) {
         guard !places.isEmpty else {
             try? fileManager.removeItem(at: fileURL)
             return
         }
 
-        let snapshot = Snapshot(version: Constants.version, savedAt: Date(), places: places)
+        let trimmedCommunity = communityTopRated?.mapValues { Array($0.prefix(20)) }
+        let snapshot = Snapshot(
+            version: Constants.version,
+            savedAt: Date(),
+            places: places,
+            communityTopRated: trimmedCommunity,
+            globalDatasetETag: eTag
+        )
         do {
             let data = try encoder.encode(snapshot)
             try data.write(to: fileURL, options: [.atomic])

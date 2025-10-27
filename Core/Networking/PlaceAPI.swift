@@ -32,6 +32,12 @@ extension BBox {
 }
 
 enum PlaceAPI {
+    struct FetchAllPlacesResponse {
+        let places: [PlaceDTO]
+        let eTag: String?
+        let notModified: Bool
+    }
+
     private static let supabaseHardLimit = 800
     static let mapFetchDefaultLimit = 220
     private static let subdivisionDepthLimit = 3
@@ -127,7 +133,11 @@ enum PlaceAPI {
         throw PlaceAPIError.invalidResponse
     }
 
-    static func fetchAllPlaces(limit: Int = 3000, pageSize: Int = 800) async throws -> [PlaceDTO] {
+    static func fetchAllPlaces(
+        limit: Int = 3000,
+        pageSize: Int = 800,
+        ifNoneMatch: String? = nil
+    ) async throws -> FetchAllPlacesResponse {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
         let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,confidence,source,apple_place_id,note,source_raw"
@@ -142,18 +152,15 @@ enum PlaceAPI {
         var collected: [PlaceDTO] = []
         var start = 0
         let decoder = JSONDecoder()
+        var responseETag: String?
+        var receivedNotModified = false
 #if DEBUG
         let span = PerformanceMetrics.begin(
             event: .apiFetchAllPlaces,
             metadata: "desired=\(desired) pageSize=\(size)"
         )
         var pageCount = 0
-        defer {
-            PerformanceMetrics.end(
-                span,
-                metadata: "pages=\(pageCount) total=\(collected.count)"
-            )
-        }
+        var resultMetadata = "cancelled-before-start"
 #endif
 
         while start < desired {
@@ -162,6 +169,10 @@ enum PlaceAPI {
             request.setValue("items", forHTTPHeaderField: "Range-Unit")
             request.setValue("\(start)-\(end)", forHTTPHeaderField: "Range")
             request.setValue("count=exact", forHTTPHeaderField: "Prefer")
+            if start == 0, let ifNoneMatch {
+                request.setValue(ifNoneMatch, forHTTPHeaderField: "If-None-Match")
+                request.cachePolicy = .reloadRevalidatingCacheData
+            }
 
             let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -173,6 +184,17 @@ enum PlaceAPI {
                 )
 #endif
                 throw PlaceAPIError.invalidResponse
+            }
+
+            if httpResponse.statusCode == 304 {
+#if DEBUG
+                PerformanceMetrics.point(
+                    event: .apiFetchAllPlaces,
+                    metadata: "HTTP 304 Not Modified for range \(start)-\(end)"
+                )
+#endif
+                receivedNotModified = true
+                break
             }
 
             guard (200..<300).contains(httpResponse.statusCode) || httpResponse.statusCode == 206 else {
@@ -194,11 +216,78 @@ enum PlaceAPI {
             )
 #endif
 
+            if responseETag == nil,
+               let header = httpResponse.value(forHTTPHeaderField: "ETag") ?? httpResponse.value(forHTTPHeaderField: "Etag") {
+                responseETag = header
+            }
+
             if page.count < size { break }
             start += size
         }
 
-        return collected
+        if receivedNotModified {
+#if DEBUG
+            resultMetadata = "not-modified"
+            PerformanceMetrics.point(
+                event: .apiFetchAllPlaces,
+                metadata: "Supabase returned 304 – using cached dataset"
+            )
+            PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+            return FetchAllPlacesResponse(places: [], eTag: ifNoneMatch, notModified: true)
+        }
+
+#if DEBUG
+        resultMetadata = "pages=\(pageCount) total=\(collected.count)"
+        PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+
+        return FetchAllPlacesResponse(places: collected, eTag: responseETag, notModified: false)
+    }
+
+    static func fetchCommunityTopRated(limitPerRegion: Int = 20) async throws -> [CommunityTopRatedRecord] {
+        let params = GetCommunityTopRatedParams(limitPerRegion: limitPerRegion)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let payload = try encoder.encode(params)
+
+#if DEBUG
+        let span = PerformanceMetrics.begin(
+            event: .apiCommunityTopRated,
+            metadata: "limitPerRegion=\(limitPerRegion)"
+        )
+        var resultMetadata = "cancelled"
+#endif
+
+        let request = try makeRequest(body: payload, endpoint: "rest/v1/rpc/get_community_top_rated")
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+#if DEBUG
+            resultMetadata = "invalid-response"
+            PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+#if DEBUG
+            let bodyPreview = String(data: data, encoding: .utf8) ?? "<unreadable>"
+            resultMetadata = "HTTP \(httpResponse.statusCode) body=\(bodyPreview)"
+            PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+            throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+        }
+
+        let decoder = JSONDecoder()
+        let rows = try decoder.decode([CommunityTopRatedRecord].self, from: data)
+
+#if DEBUG
+        resultMetadata = "rows=\(rows.count)"
+        PerformanceMetrics.end(span, metadata: resultMetadata)
+#endif
+
+        return rows
     }
 
     private static func collectPlaces(
@@ -494,6 +583,10 @@ private struct SaveApplePlaceIDParams: Encodable, Sendable {
 private struct SaveApplePlaceIDResponse: Decodable {
     let id: UUID
     let apple_place_id: String
+}
+
+private struct GetCommunityTopRatedParams: Encodable, Sendable {
+    let limitPerRegion: Int
 }
 
 enum PlaceAPIError: Error {

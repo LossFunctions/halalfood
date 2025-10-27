@@ -10,6 +10,7 @@ enum PerformanceEvent: String {
     case globalDatasetFetch = "GlobalDatasetFetch"
     case apiGetPlaces = "APIGetPlaces"
     case apiFetchAllPlaces = "APIFetchAllPlaces"
+    case apiCommunityTopRated = "APICommunityTopRated"
     case imageLoad = "ImageLoad"
     case metricKit = "MetricKit"
 
@@ -24,6 +25,7 @@ enum PerformanceEvent: String {
         case .globalDatasetFetch: return "GlobalDatasetFetch"
         case .apiGetPlaces: return "APIGetPlaces"
         case .apiFetchAllPlaces: return "APIFetchAllPlaces"
+        case .apiCommunityTopRated: return "APICommunityTopRated"
         case .imageLoad: return "ImageLoad"
         case .metricKit: return "MetricKit"
         }

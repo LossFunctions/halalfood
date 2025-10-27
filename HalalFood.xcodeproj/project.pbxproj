@@ -31,6 +31,7 @@
 		B5A1B2C52E8D1234008D2917 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A1B2C42E8D1234008D2917 /* FavoritesStore.swift */; };
         C2D0F1A52F9AB12300AAA111 /* YelpRatingRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */; };
         D1E2F3B52F9AB12300AAA223 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A42F9AB12300AAA222 /* Haptics.swift */; };
+        B58C4C1B2F2A7B4A00D4F1A2 /* CommunityTopRatedRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58C4C1A2F2A7B4A00D4F1A2 /* CommunityTopRatedRecord.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +79,7 @@
         E1A2B3C42E8C000100000001 /* PlacePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
         D1E2F3A42F9AB12300AAA222 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceInstrumentation.swift; sourceTree = "<group>"; };
+        B58C4C1A2F2A7B4A00D4F1A2 /* CommunityTopRatedRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityTopRatedRecord.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -182,6 +184,7 @@
 				B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */,
 				B505BA152E7CE233008D2917 /* Place.swift */,
 				B505BA162E7CE233008D2917 /* PlaceDTO.swift */,
+                B58C4C1A2F2A7B4A00D4F1A2 /* CommunityTopRatedRecord.swift */,
 				E1A2B3C42E8C000100000001 /* PlacePhoto.swift */,
 			);
 			path = Models;
@@ -401,6 +404,7 @@
 				B5A1B2C52E8D1234008D2917 /* FavoritesStore.swift in Sources */,
 				C2D0F1A52F9AB12300AAA111 /* YelpRatingRow.swift in Sources */,
                 D1E2F3B52F9AB12300AAA223 /* Haptics.swift in Sources */,
+                B58C4C1B2F2A7B4A00D4F1A2 /* CommunityTopRatedRecord.swift in Sources */,
 				E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
