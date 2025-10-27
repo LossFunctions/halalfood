@@ -1,0 +1,27 @@
+{
+  "total": 1,
+  "generated_at": "2025-10-27T01:08:04.691Z",
+  "items": [
+    {
+      "id": "VjQy5Tu8fz1sHM_WCr31Rw",
+      "name": "Moho Mexican Grill",
+      "alias": "moho-mexican-grill-queens-4",
+      "url": "https://www.yelp.com/biz/moho-mexican-grill-queens-4?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": 4.1,
+      "review_count": 14,
+      "is_closed": false,
+      "phone": "+17187099695",
+      "categories": [
+        "mexican"
+      ],
+      "latitude": 40.77460247736163,
+      "longitude": -73.90879822711045,
+      "address": "3506 Ditmars Blvd, Queens, NY 11105",
+      "city": "Queens",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11105",
+      "match": "manual"
+    }
+  ]
+}
