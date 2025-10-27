@@ -26425,8 +26425,7 @@
       "is_closed": false,
       "phone": "+15165130438",
       "categories": [
-        "gelato",
-        "brazilian",
+        "pakistani",
         "halal"
       ],
       "latitude": 40.766311660082266,
@@ -43929,29 +43928,6 @@
       "country": "US",
       "zip_code": "11203",
       "match": "manual"
-    },
-    {
-      "id": "LZmielSPY8clleky7TpkLQ",
-      "name": "Sma.sha",
-      "alias": "sma-sha-long-island-city-2",
-      "url": "https://www.yelp.com/biz/sma-sha-long-island-city-2",
-      "rating": 5,
-      "review_count": 1,
-      "is_closed": false,
-      "phone": null,
-      "categories": [
-        "burgers",
-        "halal"
-      ],
-      "latitude": 40.750458,
-      "longitude": -73.948239,
-      "address": "43-40 12th St, Long Island City, NY 11101",
-      "city": "Long Island City",
-      "state": "NY",
-      "country": "US",
-      "zip_code": "11101",
-      "match": "manual",
-      "note": "Fully halal; signage confirmed via in-store photo on 2024-09-13."
     },
     {
       "id": "81wq_JhtZfRFNmL63afX3A",

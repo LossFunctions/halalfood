@@ -81,40 +81,43 @@ private enum CommunityTopRatedConfig {
     static let curatedNames: [TopRatedRegion: [String]] = [
         .manhattan: [
             "Top Thai",
-            "Balade Your Way",
             "Adel's",
-            "Au' Zatar East Village",
-            "Nishaan"
+            "Au Za'atar - Midtown East",
+            "Nishaan",
+            "Butter Smashburgers"
         ],
         .queens: [
+            "Little Flower",
+            "Darjeeling Kitchen & Cafe",
             "Zyara Restaurant",
-            "Nur Thai",
             "Mahmoud's Corner",
-            "Little Flower Cafe",
-            "Darjeeling Kitchen & Cafe"
+            "Nur Thai"
         ],
         .brooklyn: [
             "BK Jani",
+            "Milk & Honey Cafe",
             "Namkeen",
-            "Monkey King",
-            "Zatar",
-            "Affy's"
+            "Ayat",
+            "Affy's Premium Grill"
         ],
         .bronx: [
             "Waleed's Kitchen & Hot Wings",
-            "Blazin Chicken & Gyro",
             "Fry Chick",
             "Sooq NYC",
-            "Halal Indian Grill"
+            "Halal Indian Grill",
+            "Neerob Restaurant & Halal Chinese"
         ],
         .longIsland: [
-            "Zaoq",
-            "Choopan",
+            "Zaoq 100",
+            "Rooh's BBQ Smoked Meat & Steakhouse",
             "Guac Time",
             "Halal Express Kabab House",
             "While in Kathmandu"
         ],
-        .statenIsland: []
+        .statenIsland: [
+            "Kabab Time",
+            "The Buttery"
+        ]
     ]
 
 }
@@ -3544,7 +3547,15 @@ private struct NewSpotsScreen: View {
         let day: String
         @Environment(\.colorScheme) private var colorScheme
 
-        var body: some View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("OPENED")
+                .font(.system(size: 8, weight: .heavy, design: .default))
+                .fontWidth(.condensed)
+                .foregroundStyle(Color.secondary)
+                .frame(width: 30)
+                .accessibilityHidden(true)
+
             VStack(spacing: 0) {
                 Text(month.uppercased())
                     .font(.system(size: 9, weight: .bold))
@@ -3561,13 +3572,14 @@ private struct NewSpotsScreen: View {
                     .padding(.bottom, 4)
                     .background(Color(UIColor.secondarySystemBackground))
             }
-            .frame(width: 30, height: 30)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .stroke(borderColor, lineWidth: 0.5)
             )
         }
+        .frame(width: 30)
+    }
 
         private var borderColor: Color {
             colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.08)

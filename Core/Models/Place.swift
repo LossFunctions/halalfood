@@ -302,6 +302,29 @@ enum PlaceOverrides {
         for place in prioritized {
             let placeLocation = location(for: place.coordinate)
 
+            // Drop lower-priority manual entries when a higher-priority source
+            // (e.g., Yelp/Supabase or Apple) already exists nearby with a compatible name.
+            if normalizedSource(place.source) == "manual" {
+                var shouldSkipManual = false
+                let manualDistanceThreshold: CLLocationDistance = 300
+                for accepted in result {
+                    guard normalizedSource(accepted.source) != "manual" else { continue }
+                    if namesCompatible(place.name, accepted.name) {
+                        if let pl = placeLocation, let accLoc = location(for: accepted.coordinate) {
+                            if pl.distance(from: accLoc) <= manualDistanceThreshold {
+                                shouldSkipManual = true
+                                break
+                            }
+                        } else {
+                            // If we cannot compute distance, still skip based on name compatibility
+                            shouldSkipManual = true
+                            break
+                        }
+                    }
+                }
+                if shouldSkipManual { continue }
+            }
+
             if dropOutdatedOSM {
                 let placeTokens = significantTokens(for: place.name)
                 if shouldDrop(osmPlace: place,
@@ -476,6 +499,17 @@ enum PlaceOverrides {
     }
 
     private static func duplicatePriorityPredicate(_ lhs: Place, _ rhs: Place) -> Bool {
+        // Prefer partial halal over fully halal when two records are effectively
+        // the same place (close + name-compatible), to resolve conflicts conservatively.
+        if namesCompatible(lhs.name, rhs.name) {
+            let lhsLoc = CLLocation(latitude: lhs.coordinate.latitude, longitude: lhs.coordinate.longitude)
+            let rhsLoc = CLLocation(latitude: rhs.coordinate.latitude, longitude: rhs.coordinate.longitude)
+            let distance = lhsLoc.distance(from: rhsLoc)
+            if distance <= duplicateDistanceThreshold {
+                if lhs.halalStatus == .yes, rhs.halalStatus == .only { return true }
+                if lhs.halalStatus == .only, rhs.halalStatus == .yes { return false }
+            }
+        }
         let lhsScore = duplicatePriorityScore(for: lhs)
         let rhsScore = duplicatePriorityScore(for: rhs)
         if lhsScore != rhsScore { return lhsScore > rhsScore }
@@ -580,6 +614,19 @@ enum PlaceOverrides {
     }
 
     nonisolated private static func placeSortPredicate(_ lhs: Place, _ rhs: Place) -> Bool {
+        // Conservative tie-breaker: when two records are effectively the same place
+        // (names compatible and within duplicate range), prefer partial halal (yes)
+        // over fully halal (only) to avoid overstating status when sources disagree.
+        if namesCompatible(lhs.name, rhs.name) {
+            let lhsLoc = CLLocation(latitude: lhs.coordinate.latitude, longitude: lhs.coordinate.longitude)
+            let rhsLoc = CLLocation(latitude: rhs.coordinate.latitude, longitude: rhs.coordinate.longitude)
+            let distance = lhsLoc.distance(from: rhsLoc)
+            if distance <= duplicateDistanceThreshold {
+                if lhs.halalStatus == .yes, rhs.halalStatus == .only { return true }
+                if lhs.halalStatus == .only, rhs.halalStatus == .yes { return false }
+            }
+        }
+
         switch (lhs.rating, rhs.rating) {
         case let (l?, r?) where l != r:
             return l > r
