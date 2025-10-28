@@ -7,3 +7,5 @@ https://www.yelp.com/biz/kebabishq-new-york
 # Re-run photos for Sma.sha (ensure all Yelp photos are imported)
 https://www.yelp.com/biz/sma-sha-long-island-city-2
 
+# Add MOTW Coffee (Hicksville)
+https://www.yelp.com/biz/motw-coffee-hicksville

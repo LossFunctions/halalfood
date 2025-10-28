@@ -42,3 +42,43 @@ Notes
 - `forcedFullyHalalPrefixes` sets halal_status = `only` for matching names; adjust if needed.
 - If an entry already exists, `yelp_ingest.js` uses on_conflict merge.
 
+Add MOTW Coffee (Hicksville) and import photos
+1) Append to dataset (one‑off):
+   - `cd HalalFood`
+   - `YELP_API_KEY=… node scripts/yelp_add_manual_id.js https://www.yelp.com/biz/motw-coffee-hicksville data/yelp_halal.json`
+
+   Alternative (from the prefilled list):
+   - Ensure `scripts/manual_yelp_ids.txt` contains the URL
+   - `YELP_API_KEY=… node scripts/yelp_halal_fetch.js --bboxFile=overpass-bboxes.txt --idsFile=scripts/manual_yelp_ids.txt --outDir=data`
+
+2) Upsert place into Supabase:
+   - `node scripts/yelp_ingest.js --file=data/yelp_halal.json --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY --batchSize=300`
+
+3) Import Yelp photos for MOTW Coffee:
+   - `YELP_API_KEY=… node scripts/yelp_photos_ingest.js --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY --id=motw-coffee-hicksville --maxPhotos=24 --delayMs=200`
+
+4) Fetch the new place UUID:
+   - `curl "$SUPABASE_URL/rest/v1/place?select=id,name,external_id,display_location&source=eq.yelp&external_id=eq.yelp:motw-coffee-hicksville" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" | jq` 
+
+5) Add to New Spots in `ContentView.swift`:
+   Paste a new `NewSpotConfig` into the `newSpotConfigs` array, replacing placeholders with the UUID from step 4 and a good Yelp hero photo URL (from step 3).
+
+   Example snippet (Fully halal; opening Nov 1):
+   ```swift
+   NewSpotConfig(
+       placeID: UUID(uuidString: "<PASTE_UUID>")!,
+       imageURL: URL(string: "<HERO_IMAGE_URL>")!, // e.g. a yelpcdn.com/o.jpg photo
+       photoDescription: "MOTW Coffee signature latte",
+       displayLocation: "Hicksville, Long Island",
+       cuisine: "Coffee",
+       halalStatusOverride: .only,
+       openedOn: ("NOV", "01"),
+       spotlightSummary: nil,
+       spotlightDetails: "Fully halal"
+   )
+   ```
+
+Env quick refs
+- `SUPABASE_URL`: `https://<project>.supabase.co` (e.g., `https://qecnntkyxbcwtwyzlqku.supabase.co`)
+- `SUPABASE_SERVICE_ROLE_KEY`: service role secret for the project
+- `YELP_API_KEY`: Yelp Fusion API key

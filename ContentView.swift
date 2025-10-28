@@ -552,9 +552,19 @@ struct ContentView: View {
 
     private let newSpotConfigs: [NewSpotConfig] = [
         NewSpotConfig(
+            placeID: UUID(uuidString: "e35cfaee-b627-435a-9b38-3d3fc5d5fefa")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/w_FSVa3k-RYm-7vvBo1sdQ/o.jpg")!,
+            photoDescription: "MOTW Coffee signature latte",
+            displayLocation: "Hicksville, Long Island",
+            cuisine: "Coffee",
+            halalStatusOverride: .only,
+            openedOn: ("NOV", "01"),
+            spotlightDetails: "Fully halal"
+        ),
+        NewSpotConfig(
             placeID: UUID(uuidString: "4cdda0c5-f0dd-4556-874f-628fa019d81b")!,
             imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/1sECdztwsrcCt7Pq4JKE5g/o.jpg")!,
-            displayLocation: "Lake Ronkonkoma, Long Island",
+            displayLocation: "Ronkonkoma, Long Island",
             cuisine: "Mexican",
             halalStatusOverride: .only,
             openedOn: ("OCT", "22")
@@ -2300,25 +2310,30 @@ private struct TopRatedRow: View {
         }
     }
 
-    @ViewBuilder
     private func ratingView() -> some View {
-        if let rating = place.rating {
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.orange)
+        let hasReviews = (place.ratingCount ?? 0) > 0
+        return HStack(spacing: 4) {
+            Image(systemName: hasReviews ? "star.fill" : "star")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
+            if hasReviews, let rating = place.rating {
                 Text(String(format: "%.1f", rating))
                     .font(.subheadline)
                     .foregroundStyle(Color.primary)
                 Text("(\(reviewLabel(for: place.ratingCount)))")
                     .font(.footnote)
                     .foregroundStyle(Color.secondary)
+            } else {
+                Text("No reviews yet")
+                    .font(.footnote)
+                    .foregroundStyle(Color.secondary)
+                    .italic()
             }
         }
     }
 
     private func reviewLabel(for count: Int?) -> String {
-        guard let count else { return "No reviews" }
+        guard let count, count > 0 else { return "No reviews yet" }
         if count == 1 { return "1 review" }
         if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
         return "\(count) reviews"
@@ -3724,27 +3739,30 @@ private struct NewSpotsScreen: View {
             .buttonStyle(.plain)
         }
 
-        @ViewBuilder
         private func ratingView(for place: Place) -> some View {
-            Group {
-                if let rating = place.rating {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.orange)
-                        Text(String(format: "%.1f", rating))
-                            .font(.subheadline)
-                            .foregroundStyle(Color.primary)
-                        Text("(\(reviewLabel(for: place.ratingCount)))")
-                            .font(.footnote)
-                            .foregroundStyle(Color.secondary)
-                    }
+            let hasReviews = (place.ratingCount ?? 0) > 0
+            return HStack(spacing: 4) {
+                Image(systemName: hasReviews ? "star.fill" : "star")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
+                if hasReviews, let rating = place.rating {
+                    Text(String(format: "%.1f", rating))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.primary)
+                    Text("(\(reviewLabel(for: place.ratingCount)))")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondary)
+                } else {
+                    Text("No reviews yet")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondary)
+                        .italic()
                 }
             }
         }
 
         private func reviewLabel(for count: Int?) -> String {
-            guard let count else { return "No reviews" }
+            guard let count, count > 0 else { return "No reviews yet" }
             if count == 1 { return "1 review" }
             if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
             return "\(count) reviews"
