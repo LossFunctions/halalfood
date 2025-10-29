@@ -4782,12 +4782,7 @@ final class AppleHalalSearchService: ObservableObject {
     }
 
     private func regionIsSimilar(lhs: MKCoordinateRegion, rhs: MKCoordinateRegion) -> Bool {
-        let latDiff = abs(lhs.center.latitude - rhs.center.latitude)
-        let lonDiff = abs(lhs.center.longitude - rhs.center.longitude)
-        let latSpanDiff = abs(lhs.span.latitudeDelta - rhs.span.latitudeDelta)
-        let lonSpanDiff = abs(lhs.span.longitudeDelta - rhs.span.longitudeDelta)
-        let threshold = 0.002
-        return latDiff < threshold && lonDiff < threshold && latSpanDiff < threshold && lonSpanDiff < threshold
+        lhs.isApproximatelyEqual(to: rhs)
     }
 }
 
@@ -5122,21 +5117,50 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 .apply(overridesTo: $0.places, in: requestRegion)
                 .filter(self.isTrustedPlace(_:))
         }
+        let hasFreshCache = (cacheHit?.isFresh ?? false)
+        var satisfiedFromGlobalDataset = false
 
         if let cachedPlaces = cachedOverride {
-            // Show cached results immediately for snappy UI, but do not return early here.
-            // We still evaluate whether to fetch fresh data based on region changes below.
+            // Show cached results immediately; subsequent checks decide whether a refresh is needed.
             allPlaces = cachedPlaces
             apply(filter: filter)
-            // Intentionally not returning on fresh cache; fetching decision happens below.
+        } else if let preliminary = globalDatasetSlice(for: requestRegion, limit: fetchLimit), !preliminary.isEmpty {
+            allPlaces = preliminary
+            apply(filter: filter)
+            if !eager {
+                cache.store(preliminary, region: requestRegion)
+                satisfiedFromGlobalDataset = true
+            }
         }
+
+        let hasFreshData = hasFreshCache || satisfiedFromGlobalDataset
 
         if let last = lastRequestedRegion,
            regionIsSimilar(lhs: last, rhs: requestRegion),
-           !(cacheHit == nil || cacheHit?.isFresh == false || eager) {
+           hasFreshData,
+           !eager {
 #if DEBUG
             PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped – similar region \(fetchMetadata)")
 #endif
+            fetchTask?.cancel()
+            fetchTask = nil
+            isLoading = false
+            errorMessage = nil
+            presentingError = false
+            lastRequestedRegion = requestRegion
+            return
+        }
+
+        if hasFreshData && !eager {
+#if DEBUG
+            PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped – fresh cache \(fetchMetadata)")
+#endif
+            fetchTask?.cancel()
+            fetchTask = nil
+            isLoading = false
+            errorMessage = nil
+            presentingError = false
+            lastRequestedRegion = requestRegion
             return
         }
 
@@ -5198,50 +5222,44 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             }
         }
 
+        let existingAllPlaces = allPlaces
+        let existingGlobalDataset = globalDataset
+        let computationTask = Task.detached(priority: .userInitiated) {
+            try await Self.fetchPlacesData(
+                requestRegion: requestRegion,
+                fetchLimit: fetchLimit,
+                existingAllPlaces: existingAllPlaces,
+                existingGlobalDataset: existingGlobalDataset,
+                includeManualOverlays: eager
+            )
+        }
+
         do {
             try Task.checkCancellation()
-            let dtos = try await PlaceAPI.getPlaces(bbox: requestRegion.bbox, limit: fetchLimit)
+            let result = try await computationTask.value
             try Task.checkCancellation()
 
-            let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
-            let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
-            let cleaned = overridden
-                .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                .filter(self.isTrustedPlace(_:))
-            let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
+            let sanitizedCombined = result.sanitizedPlaces
+            let sortedPlaces = PlaceOverrides.sorted(sanitizedCombined)
 
-            let exclusion = cleaned + self.allPlaces + self.globalDataset
-            try Task.checkCancellation()
-            let manual: [Place]
-            if cleaned.count >= fetchLimit {
-                manual = []
-#if DEBUG
-                PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped manual overlay – hit limit \(fetchLimit)")
-#endif
-            } else {
-                manual = await ManualPlaceResolver
-                    .shared
-                    .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
-                    .filteredByCurrentGeoScope()
-                    .filter(self.isTrustedPlace(_:))
-            }
-
-            try Task.checkCancellation()
-            let combined = self.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
-            let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
-            self.allPlaces = PlaceOverrides.sorted(sanitizedCombined)
+            self.allPlaces = sortedPlaces
             self.mergeIntoGlobalDataset(sanitizedCombined, replacingSources: Set(["seed"]))
             self.apply(filter: self.currentFilter)
             self.isLoading = false
             self.cache.store(sanitizedCombined, region: requestRegion)
 #if DEBUG
-            resultMetadata = "success places=\(sanitizedCombined.count)"
+            resultMetadata = "success places=\(sanitizedCombined.count) remote=\(result.remoteCount) manual=\(result.manualCount)"
+            if result.manualSkippedDueToLimit {
+                PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped manual overlay – hit limit \(fetchLimit)")
+            }
 #endif
         } catch is CancellationError {
+            computationTask.cancel()
 #if DEBUG
             resultMetadata = "cancelled"
 #endif
         } catch {
+            computationTask.cancel()
             if let urlError = error as? URLError, urlError.code == .cancelled {
 #if DEBUG
                 resultMetadata = "url-cancelled"
@@ -5261,6 +5279,61 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             resultMetadata = "error \(error.localizedDescription)"
 #endif
         }
+    }
+
+    private struct MapFetchComputationResult: Sendable {
+        let sanitizedPlaces: [Place]
+        let remoteCount: Int
+        let manualCount: Int
+        let manualSkippedDueToLimit: Bool
+    }
+
+    private nonisolated static func fetchPlacesData(
+        requestRegion: MKCoordinateRegion,
+        fetchLimit: Int,
+        existingAllPlaces: [Place],
+        existingGlobalDataset: [Place],
+        includeManualOverlays: Bool
+    ) async throws -> MapFetchComputationResult {
+        try Task.checkCancellation()
+        let dtos = try await PlaceAPI.getPlaces(bbox: requestRegion.bbox, limit: fetchLimit)
+        try Task.checkCancellation()
+
+        let results = dtos.compactMap(Place.init(dto:)).filteredByCurrentGeoScope()
+        let overridden = PlaceOverrides.apply(overridesTo: results, in: requestRegion)
+        let cleaned = overridden
+            .filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .filter(Self.trustedSourceFilter)
+        let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
+
+        try Task.checkCancellation()
+        let exclusion = cleaned + existingAllPlaces + existingGlobalDataset
+        var manual: [Place] = []
+        var manualSkippedDueToLimit = false
+
+        if includeManualOverlays {
+            if cleaned.count >= fetchLimit {
+                manualSkippedDueToLimit = true
+            } else {
+                let resolved = await ManualPlaceResolver
+                    .shared
+                    .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
+                manual = resolved
+                    .filteredByCurrentGeoScope()
+                    .filter(Self.trustedSourceFilter)
+            }
+        }
+
+        try Task.checkCancellation()
+        let combined = PlaceOverrides.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
+        let sanitizedCombined = combined.filter(Self.trustedSourceFilter)
+
+        return MapFetchComputationResult(
+            sanitizedPlaces: sanitizedCombined,
+            remoteCount: halalOnly.count,
+            manualCount: manual.count,
+            manualSkippedDueToLimit: manualSkippedDueToLimit
+        )
     }
 
     private func bootstrapFromDiskIfNeeded(region: MKCoordinateRegion, filter: MapFilter) {
@@ -5329,10 +5402,37 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
     private func dynamicResultLimit(for region: MKCoordinateRegion) -> Int {
         let area = region.span.latitudeDelta * region.span.longitudeDelta
-        if area < 0.003 { return PlaceAPI.mapFetchDefaultLimit }
-        if area < 0.01 { return 200 }
-        if area < 0.025 { return 170 }
-        return 140
+        if area < 0.004 { return PlaceAPI.mapFetchDefaultLimit }
+        if area < 0.012 { return 200 }
+        if area < 0.028 { return 160 }
+        if area < 0.07 { return 130 }
+        return 100
+    }
+
+    private func globalDatasetSlice(for region: MKCoordinateRegion, limit: Int) -> [Place]? {
+        guard !globalDataset.isEmpty else { return nil }
+        let bbox = region.bbox
+
+        let bounded = globalDataset.filter { place in
+            let coordinate = place.coordinate
+            let latitude = coordinate.latitude
+            let longitude = coordinate.longitude
+            return latitude >= bbox.south &&
+                latitude <= bbox.north &&
+                longitude >= bbox.west &&
+                longitude <= bbox.east
+        }
+        guard !bounded.isEmpty else { return nil }
+
+        let scoped = bounded
+            .filteredByCurrentGeoScope()
+            .filter(isTrustedPlace)
+        guard !scoped.isEmpty else { return nil }
+
+        if scoped.count > limit {
+            return Array(scoped.prefix(limit))
+        }
+        return scoped
     }
 
     private func schedulePersistGlobalDataset() {
@@ -5596,12 +5696,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     }
 
     private func regionIsSimilar(lhs: MKCoordinateRegion, rhs: MKCoordinateRegion) -> Bool {
-        let latDiff = abs(lhs.center.latitude - rhs.center.latitude)
-        let lonDiff = abs(lhs.center.longitude - rhs.center.longitude)
-        let latSpanDiff = abs(lhs.span.latitudeDelta - rhs.span.latitudeDelta)
-        let lonSpanDiff = abs(lhs.span.longitudeDelta - rhs.span.longitudeDelta)
-        let threshold = 0.001
-        return latDiff < threshold && lonDiff < threshold && latSpanDiff < threshold && lonSpanDiff < threshold
+        lhs.isApproximatelyEqual(to: rhs)
     }
 
     private static func message(for error: Error) -> String {
