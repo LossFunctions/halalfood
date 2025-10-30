@@ -4924,6 +4924,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var manualSearchTask: Task<Void, Never>?
     private var globalDatasetTask: Task<Void, Never>?
+    private var manualOverlayTask: Task<Void, Never>?
+    private var globalDatasetBootstrapTask: Task<Void, Never>?
     private var remoteSearchTask: Task<Void, Never>?
     private var appleFallbackTask: Task<Void, Never>?
     private var localFilterComputationTask: Task<[Place], Error>?
@@ -5111,6 +5113,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 #else
         fetchMetadata = ""
 #endif
+        manualOverlayTask?.cancel()
+        manualOverlayTask = nil
         let cacheHit = cache.value(for: requestRegion)
         let cachedOverride = cacheHit.map {
             PlaceOverrides
@@ -5187,6 +5191,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 fetchLimit: fetchLimit
             )
         }
+        scheduleGlobalDatasetBootstrapIfNeeded()
     }
 
     @MainActor
@@ -5222,15 +5227,10 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             }
         }
 
-        let existingAllPlaces = allPlaces
-        let existingGlobalDataset = globalDataset
         let computationTask = Task.detached(priority: .userInitiated) {
             try await Self.fetchPlacesData(
                 requestRegion: requestRegion,
-                fetchLimit: fetchLimit,
-                existingAllPlaces: existingAllPlaces,
-                existingGlobalDataset: existingGlobalDataset,
-                includeManualOverlays: eager
+                fetchLimit: fetchLimit
             )
         }
 
@@ -5247,11 +5247,15 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             self.apply(filter: self.currentFilter)
             self.isLoading = false
             self.cache.store(sanitizedCombined, region: requestRegion)
-#if DEBUG
-            resultMetadata = "success places=\(sanitizedCombined.count) remote=\(result.remoteCount) manual=\(result.manualCount)"
-            if result.manualSkippedDueToLimit {
-                PerformanceMetrics.point(event: .mapFetch, metadata: "Skipped manual overlay – hit limit \(fetchLimit)")
+            if eager && !result.hitFetchLimit {
+                self.scheduleManualOverlay(
+                    basePlaces: sortedPlaces,
+                    requestRegion: requestRegion,
+                    filter: filter
+                )
             }
+#if DEBUG
+            resultMetadata = "success places=\(sanitizedCombined.count) remote=\(result.remoteCount) hitLimit=\(result.hitFetchLimit)"
 #endif
         } catch is CancellationError {
             computationTask.cancel()
@@ -5284,16 +5288,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private struct MapFetchComputationResult: Sendable {
         let sanitizedPlaces: [Place]
         let remoteCount: Int
-        let manualCount: Int
-        let manualSkippedDueToLimit: Bool
+        let hitFetchLimit: Bool
     }
 
     private nonisolated static func fetchPlacesData(
         requestRegion: MKCoordinateRegion,
-        fetchLimit: Int,
-        existingAllPlaces: [Place],
-        existingGlobalDataset: [Place],
-        includeManualOverlays: Bool
+        fetchLimit: Int
     ) async throws -> MapFetchComputationResult {
         try Task.checkCancellation()
         let dtos = try await PlaceAPI.getPlaces(bbox: requestRegion.bbox, limit: fetchLimit)
@@ -5307,32 +5307,13 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         let halalOnly = cleaned.filter { $0.halalStatus == .yes || $0.halalStatus == .only }
 
         try Task.checkCancellation()
-        let exclusion = cleaned + existingAllPlaces + existingGlobalDataset
-        var manual: [Place] = []
-        var manualSkippedDueToLimit = false
-
-        if includeManualOverlays {
-            if cleaned.count >= fetchLimit {
-                manualSkippedDueToLimit = true
-            } else {
-                let resolved = await ManualPlaceResolver
-                    .shared
-                    .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
-                manual = resolved
-                    .filteredByCurrentGeoScope()
-                    .filter(Self.trustedSourceFilter)
-            }
-        }
-
-        try Task.checkCancellation()
-        let combined = PlaceOverrides.deduplicate(halalOnly + manual).filteredByCurrentGeoScope()
+        let combined = PlaceOverrides.deduplicate(halalOnly).filteredByCurrentGeoScope()
         let sanitizedCombined = combined.filter(Self.trustedSourceFilter)
 
         return MapFetchComputationResult(
             sanitizedPlaces: sanitizedCombined,
             remoteCount: halalOnly.count,
-            manualCount: manual.count,
-            manualSkippedDueToLimit: manualSkippedDueToLimit
+            hitFetchLimit: cleaned.count >= fetchLimit
         )
     }
 
@@ -5409,6 +5390,27 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         return 100
     }
 
+    private func scheduleGlobalDatasetBootstrapIfNeeded() {
+        guard globalDataset.isEmpty,
+              globalDatasetTask == nil,
+              globalDatasetBootstrapTask == nil else { return }
+        globalDatasetBootstrapTask = Task { [weak self] in
+            defer {
+                if let strongSelf = self {
+                    strongSelf.globalDatasetBootstrapTask = nil
+                }
+            }
+            do {
+                try await Task.sleep(nanoseconds: 800_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            guard let strongSelf = self else { return }
+            strongSelf.ensureGlobalDataset()
+        }
+    }
+
     private func globalDatasetSlice(for region: MKCoordinateRegion, limit: Int) -> [Place]? {
         guard !globalDataset.isEmpty else { return nil }
         let bbox = region.bbox
@@ -5433,6 +5435,49 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             return Array(scoped.prefix(limit))
         }
         return scoped
+    }
+
+    private func scheduleManualOverlay(
+        basePlaces: [Place],
+        requestRegion: MKCoordinateRegion,
+        filter: MapFilter
+    ) {
+        manualOverlayTask?.cancel()
+        manualOverlayTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 250_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            defer { self.manualOverlayTask = nil }
+
+            guard let latestRegion = self.lastRequestedRegion,
+                  self.regionIsSimilar(lhs: latestRegion, rhs: requestRegion) else { return }
+
+            let exclusion = basePlaces + self.allPlaces + self.globalDataset
+            let manual = await ManualPlaceResolver
+                .shared
+                .manualPlaces(in: Self.appleFallbackRegion, excluding: exclusion)
+                .filteredByCurrentGeoScope()
+                .filter(Self.trustedSourceFilter)
+
+            guard !Task.isCancelled else { return }
+            guard !manual.isEmpty else { return }
+
+            let combined = self.deduplicate(basePlaces + manual).filteredByCurrentGeoScope()
+            let sanitizedCombined = combined.filter(self.isTrustedPlace(_:))
+            guard !sanitizedCombined.isEmpty else { return }
+
+            let sorted = PlaceOverrides.sorted(sanitizedCombined)
+            guard sorted != self.allPlaces else { return }
+
+            self.allPlaces = sorted
+            self.mergeIntoGlobalDataset(manual)
+            self.apply(filter: filter)
+            self.cache.store(sanitizedCombined, region: requestRegion)
+        }
     }
 
     private func schedulePersistGlobalDataset() {
@@ -5857,6 +5902,8 @@ private static let nonHalalChainBlocklist: Set<String> = {
     }
 
     func ensureGlobalDataset(forceRefresh: Bool = false) {
+        globalDatasetBootstrapTask?.cancel()
+        globalDatasetBootstrapTask = nil
         if !forceRefresh {
             guard globalDataset.isEmpty, globalDatasetTask == nil else {
 #if DEBUG

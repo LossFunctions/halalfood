@@ -67,13 +67,11 @@ private struct ManualPlaceDefinition {
     }
 }
 
-@MainActor
-final class ManualPlaceResolver {
+actor ManualPlaceResolver {
     static let shared = ManualPlaceResolver()
 
     private let definitions: [ManualPlaceDefinition]
 
-    @MainActor
     private static let defaultDefinitions: [ManualPlaceDefinition] = []
 
     private struct CacheEntry {

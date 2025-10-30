@@ -335,9 +335,13 @@ struct HalalMapView: UIViewRepresentable {
 
             let shouldNotify = !(previousRegion?.isApproximatelyEqual(to: parentMap, centerTolerance: 5e-4, spanTolerance: 5e-4) ?? false)
 
+            let capturedRegion = parentMap
             isSettingRegion = true
-            parent.region = parentMap
-            isSettingRegion = false
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.parent.region = capturedRegion
+                self.isSettingRegion = false
+            }
 
             if shouldNotify {
                 scheduleRegionChangeCallback(for: parentMap, callback: parent.onRegionChange)
