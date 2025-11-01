@@ -13,6 +13,7 @@ final class LocationProvider: NSObject, ObservableObject {
     override init() {
         manager = CLLocationManager()
         authorizationStatus = manager.authorizationStatus
+        lastKnownLocation = manager.location
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
@@ -25,6 +26,7 @@ final class LocationProvider: NSObject, ObservableObject {
             manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
+            manager.requestLocation()
         case .denied, .restricted:
             break
         @unknown default:
@@ -50,6 +52,7 @@ final class LocationProvider: NSObject, ObservableObject {
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
+            manager.requestLocation()
         case .notDetermined:
             break
         case .denied, .restricted:

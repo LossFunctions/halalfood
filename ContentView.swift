@@ -1118,14 +1118,18 @@ struct ContentView: View {
             bottomOverlay
         }
         .onAppear {
-            viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
-            // Preload global dataset so New Spots can resolve specific place IDs immediately
-            viewModel.ensureGlobalDataset()
-            locationManager.requestAuthorizationIfNeeded()
-            let effective = RegionGate.enforcedRegion(for: mapRegion)
-            appleHalalSearch.search(in: effective)
-            refreshVisiblePlaces()
-            scheduleCommunityPrecomputationIfNeeded()
+        viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
+        // Preload global dataset so New Spots can resolve specific place IDs immediately
+        viewModel.ensureGlobalDataset()
+        locationManager.requestAuthorizationIfNeeded()
+        if let existingLocation = locationManager.lastKnownLocation {
+            centerMap(on: existingLocation, markCentered: false)
+        }
+        locationManager.requestCurrentLocation()
+        let effective = RegionGate.enforcedRegion(for: mapRegion)
+        appleHalalSearch.search(in: effective)
+        refreshVisiblePlaces()
+        scheduleCommunityPrecomputationIfNeeded()
 #if DEBUG
             if !didLogInitialAppear {
                 AppPerformanceTracker.shared.end(.appLaunch, metadata: "ContentView onAppear")
@@ -1164,16 +1168,7 @@ struct ContentView: View {
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
-            let span = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
-            let region = MKCoordinateRegion(center: location.coordinate, span: span)
-            // Keep the camera focused tightly on the user's actual location
-            mapRegion = region
-            // But fetch/search using the enforced NYC/LI scope
-            viewModel.forceRefresh(region: region, filter: selectedFilter)
-            let effective = RegionGate.enforcedRegion(for: region)
-            hasCenteredOnUser = true
-            appleHalalSearch.search(in: effective)
-            refreshVisiblePlaces()
+            centerMap(on: location)
         }
         .onReceive(viewModel.$persistedCommunityTopRated) { snapshot in
             guard !snapshot.isEmpty else { return }
@@ -1291,7 +1286,12 @@ struct ContentView: View {
                     selectedPlace = nil
                 }
             case .places:
-                refreshVisiblePlaces()
+                if let location = locationManager.lastKnownLocation, !hasCenteredOnUser {
+                    centerMap(on: location)
+                } else {
+                    locationManager.requestCurrentLocation()
+                    refreshVisiblePlaces()
+                }
             case .newSpots:
                 selectedApplePlace = nil
                 isSearchOverlayPresented = false
@@ -1493,17 +1493,8 @@ struct ContentView: View {
                 locationManager.requestAuthorizationIfNeeded()
             case .authorizedWhenInUse, .authorizedAlways:
                 if let location = locationManager.lastKnownLocation {
-                    let targetRegion = MKCoordinateRegion(
-                        center: location.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                    )
-                    // Keep the camera tight on the user's location
-                    mapRegion = targetRegion
-                    // Fetch/search within enforced NYC/LI scope
-                    viewModel.forceRefresh(region: targetRegion, filter: selectedFilter)
-                    let effective = RegionGate.enforcedRegion(for: targetRegion)
-                    appleHalalSearch.search(in: effective)
-                    refreshVisiblePlaces()
+                    let tightSpan = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                    centerMap(on: location, span: tightSpan)
                 } else {
                     locationManager.requestCurrentLocation()
                 }
@@ -6137,6 +6128,12 @@ private static let nonHalalChainBlocklist: Set<String> = {
                 return needle.contains { source.contains($0) }
             }
         }
+        if !filtered.isEmpty {
+            let incomingIDs = Set(filtered.map(\.id))
+            if !incomingIDs.isEmpty {
+                sanitizedExisting.removeAll { incomingIDs.contains($0.id) }
+            }
+        }
         guard !(filtered.isEmpty && sanitizedExisting == globalDataset) else { return }
 
         let combined = deduplicate(sanitizedExisting + filtered)
@@ -6309,6 +6306,20 @@ private struct RegionCacheKey: Hashable {
 
     private static func bucket(for value: Double) -> Int {
         Int((value * 100).rounded())
+    }
+}
+
+private extension ContentView {
+    func centerMap(on location: CLLocation, span: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08), markCentered: Bool = true) {
+        let region = MKCoordinateRegion(center: location.coordinate, span: span)
+        mapRegion = region
+        viewModel.forceRefresh(region: region, filter: selectedFilter)
+        let effective = RegionGate.enforcedRegion(for: region)
+        appleHalalSearch.search(in: effective)
+        if markCentered {
+            hasCenteredOnUser = true
+        }
+        refreshVisiblePlaces()
     }
 }
 

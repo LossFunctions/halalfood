@@ -129,6 +129,7 @@ struct HalalMapView: UIViewRepresentable {
         mapView.isRotateEnabled = false
         mapView.showsBuildings = true
         mapView.isPitchEnabled = true
+        mapView.setUserTrackingMode(.follow, animated: false)
 
         // Make the map look more vibrant and closer to the Apple Maps app
         if #available(iOS 15.0, *) {
