@@ -538,6 +538,7 @@ struct ContentView: View {
     @State private var keyboardHeight: CGFloat = 0
     @State private var previousMapRegion: MKCoordinateRegion?
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
+    @State private var communityCacheIsStale = false
     @State private var communityPrecomputeTask: Task<Void, Never>?
     @State private var communityComputationGeneration: Int = 0
     @State private var visiblePlaces: [Place] = []
@@ -842,7 +843,11 @@ struct ContentView: View {
         communityComputationGeneration &+= 1
         communityPrecomputeTask?.cancel()
         communityPrecomputeTask = nil
-        communityCache.removeAll(keepingCapacity: false)
+        if communityCache.isEmpty {
+            communityCacheIsStale = false
+        } else {
+            communityCacheIsStale = true
+        }
 #if DEBUG
         communityInstrumentation.resetAll()
 #endif
@@ -858,12 +863,14 @@ struct ContentView: View {
 
     private func scheduleCommunityPrecomputationIfNeeded(force: Bool = false) {
         if !force {
-            if let cachedAll = communityCache[.all], cachedAll.count >= 5 {
+            if let cachedAll = communityCache[.all], !cachedAll.isEmpty, !communityCacheIsStale {
                 return
             }
             if communityPrecomputeTask != nil {
                 return
             }
+        } else if !communityCache.isEmpty {
+            communityCacheIsStale = true
         }
 
         communityPrecomputeTask?.cancel()
@@ -871,6 +878,9 @@ struct ContentView: View {
         let snapshot = viewModel.communityTopRatedSnapshot()
         communityComputationGeneration &+= 1
         let generation = communityComputationGeneration
+        if !communityCache.isEmpty {
+            communityCacheIsStale = true
+        }
 
 #if DEBUG
         if bottomTab == .topRated,
@@ -889,6 +899,17 @@ struct ContentView: View {
             )
 #endif
             do {
+                if snapshot.hasTrustedData {
+                    let localResult = CommunityTopRatedEngine.compute(snapshot: snapshot)
+                    await MainActor.run {
+                        guard communityComputationGeneration == generation else { return }
+                        let shouldHydrate = communityCacheIsStale || communityCache.isEmpty
+                        if shouldHydrate {
+                            applyCommunityComputation(localResult, persist: false)
+                        }
+                    }
+                }
+
                 let serverResults = try await MapScreenViewModel.fetchCommunityTopRated(limitPerRegion: 25)
                 try Task.checkCancellation()
 #if DEBUG
@@ -958,16 +979,23 @@ struct ContentView: View {
         }
     }
 
-    private func applyCommunityComputation(_ result: CommunityComputationResult) {
+    private func applyCommunityComputation(_ result: CommunityComputationResult, persist: Bool = true) {
         for (region, list) in result.regionResults {
             communityCache[region] = list
         }
-        viewModel.persistCommunityTopRated(result.regionResults)
+        if persist {
+            viewModel.persistCommunityTopRated(result.regionResults)
+        }
 #if DEBUG
-        communityInstrumentation.markCachesPopulated(regionBucketCount: result.regionResults.count)
-        let currentRegionCount = communityCache[topRatedRegion]?.count ?? communityCache[.all]?.count ?? 0
-        communityInstrumentation.logFirstBatch(region: topRatedRegion, count: currentRegionCount)
+        if persist {
+            communityInstrumentation.markCachesPopulated(regionBucketCount: result.regionResults.count)
+            let currentRegionCount = communityCache[topRatedRegion]?.count ?? communityCache[.all]?.count ?? 0
+            communityInstrumentation.logFirstBatch(region: topRatedRegion, count: currentRegionCount)
+        }
 #endif
+        if persist {
+            communityCacheIsStale = false
+        }
     }
 
     private var mapPlaces: [Place] {
@@ -1097,6 +1125,7 @@ struct ContentView: View {
             let effective = RegionGate.enforcedRegion(for: mapRegion)
             appleHalalSearch.search(in: effective)
             refreshVisiblePlaces()
+            scheduleCommunityPrecomputationIfNeeded()
 #if DEBUG
             if !didLogInitialAppear {
                 AppPerformanceTracker.shared.end(.appLaunch, metadata: "ContentView onAppear")
@@ -1164,6 +1193,7 @@ struct ContentView: View {
             }
             guard didUpdate else { return }
             communityCache = merged
+            communityCacheIsStale = false
 #if DEBUG
             if bottomTab == .topRated, topRatedSort == .community {
                 communityInstrumentation.resetFirstRender()
@@ -1274,6 +1304,7 @@ struct ContentView: View {
                    !topRatedDisplay.contains(where: { $0.id == selected.id }) {
                     selectedPlace = nil
                 }
+                scheduleCommunityPrecomputationIfNeeded()
                 if topRatedSort == .community {
                     scheduleCommunityPrecomputationIfNeeded()
                 }
@@ -2346,12 +2377,6 @@ private struct TopRatedRow: View {
         return halalLabel
     }
 
-    private struct SourceRow: Decodable {
-        let display_location: String?
-        let source_raw: SourceRaw?
-    }
-    private struct SourceRaw: Decodable { let categories: [String]?, display_location: String? }
-
     private func titleCase(_ s: String) -> String {
         s.replacingOccurrences(of: "-", with: " ")
             .split(separator: " ")
@@ -2359,17 +2384,127 @@ private struct TopRatedRow: View {
             .joined(separator: " ")
     }
 
-    @MainActor
     private func loadCuisine() async {
-        if displayLocOverride == nil {
-            displayLocOverride = place.displayLocation ?? DisplayLocationResolver.display(for: place)
+        if cuisine != nil && displayLocOverride != nil { return }
+
+        let baselineLocation = displayLocOverride ?? place.displayLocation ?? DisplayLocationResolver.display(for: place)
+        if let baselineLocation {
+            await MainActor.run {
+                if self.displayLocOverride == nil {
+                    self.displayLocOverride = baselineLocation
+                }
+            }
         }
+
+        if cuisine == nil || displayLocOverride == nil {
+            if let cached = await TopRatedCuisineResolver.shared.cachedEntry(for: place.id) {
+                await MainActor.run {
+                    if let cachedCuisine = cached.cuisine {
+                        self.cuisine = cachedCuisine
+                    }
+                    if let cachedDisplay = cached.displayLocation {
+                        self.displayLocOverride = cachedDisplay
+                    }
+                }
+                if cached.cuisine != nil {
+                    return
+                }
+            }
+        } else {
+            return
+        }
+
+        let resolved = await TopRatedCuisineResolver.shared.resolve(for: place)
+        await MainActor.run {
+            if let resolvedCuisine = resolved.cuisine {
+                self.cuisine = resolvedCuisine
+            }
+            if let resolvedDisplay = resolved.displayLocation {
+                self.displayLocOverride = resolvedDisplay
+            }
+        }
+    }
+
+    private func shortLocation() -> String? {
+        if let override = displayLocOverride, !override.isEmpty { return override }
+        if let persisted = place.displayLocation, !persisted.isEmpty { return persisted }
+        return DisplayLocationResolver.display(for: place)
+    }
+
+    @ViewBuilder
+    private func rankBadge(_ rank: Int) -> some View {
+        let symbolName: String? = rank <= 50 ? "\(rank).circle.fill" : nil
+        let gold = Color(red: 0.95, green: 0.76, blue: 0.20)
+        return HStack(spacing: 6) {
+            if rank == 1 { Text("🏆").font(.system(size: 14)) }
+            Group {
+                if let name = symbolName, UIImage(systemName: name) != nil {
+                    Image(systemName: name)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(gold)
+                } else {
+                    Text("\(rank)")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(gold.opacity(0.14), in: Capsule())
+                        .overlay(Capsule().stroke(gold.opacity(0.5), lineWidth: 1))
+                        .foregroundStyle(gold)
+                }
+            }
+        }
+        .padding(.top, 4)
+        .padding(.trailing, 4)
+    }
+}
+
+private actor TopRatedCuisineResolver {
+    struct Entry: Sendable {
+        let cuisine: String?
+        let displayLocation: String?
+    }
+
+    static let shared = TopRatedCuisineResolver()
+
+    private var cache: [UUID: Entry] = [:]
+    private var inflight: [UUID: Task<Entry, Never>] = [:]
+
+    func cachedEntry(for id: UUID) -> Entry? {
+        cache[id]
+    }
+
+    func resolve(for place: Place) async -> Entry {
+        if let cached = cache[place.id] { return cached }
+        if let pending = inflight[place.id] { return await pending.value }
+
+        let task = Task<Entry, Never> { await Self.fetchEntry(for: place) }
+        inflight[place.id] = task
+        let entry = await task.value
+        cache[place.id] = entry
+        inflight.removeValue(forKey: place.id)
+        return entry
+    }
+
+    private struct SourceRow: Decodable {
+        let display_location: String?
+        let source_raw: SourceRaw?
+    }
+
+    private struct SourceRaw: Decodable {
+        let categories: [String]?
+        let display_location: String?
+    }
+
+    private static func fetchEntry(for place: Place) async -> Entry {
+        var cuisine: String?
+        var display = place.displayLocation ?? DisplayLocationResolver.display(for: place)
+
         do {
             var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
-            var p = comps.path
-            if !p.hasSuffix("/") { p.append("/") }
-            p.append("rest/v1/place")
-            comps.path = p
+            var path = comps.path
+            if !path.hasSuffix("/") { path.append("/") }
+            path.append("rest/v1/place")
+            comps.path = path
             comps.queryItems = [
                 URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
                 URLQueryItem(name: "select", value: "source_raw,display_location")
@@ -2386,24 +2521,25 @@ private struct TopRatedRow: View {
                         cuisine = preferredCuisine(from: categories)
                     }
                     if let disp = row.display_location?.trimmingCharacters(in: .whitespacesAndNewlines), !disp.isEmpty {
-                        displayLocOverride = disp
+                        display = disp
                     } else if let disp = row.source_raw?.display_location, !disp.isEmpty {
-                        displayLocOverride = disp
-                    } else if displayLocOverride == nil {
-                        displayLocOverride = DisplayLocationResolver.display(for: place)
+                        display = disp
                     }
                 }
             }
         } catch {
-            // ignore
+            // Ignore network failures; fall back to existing data.
         }
+
+        if display == nil {
+            display = DisplayLocationResolver.display(for: place)
+        }
+
+        return Entry(cuisine: cuisine, displayLocation: display)
     }
 
-    private func preferredCuisine(from categories: [String]) -> String? {
-        // Normalize
+    private static func preferredCuisine(from categories: [String]) -> String? {
         let cats = categories.map { $0.lowercased() }
-
-        // Skip non-cuisine categories and generic tags
         let excluded: Set<String> = [
             "halal","gluten_free","vegan","vegetarian",
             "coffee","cafes","coffeeandtea","tea","bubbletea",
@@ -2411,7 +2547,6 @@ private struct TopRatedRow: View {
             "bars","cocktailbars","beerbar","wine_bars"
         ]
 
-        // Map Yelp aliases to display labels
         let map: [String: String] = {
             var map: [String: String] = [:]
             map["thai"] = "Thai"
@@ -2446,51 +2581,24 @@ private struct TopRatedRow: View {
             return map
         }()
 
-        // 1) Pick first mapped cuisine that's not excluded
         for c in cats where !excluded.contains(c) {
             if let label = map[c] {
                 return label
             }
         }
 
-        // 2) If not found, pick any non-excluded, title-cased
         if let first = cats.first(where: { !excluded.contains($0) }) {
-            let label = titleCase(first)
-            return label
+            return titleCase(first)
         }
+
         return nil
     }
 
-    private func shortLocation() -> String? {
-        if let override = displayLocOverride, !override.isEmpty { return override }
-        if let persisted = place.displayLocation, !persisted.isEmpty { return persisted }
-        return DisplayLocationResolver.display(for: place)
-    }
-
-    @ViewBuilder
-    private func rankBadge(_ rank: Int) -> some View {
-        let symbolName: String? = rank <= 50 ? "\(rank).circle.fill" : nil
-        let gold = Color(red: 0.95, green: 0.76, blue: 0.20)
-        return HStack(spacing: 6) {
-            if rank == 1 { Text("🏆").font(.system(size: 14)) }
-            Group {
-                if let name = symbolName, UIImage(systemName: name) != nil {
-                    Image(systemName: name)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(gold)
-                } else {
-                    Text("\(rank)")
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(gold.opacity(0.14), in: Capsule())
-                        .overlay(Capsule().stroke(gold.opacity(0.5), lineWidth: 1))
-                        .foregroundStyle(gold)
-                }
-            }
-        }
-        .padding(.top, 4)
-        .padding(.trailing, 4)
+    private static func titleCase(_ value: String) -> String {
+        value.replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }
 
