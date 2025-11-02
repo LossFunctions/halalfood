@@ -490,7 +490,10 @@ enum PlaceAPI {
     }
 
     private static func makeRequest(body: Data, endpoint: String) throws -> URLRequest {
-        let baseURL = Env.url
+        guard let baseURL = Env.optionalURL(),
+              let apiKey = Env.optionalAnonKey() else {
+            throw PlaceAPIError.missingConfiguration
+        }
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw PlaceAPIError.invalidURL
         }
@@ -510,14 +513,16 @@ enum PlaceAPI {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("params=single-object", forHTTPHeaderField: "Prefer")
-        let apiKey = Env.anonKey
         request.setValue(apiKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         return request
     }
 
     private static func makeGETRequest(path: String, queryItems: [URLQueryItem]) throws -> URLRequest {
-        let baseURL = Env.url
+        guard let baseURL = Env.optionalURL(),
+              let apiKey = Env.optionalAnonKey() else {
+            throw PlaceAPIError.missingConfiguration
+        }
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw PlaceAPIError.invalidURL
         }
@@ -535,7 +540,6 @@ enum PlaceAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let apiKey = Env.anonKey
         request.setValue(apiKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("public", forHTTPHeaderField: "Accept-Profile")
@@ -593,4 +597,5 @@ enum PlaceAPIError: Error {
     case invalidURL
     case invalidResponse
     case server(statusCode: Int, body: String?)
+    case missingConfiguration
 }

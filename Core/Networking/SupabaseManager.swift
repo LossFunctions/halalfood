@@ -4,31 +4,18 @@ import Supabase
 enum Env {
     static var url: URL {
         if let cached = cachedURL { return cached }
-        let bundleValue = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
-        let environmentValue = ProcessInfo.processInfo.environment["SUPABASE_URL"]
-        let string = (bundleValue?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-            ?? (environmentValue?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-        guard let string else {
+        guard let url = optionalURL() else {
             fatalError("SUPABASE_URL missing. Provide it via Info.plist or the SUPABASE_URL environment variable.")
         }
-        guard let url = URL(string: string) else {
-            fatalError("SUPABASE_URL missing or invalid. Provide it via Info.plist or environment variable.")
-        }
-        cachedURL = url
         return url
     }
 
     static var anonKey: String {
         if let cached = cachedAnonKey { return cached }
-        if let bundleKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String, !bundleKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            cachedAnonKey = bundleKey
-            return bundleKey
+        guard let key = optionalAnonKey() else {
+            fatalError("SUPABASE_ANON_KEY missing. Provide it via Info.plist or the SUPABASE_ANON_KEY environment variable.")
         }
-        if let envKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !envKey.isEmpty {
-            cachedAnonKey = envKey
-            return envKey
-        }
-        fatalError("SUPABASE_ANON_KEY missing. Provide it via Info.plist or the SUPABASE_ANON_KEY environment variable.")
+        return key
     }
 
     static var displayLocationV2Enabled: Bool {
@@ -40,9 +27,42 @@ enum Env {
         return resolved
     }
 
+    static func optionalURL() -> URL? {
+        if let cached = cachedURL { return cached }
+        guard let string = resolvedURLString(), let url = URL(string: string) else { return nil }
+        cachedURL = url
+        return url
+    }
+
+    static func optionalAnonKey() -> String? {
+        if let cached = cachedAnonKey { return cached }
+        guard let key = resolvedAnonKey(), !key.isEmpty else { return nil }
+        cachedAnonKey = key
+        return key
+    }
+
     private static var cachedURL: URL?
     private static var cachedAnonKey: String?
     private static var cachedDisplayLocationV2Enabled: Bool?
+
+    private static func resolvedURLString() -> String? {
+        let bundleValue = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
+        let environmentValue = ProcessInfo.processInfo.environment["SUPABASE_URL"]
+        return (bundleValue?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+            ?? (environmentValue?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func resolvedAnonKey() -> String? {
+        if let bundleKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String {
+            let trimmed = bundleKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        if let envKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !envKey.isEmpty {
+            return envKey
+        }
+        return nil
+    }
 
     private static func resolveBooleanFlag(infoKey: String, envKey: String, defaultValue: Bool) -> Bool {
         if let bundleValue = Bundle.main.object(forInfoDictionaryKey: infoKey) {

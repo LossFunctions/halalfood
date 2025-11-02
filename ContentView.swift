@@ -19,6 +19,89 @@ enum MapFilter: CaseIterable, Identifiable {
         case .partialHalal: return "Partial Halal"
         }
     }
+
+    var symbolName: String? {
+        switch self {
+        case .all: return nil
+        case .fullyHalal: return "checkmark.seal.fill"
+        case .partialHalal: return "circle.lefthalf.fill"
+        }
+    }
+}
+
+private enum MapFilterBarItem: Identifiable {
+    case filter(MapFilter)
+    case category
+    case cuisine
+
+    var id: String {
+        switch self {
+        case .filter(let filter): return "filter-\(filter.id)"
+        case .category: return "category"
+        case .cuisine: return "cuisine"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .filter(let filter): return filter.title
+        case .category: return "Category"
+        case .cuisine: return "Cuisine"
+        }
+    }
+
+    var iconName: String? {
+        switch self {
+        case .filter(let filter): return filter.symbolName
+        case .category: return "line.3.horizontal.decrease.circle"
+        case .cuisine: return "fork.knife"
+        }
+    }
+}
+
+private enum MapFilterDropdown: Equatable {
+    case category
+    case cuisine
+}
+
+private enum CategoryFilterOption: String, CaseIterable, Identifiable {
+    case cafe = "Cafe"
+    case dessert = "Dessert"
+    case foodTruck = "Food Truck"
+    case grocery = "Grocery"
+    case highEnd = "High-End"
+    case new = "Newly Opened"
+
+    var id: String { rawValue }
+    var query: String {
+        switch self {
+        case .new: return "New"
+        default: return rawValue
+        }
+    }
+}
+
+extension CategoryFilterOption: CustomStringConvertible {
+    var description: String { rawValue }
+}
+
+private enum CuisineFilterOption: String, CaseIterable, Identifiable {
+    case african = "African"
+    case chinese = "Chinese"
+    case italian = "Italian"
+    case japanese = "Japanese"
+    case mediterranean = "Mediterranean"
+    case middleEastern = "Middle Eastern"
+    case southAsian = "South Asian"
+    case thai = "Thai"
+    case turkish = "Turkish"
+
+    var id: String { rawValue }
+    var query: String { rawValue }
+}
+
+extension CuisineFilterOption: CustomStringConvertible {
+    var description: String { rawValue }
 }
 
 private enum FavoritesSortOption: String, CaseIterable, Identifiable {
@@ -535,6 +618,9 @@ struct ContentView: View {
     @State private var selectedApplePlace: ApplePlaceSelection?
     @State private var searchQuery = ""
     @State private var isSearchOverlayPresented = false
+    @State private var activeDropdown: MapFilterDropdown?
+    @State private var selectedCategoryOption: CategoryFilterOption?
+    @State private var selectedCuisineOption: CuisineFilterOption?
     @State private var keyboardHeight: CGFloat = 0
     @State private var previousMapRegion: MKCoordinateRegion?
     @State private var communityCache: [TopRatedRegion: [Place]] = [:]
@@ -544,10 +630,22 @@ struct ContentView: View {
     @State private var visiblePlaces: [Place] = []
     @State private var viewportCache = ViewportCache()
     @State private var searchDebounceTask: DispatchWorkItem?
+    @State private var filterSelectionVersion: Int = 0
 #if DEBUG
     @State private var didLogInitialAppear = false
     @StateObject private var communityInstrumentation = CommunityInstrumentation()
 #endif
+
+    private static let highEndTokens: Set<String> = {
+        let candidates = [
+            "au za'atar",
+            "musaafer",
+            "zaoq",
+            "bungalow",
+            "ishq"
+        ]
+        return Set(candidates.map { PlaceOverrides.normalizedName(for: $0) })
+    }()
 
     private let maxNewSpotsDisplayed = 10
 
@@ -662,6 +760,10 @@ struct ContentView: View {
         }
     }
 
+    private var newSpotPlaces: [Place] {
+        featuredNewSpots.map(\.place)
+    }
+
     private var spotlightEntry: NewSpotEntry? {
         newSpotEntries.first(where: { $0.id == UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36") }) ?? newSpotEntries.first
     }
@@ -763,12 +865,37 @@ struct ContentView: View {
     }
 
     private var filteredPlaces: [Place] {
+        let scoped = viewModel.places.filteredByCurrentGeoScope()
+
+        if selectedCategoryOption == .highEnd {
+            viewModel.ensureGlobalDataset()
+            let fromViewModel = viewModel.curatedPlaces(matching: ContentView.highEndTokens)
+            let filtered: [Place]
+            if fromViewModel.isEmpty {
+                filtered = scoped.filter { place in
+                    let normalized = PlaceOverrides.normalizedName(for: place.name)
+                    return ContentView.highEndTokens.contains { token in
+                        normalized.contains(token)
+                    }
+                }
+            } else {
+                filtered = fromViewModel
+            }
+            return filtered.isEmpty ? scoped : filtered
+        }
+
+        if selectedCategoryOption == .new {
+            viewModel.ensureGlobalDataset()
+            let featured = newSpotPlaces
+            return featured.isEmpty ? scoped : featured
+        }
+
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return viewModel.places.filteredByCurrentGeoScope() }
+        guard !trimmed.isEmpty else { return scoped }
 
         let matches = viewModel.searchResults.filteredByCurrentGeoScope()
         if matches.isEmpty, viewModel.isSearching {
-            return viewModel.places.filteredByCurrentGeoScope()
+            return scoped
         }
         return matches
     }
@@ -880,6 +1007,20 @@ struct ContentView: View {
         let generation = communityComputationGeneration
         if !communityCache.isEmpty {
             communityCacheIsStale = true
+        }
+
+        let hasSupabaseConfig = Env.optionalURL() != nil && Env.optionalAnonKey() != nil
+        if !hasSupabaseConfig {
+            if snapshot.hasTrustedData {
+                let fallback = CommunityTopRatedEngine.compute(snapshot: snapshot)
+                applyCommunityComputation(fallback, persist: false)
+                communityCacheIsStale = false
+            } else {
+                communityCache[.all] = []
+                communityCacheIsStale = false
+            }
+            communityPrecomputeTask = nil
+            return
         }
 
 #if DEBUG
@@ -1072,16 +1213,22 @@ struct ContentView: View {
                         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
                     },
                     onMapTap: {
-                        guard bottomTab == .favorites else { return }
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            bottomTab = .places
+                        if activeDropdown != nil {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeDropdown = nil
+                            }
+                        }
+                        if bottomTab == .favorites {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                bottomTab = .places
+                            }
                         }
                     }
                 )
 
                 VStack(alignment: .leading, spacing: 0) {
                     searchBar
-                    topSegmentedControl
+                    mapFilterBar
                 }
                 .padding(.top, 16)
                 .padding(.horizontal, 16)
@@ -1166,6 +1313,11 @@ struct ContentView: View {
             guard bottomTab == .places || bottomTab == .newSpots else { return }
             refreshVisiblePlaces()
         }
+        .onChange(of: viewModel.globalDatasetVersion) { _ in
+            guard bottomTab == .places || bottomTab == .newSpots else { return }
+            guard selectedCategoryOption == .highEnd || selectedCategoryOption == .new else { return }
+            refreshVisiblePlaces()
+        }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
             centerMap(on: location)
@@ -1209,6 +1361,16 @@ struct ContentView: View {
         .onChange(of: searchQuery) { _, newValue in
             searchDebounceTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isSearchOverlayPresented {
+                if selectedCategoryOption != nil || selectedCuisineOption != nil {
+                    if selectedCategoryOption?.query != trimmed || trimmed.isEmpty {
+                        selectedCategoryOption = nil
+                    }
+                    if selectedCuisineOption?.query != trimmed || trimmed.isEmpty {
+                        selectedCuisineOption = nil
+                    }
+                }
+            }
             guard !trimmed.isEmpty else {
                 viewModel.search(query: "")
                 searchDebounceTask = nil
@@ -1278,6 +1440,7 @@ struct ContentView: View {
                 communityInstrumentation.resetAll()
             }
 #endif
+            activeDropdown = nil
             switch tab {
             case .favorites:
                 selectedApplePlace = nil
@@ -1359,19 +1522,144 @@ struct ContentView: View {
             }
 #endif
         }
+        .onChange(of: isSearchOverlayPresented) { presented in
+            if presented {
+                activeDropdown = nil
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
     }
 
-    private var topSegmentedControl: some View {
-        Picker("Category", selection: $selectedFilter) {
-            ForEach(MapFilter.allCases) { filter in
-                Text(filter.title).tag(filter)
+    private var filterBarItems: [MapFilterBarItem] {
+        [.filter(.all), .filter(.fullyHalal), .filter(.partialHalal), .category, .cuisine]
+    }
+
+    private var mapFilterBar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(filterBarItems) { item in
+                        switch item {
+                        case .filter(let filter):
+                            let isSelected = filter == selectedFilter
+                            mapFilterChip(
+                                title: item.title,
+                                iconName: item.iconName,
+                                trailingIconName: nil,
+                                isSelected: isSelected
+                            ) {
+                                guard !isSelected else {
+                                    activeDropdown = nil
+                                    return
+                                }
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    selectedFilter = filter
+                                    activeDropdown = nil
+                                    selectedCategoryOption = nil
+                                    selectedCuisineOption = nil
+                                }
+                                if !searchQuery.isEmpty {
+                                    searchQuery = ""
+                                }
+                            }
+                        case .category:
+                            let hasSelection = selectedCategoryOption != nil
+                            let isActive = activeDropdown == .category
+                            let trailing = isActive ? "chevron.up" : "chevron.down"
+                            mapFilterChip(
+                                title: item.title,
+                                iconName: item.iconName,
+                                trailingIconName: trailing,
+                                isSelected: hasSelection || isActive
+                            ) {
+                                toggleDropdown(.category)
+                            }
+                        case .cuisine:
+                            let hasSelection = selectedCuisineOption != nil
+                            let isActive = activeDropdown == .cuisine
+                            let trailing = isActive ? "chevron.up" : "chevron.down"
+                            mapFilterChip(
+                                title: item.title,
+                                iconName: item.iconName,
+                                trailingIconName: trailing,
+                                isSelected: hasSelection || isActive
+                            ) {
+                                toggleDropdown(.cuisine)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+
+            if let dropdown = activeDropdown {
+                dropdownMenu(for: dropdown)
+                    .transition(
+                        AnyTransition.offset(y: -12)
+                            .combined(with: .opacity)
+                    )
             }
         }
-        .pickerStyle(.segmented)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 14, y: 8)
+    }
+
+    private func mapFilterChip(
+        title: String,
+        iconName: String?,
+        trailingIconName: String?,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let iconName {
+                    Image(systemName: iconName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .symbolRenderingMode(.monochrome)
+                }
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                if let trailingIconName {
+                    Image(systemName: trailingIconName)
+                        .font(.system(size: 11, weight: .bold))
+                        .symbolRenderingMode(.monochrome)
+                        .opacity(0.8)
+                }
+            }
+            .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.82))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.accentColor
+                            : Color(.systemBackground).opacity(0.96)
+                    )
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(
+                        isSelected
+                            ? Color.accentColor.opacity(0.35)
+                            : Color.primary.opacity(0.12),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(
+                color: isSelected
+                    ? Color.accentColor.opacity(0.22)
+                    : Color.black.opacity(0.05),
+                radius: isSelected ? 9 : 5,
+                y: isSelected ? 4 : 3
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private enum BottomTab: CaseIterable, Identifiable {
@@ -1466,6 +1754,7 @@ struct ContentView: View {
 
     private var searchBar: some View {
         Button {
+            activeDropdown = nil
             isSearchOverlayPresented = true
         } label: {
             HStack(spacing: 10) {
@@ -1551,9 +1840,170 @@ private extension ContentView {
 
     func restoreSearchStateAfterDismiss() {
         previousMapRegion = nil
+        guard selectedCategoryOption == nil, selectedCuisineOption == nil else { return }
         if !searchQuery.isEmpty {
             searchQuery = ""
         }
+    }
+
+    private func toggleDropdown(_ dropdown: MapFilterDropdown) {
+        if bottomTab != .places {
+            bottomTab = .places
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            activeDropdown = activeDropdown == dropdown ? nil : dropdown
+        }
+    }
+
+    private func selectCategory(_ option: CategoryFilterOption?) {
+        if bottomTab != .places {
+            bottomTab = .places
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let option {
+                if selectedCategoryOption == option {
+                    selectedCategoryOption = nil
+                } else {
+                    selectedCategoryOption = option
+                    selectedCuisineOption = nil
+                }
+            } else {
+                selectedCategoryOption = nil
+            }
+            activeDropdown = nil
+        }
+        if let current = selectedCategoryOption {
+            if current == .highEnd || current == .new {
+                searchQuery = ""
+            } else {
+                searchQuery = current.query
+            }
+        } else if let cuisine = selectedCuisineOption {
+            searchQuery = cuisine.query
+        } else {
+            searchQuery = ""
+        }
+        filterSelectionVersion &+= 1
+        refreshVisiblePlaces()
+    }
+
+    private func selectCuisine(_ option: CuisineFilterOption?) {
+        if bottomTab != .places {
+            bottomTab = .places
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let option {
+                if selectedCuisineOption == option {
+                    selectedCuisineOption = nil
+                } else {
+                    selectedCuisineOption = option
+                    selectedCategoryOption = nil
+                }
+            } else {
+                selectedCuisineOption = nil
+            }
+            activeDropdown = nil
+        }
+        if let current = selectedCuisineOption {
+            searchQuery = current.query
+        } else if let category = selectedCategoryOption {
+            if category == .highEnd || category == .new {
+                searchQuery = ""
+            } else {
+                searchQuery = category.query
+            }
+        } else {
+            searchQuery = ""
+        }
+        filterSelectionVersion &+= 1
+        refreshVisiblePlaces()
+    }
+
+    @ViewBuilder
+    private func dropdownMenu(for dropdown: MapFilterDropdown) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            switch dropdown {
+            case .category:
+                Text("Categories")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                dropdownButtons(
+                    options: CategoryFilterOption.allCases,
+                    selected: selectedCategoryOption,
+                    onSelect: { selectCategory($0) },
+                    onClear: { selectCategory(nil) }
+                )
+            case .cuisine:
+                Text("Cuisines")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                dropdownButtons(
+                    options: CuisineFilterOption.allCases,
+                    selected: selectedCuisineOption,
+                    onSelect: { selectCuisine($0) },
+                    onClear: { selectCuisine(nil) }
+                )
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.systemBackground).opacity(0.96))
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 12, y: 6)
+    }
+
+    private func dropdownButtons<Option: Identifiable & Equatable>(
+        options: [Option],
+        selected: Option?,
+        onSelect: @escaping (Option) -> Void,
+        onClear: @escaping () -> Void
+    ) -> some View where Option: CustomStringConvertible {
+        VStack(alignment: .leading, spacing: 6) {
+            dropdownOptionButton(
+                title: "Select All",
+                isSelected: selected == nil,
+                action: onClear
+            )
+            ForEach(options) { option in
+                dropdownOptionButton(
+                    title: option.description,
+                    isSelected: option == selected,
+                    action: { onSelect(option) }
+                )
+            }
+        }
+    }
+
+    private func dropdownOptionButton(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.callout)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+            }
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary.opacity(0.9))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.accentColor.opacity(0.12)
+                            : Color.primary.opacity(0.04)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     func focus(on place: Place) {
@@ -1638,8 +2088,13 @@ private extension ContentView {
     private func refreshVisiblePlaces() {
         guard bottomTab == .places || bottomTab == .newSpots else { return }
         let base = filteredPlaces
+        if selectedCategoryOption != nil || selectedCuisineOption != nil {
+            visiblePlaces = base
+            return
+        }
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let version = trimmed.isEmpty ? viewModel.filteredPlacesVersion : viewModel.searchResultsVersion
+        let baseVersion = trimmed.isEmpty ? viewModel.filteredPlacesVersion : viewModel.searchResultsVersion
+        let version = baseVersion &+ filterSelectionVersion
         visiblePlaces = viewportCache.slice(for: mapRegion, version: version, source: base)
     }
 }
@@ -1724,6 +2179,7 @@ private struct SearchOverlayView: View {
     private var content: some View {
         if trimmedQuery.isEmpty {
             VStack(spacing: 12) {
+                Spacer()
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: 44, weight: .regular))
                     .foregroundStyle(.secondary)
@@ -1736,9 +2192,10 @@ private struct SearchOverlayView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
+                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
@@ -2325,7 +2782,9 @@ private struct TopRatedRow: View {
             Spacer(minLength: 8)
         }
         .overlay(alignment: .topTrailing) {
-            if let rank { rankBadge(rank) }
+            if let rank {
+                CommunityRankBadge(rank: rank)
+            }
         }
         .task(id: place.id) {
             await loadCuisine()
@@ -2422,11 +2881,15 @@ private struct TopRatedRow: View {
         return DisplayLocationResolver.display(for: place)
     }
 
-    @ViewBuilder
-    private func rankBadge(_ rank: Int) -> some View {
+}
+
+private struct CommunityRankBadge: View {
+    let rank: Int
+
+    var body: some View {
         let symbolName: String? = rank <= 50 ? "\(rank).circle.fill" : nil
         let gold = Color(red: 0.95, green: 0.76, blue: 0.20)
-        return HStack(spacing: 6) {
+        HStack(spacing: 6) {
             if rank == 1 { Text("🏆").font(.system(size: 14)) }
             Group {
                 if let name = symbolName, UIImage(systemName: name) != nil {
@@ -2490,8 +2953,15 @@ private actor TopRatedCuisineResolver {
         var cuisine: String?
         var display = place.displayLocation ?? DisplayLocationResolver.display(for: place)
 
+        guard let supabaseURL = Env.optionalURL(),
+              let anonKey = Env.optionalAnonKey() else {
+            return Entry(cuisine: cuisine, displayLocation: display)
+        }
+
         do {
-            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            guard var comps = URLComponents(url: supabaseURL, resolvingAgainstBaseURL: false) else {
+                return Entry(cuisine: cuisine, displayLocation: display)
+            }
             var path = comps.path
             if !path.hasSuffix("/") { path.append("/") }
             path.append("rest/v1/place")
@@ -2500,10 +2970,12 @@ private actor TopRatedCuisineResolver {
                 URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
                 URLQueryItem(name: "select", value: "source_raw,display_location")
             ]
-            var req = URLRequest(url: comps.url!)
-            let key = Env.anonKey
-            req.setValue(key, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            guard let requestURL = comps.url else {
+                return Entry(cuisine: cuisine, displayLocation: display)
+            }
+            var req = URLRequest(url: requestURL)
+            req.setValue(anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
             req.setValue("public", forHTTPHeaderField: "Accept-Profile")
             let (data, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
@@ -3205,9 +3677,11 @@ private struct TopRatedPhotoThumb: View {
     private struct PhotoRow: Decodable { let image_url: String }
     @MainActor
     private func loadThumbnailAndCuisine() async {
+        guard let supabaseURL = Env.optionalURL(),
+              let anonKey = Env.optionalAnonKey() else { return }
         do {
             // Build place_photo URL
-            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            guard var comps = URLComponents(url: supabaseURL, resolvingAgainstBaseURL: false) else { return }
             var p = comps.path
             if !p.hasSuffix("/") { p.append("/") }
             p.append("rest/v1/place_photo")
@@ -3217,10 +3691,10 @@ private struct TopRatedPhotoThumb: View {
                 URLQueryItem(name: "order", value: "priority.asc"),
                 URLQueryItem(name: "limit", value: "1")
             ]
-            var req = URLRequest(url: comps.url!)
-            let key = Env.anonKey
-            req.setValue(key, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            guard let requestURL = comps.url else { return }
+            var req = URLRequest(url: requestURL)
+            req.setValue(anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
             req.setValue("public", forHTTPHeaderField: "Accept-Profile")
             let (data, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
@@ -3249,9 +3723,11 @@ private struct TopRatedPhotoThumb: View {
     static func prefetch(for id: UUID) {
         if localThumb(for: id) != nil { return }
         if urlCache[id] != nil { return }
+        guard let supabaseURL = Env.optionalURL(),
+              let anonKey = Env.optionalAnonKey() else { return }
         Task.detached {
             do {
-                var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+                guard var comps = URLComponents(url: supabaseURL, resolvingAgainstBaseURL: false) else { return }
                 var p = comps.path
                 if !p.hasSuffix("/") { p.append("/") }
                 p.append("rest/v1/place_photo")
@@ -3261,10 +3737,10 @@ private struct TopRatedPhotoThumb: View {
                     URLQueryItem(name: "order", value: "priority.asc"),
                     URLQueryItem(name: "limit", value: "1")
                 ]
-                var req = URLRequest(url: comps.url!)
-                let key = Env.anonKey
-                req.setValue(key, forHTTPHeaderField: "apikey")
-                req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                guard let requestURL = comps.url else { return }
+                var req = URLRequest(url: requestURL)
+                req.setValue(anonKey, forHTTPHeaderField: "apikey")
+                req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
                 req.setValue("public", forHTTPHeaderField: "Accept-Profile")
                 let (data, resp) = try await URLSession.shared.data(for: req)
                 if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
@@ -3290,14 +3766,15 @@ private struct TopRatedPhotoThumb: View {
             }
         }
 
-        guard let baseHost = Env.url.host,
+        guard let baseURL = Env.optionalURL(),
+              let baseHost = baseURL.host,
               original.host == baseHost,
               original.path.contains(supabaseObjectPrefix) else {
             return original
         }
 
         var components = URLComponents(url: original, resolvingAgainstBaseURL: false)
-        components?.scheme = Env.url.scheme
+        components?.scheme = baseURL.scheme
         components?.host = baseHost
         if let path = components?.path {
             components?.path = path.replacingOccurrences(of: supabaseObjectPrefix, with: supabaseRenderPrefix)
@@ -4957,7 +5434,9 @@ final class PlaceDetailViewModel: ObservableObject {
                 self.photos = cached
                 return
             }
-            var comps = URLComponents(url: Env.url, resolvingAgainstBaseURL: false)!
+            guard let supabaseURL = Env.optionalURL(),
+                  let anonKey = Env.optionalAnonKey() else { return }
+            guard var comps = URLComponents(url: supabaseURL, resolvingAgainstBaseURL: false) else { return }
             var p = comps.path
             if !p.hasSuffix("/") { p.append("/") }
             p.append("rest/v1/place_photo")
@@ -4970,9 +5449,8 @@ final class PlaceDetailViewModel: ObservableObject {
             guard let url = comps.url else { return }
             var req = URLRequest(url: url)
             req.setValue("application/json", forHTTPHeaderField: "Accept")
-            let key = Env.anonKey
-            req.setValue(key, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.setValue(anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
             req.setValue("public", forHTTPHeaderField: "Accept-Profile")
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
@@ -5007,6 +5485,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     @Published private(set) var isSearching = false
     @Published private(set) var filteredPlacesVersion: Int = 0
     @Published private(set) var searchResultsVersion: Int = 0
+    @Published private(set) var globalDatasetVersion: Int = 0
     @Published fileprivate private(set) var persistedCommunityTopRated: [TopRatedRegion: [Place]] = [:]
 
     var subtitleMessage: String? {
@@ -5834,6 +6313,32 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         return Array(sorted.prefix(limit))
     }
 
+    func curatedPlaces(matching tokens: Set<String>) -> [Place] {
+        guard !tokens.isEmpty else { return [] }
+
+        let pools: [[Place]] = [globalDataset, allPlaces, searchResults]
+        var seen = Set<UUID>()
+        var matches: [Place] = []
+        matches.reserveCapacity(16)
+
+        for pool in pools {
+            for place in pool where seen.insert(place.id).inserted {
+                guard isTrustedPlace(place) else { continue }
+                let normalized = PlaceOverrides.normalizedName(for: place.name)
+                if tokens.contains(where: { normalized.contains($0) }) {
+                    matches.append(place)
+                }
+            }
+        }
+
+        guard !matches.isEmpty else { return [] }
+
+        let scoped = matches.filteredByCurrentGeoScope()
+        guard !scoped.isEmpty else { return [] }
+
+        return PlaceOverrides.sorted(scoped)
+    }
+
     private func isSeedPlace(_ place: Place) -> Bool {
         guard let source = place.source?.lowercased() else { return false }
         return source == "seed"
@@ -5846,6 +6351,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private static func message(for error: Error) -> String {
         if let apiError = error as? PlaceAPIError {
             switch apiError {
+            case .missingConfiguration:
+                return "Supabase credentials missing. Add SUPABASE_URL and SUPABASE_ANON_KEY to Info.plist or your environment."
             case .invalidURL:
                 return "The Supabase URL is misconfigured. Double-check the Info.plist entries."
             case .invalidResponse:
@@ -6140,6 +6647,7 @@ private static let nonHalalChainBlocklist: Set<String> = {
         let sorted = PlaceOverrides.sorted(combined)
         if sorted != globalDataset {
             globalDataset = sorted
+            globalDatasetVersion = globalDatasetVersion &+ 1
         }
 
         let sanitizedAll = allPlaces.filter(isTrustedPlace)
