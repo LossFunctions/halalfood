@@ -85,6 +85,38 @@ extension CategoryFilterOption: CustomStringConvertible {
     var description: String { rawValue }
 }
 
+private extension CategoryFilterOption {
+    var categoryAliases: [String] {
+        switch self {
+        case .cafe:
+            return ["coffee", "coffeeandtea", "cafes", "tea", "bubbletea", "juicebars"]
+        case .dessert:
+            return ["desserts", "icecream", "donuts", "bakeries", "cupcakes", "cakeshop", "chocolate", "gelato", "frozenyogurt", "macarons", "patisserie"]
+        case .foodTruck:
+            return ["foodtrucks", "streetvendors"]
+        case .grocery:
+            return ["grocery", "internationalgrocery", "meats", "butcher", "seafoodmarkets", "ethnicgrocery", "markets", "specialtyfood"]
+        case .highEnd, .new:
+            return []
+        }
+    }
+
+    var fallbackNameTokens: [String] {
+        switch self {
+        case .cafe:
+            return ["coffee", "cafe", "espresso", "latte", "tea"]
+        case .dessert:
+            return ["dessert", "bakery", "sweet", "cake", "icecream", "donut", "gelato"]
+        case .foodTruck:
+            return ["truck", "cart"]
+        case .grocery:
+            return ["market", "mart", "grocery", "bazaar", "butcher", "meat", "deli", "shop"]
+        case .highEnd, .new:
+            return []
+        }
+    }
+}
+
 private enum CuisineFilterOption: String, CaseIterable, Identifiable {
     case african = "African"
     case chinese = "Chinese"
@@ -102,6 +134,54 @@ private enum CuisineFilterOption: String, CaseIterable, Identifiable {
 
 extension CuisineFilterOption: CustomStringConvertible {
     var description: String { rawValue }
+}
+
+private extension CuisineFilterOption {
+    var categoryAliases: [String] {
+        switch self {
+        case .african:
+            return ["african", "ethiopian", "eritrean", "egyptian", "moroccan", "senegalese", "somali", "nigerian", "sudanese"]
+        case .chinese:
+            return ["chinese", "cantonese", "szechuan", "shanghainese", "dimsum", "hunan", "taiwanese"]
+        case .italian:
+            return ["italian", "pizza", "pastashops"]
+        case .japanese:
+            return ["japanese", "sushi", "ramen", "izakaya", "tempura", "udon"]
+        case .mediterranean:
+            return ["mediterranean", "greek", "turkish", "tapas", "lebanese"]
+        case .middleEastern:
+            return ["middleeastern", "lebanese", "syrian", "arabian", "iranian", "persian", "iraqi", "egyptian", "moroccan", "afghani", "uzbek"]
+        case .southAsian:
+            return ["indpak", "indian", "pakistani", "bangladeshi", "srilankan", "himalayan", "nepalese", "bengali"]
+        case .thai:
+            return ["thai", "laotian"]
+        case .turkish:
+            return ["turkish", "ottoman"]
+        }
+    }
+
+    var fallbackNameTokens: [String] {
+        switch self {
+        case .african:
+            return ["african", "ethiopian", "eritrean", "egyptian", "moroccan", "nigerian", "somali", "sudanese"]
+        case .chinese:
+            return ["chinese", "szechuan", "hunan", "cantonese", "shanghai", "mandarin"]
+        case .italian:
+            return ["italian", "pizza", "pasta"]
+        case .japanese:
+            return ["japanese", "sushi", "ramen", "izakaya", "donburi"]
+        case .mediterranean:
+            return ["mediterranean", "greek", "mezze", "taverna"]
+        case .middleEastern:
+            return ["middleeastern", "lebanese", "syrian", "iraqi", "persian", "iranian", "moroccan", "egyptian", "afghan", "uzbek"]
+        case .southAsian:
+            return ["southasian", "indian", "pakistani", "bangladeshi", "desi", "srilankan", "nepali"]
+        case .thai:
+            return ["thai", "lao", "laotian"]
+        case .turkish:
+            return ["turkish", "anatolian", "ottoman"]
+        }
+    }
 }
 
 private enum FavoritesSortOption: String, CaseIterable, Identifiable {
@@ -840,12 +920,38 @@ struct ContentView: View {
             source: place.source,
             applePlaceID: place.applePlaceID,
             note: place.note,
-            displayLocation: place.displayLocation
+            displayLocation: place.displayLocation,
+            categories: place.categories
         )
     }
 
     private func applyingOverrides(to places: [Place]) -> [Place] {
         places.map { applyingOverrides(to: $0) }
+    }
+
+    private func matchesCategory(_ place: Place, option: CategoryFilterOption) -> Bool {
+        guard option != .highEnd, option != .new else { return false }
+        if place.hasAnyCategory(option.categoryAliases) { return true }
+        if normalizedMatches(place.name, tokens: option.fallbackNameTokens) { return true }
+        if normalizedMatches(place.note, tokens: option.fallbackNameTokens) { return true }
+        return false
+    }
+
+    private func matchesCuisine(_ place: Place, option: CuisineFilterOption) -> Bool {
+        if place.hasAnyCategory(option.categoryAliases) { return true }
+        if normalizedMatches(place.name, tokens: option.fallbackNameTokens) { return true }
+        if normalizedMatches(place.note, tokens: option.fallbackNameTokens) { return true }
+        return false
+    }
+
+    private func normalizedMatches(_ text: String?, tokens: [String]) -> Bool {
+        guard let text, !text.isEmpty, !tokens.isEmpty else { return false }
+        let normalized = PlaceOverrides.normalizedName(for: text)
+        guard !normalized.isEmpty else { return false }
+        for token in tokens {
+            if normalized.contains(token) { return true }
+        }
+        return false
     }
 
     private func appleItemLooksHalal(_ item: MKMapItem) -> Bool {
@@ -865,7 +971,15 @@ struct ContentView: View {
     }
 
     private var filteredPlaces: [Place] {
-        let scoped = viewModel.places.filteredByCurrentGeoScope()
+        let usingRefinedDataset = (selectedCategoryOption != nil || selectedCuisineOption != nil)
+        let baseDataset: [Place]
+        if usingRefinedDataset {
+            viewModel.ensureGlobalDataset()
+            baseDataset = viewModel.datasetForRefinedFilters()
+        } else {
+            baseDataset = viewModel.places
+        }
+        let scoped = baseDataset.filteredByCurrentGeoScope()
 
         if selectedCategoryOption == .highEnd {
             viewModel.ensureGlobalDataset()
@@ -888,6 +1002,16 @@ struct ContentView: View {
             viewModel.ensureGlobalDataset()
             let featured = newSpotPlaces
             return featured.isEmpty ? scoped : featured
+        }
+
+        if let category = selectedCategoryOption {
+            let filtered = scoped.filter { matchesCategory($0, option: category) }
+            return filtered.isEmpty ? scoped : filtered
+        }
+
+        if let cuisine = selectedCuisineOption {
+            let filtered = scoped.filter { matchesCuisine($0, option: cuisine) }
+            return filtered.isEmpty ? scoped : filtered
         }
 
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1315,7 +1439,7 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.globalDatasetVersion) { _ in
             guard bottomTab == .places || bottomTab == .newSpots else { return }
-            guard selectedCategoryOption == .highEnd || selectedCategoryOption == .new else { return }
+            guard selectedCategoryOption != nil || selectedCuisineOption != nil else { return }
             refreshVisiblePlaces()
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
@@ -1872,6 +1996,9 @@ private extension ContentView {
             }
             activeDropdown = nil
         }
+        if selectedCategoryOption != nil {
+            viewModel.ensureGlobalDataset()
+        }
         if let current = selectedCategoryOption {
             if current == .highEnd || current == .new {
                 searchQuery = ""
@@ -1903,6 +2030,9 @@ private extension ContentView {
                 selectedCuisineOption = nil
             }
             activeDropdown = nil
+        }
+        if selectedCuisineOption != nil {
+            viewModel.ensureGlobalDataset()
         }
         if let current = selectedCuisineOption {
             searchQuery = current.query
@@ -2952,6 +3082,10 @@ private actor TopRatedCuisineResolver {
     private static func fetchEntry(for place: Place) async -> Entry {
         var cuisine: String?
         var display = place.displayLocation ?? DisplayLocationResolver.display(for: place)
+
+        if cuisine == nil, !place.categories.isEmpty {
+            cuisine = preferredCuisine(from: Array(place.categories))
+        }
 
         guard let supabaseURL = Env.optionalURL(),
               let anonKey = Env.optionalAnonKey() else {
@@ -6705,6 +6839,12 @@ private static let nonHalalChainBlocklist: Set<String> = {
         guard !matches(in: [place], query: query).isEmpty else { return }
         let deduped = deduplicate(searchResults + [place])
         searchResults = PlaceOverrides.sorted(deduped)
+    }
+
+    func datasetForRefinedFilters() -> [Place] {
+        let union = deduplicate(allPlaces + globalDataset)
+        let trusted = union.filter(isTrustedPlace)
+        return PlaceOverrides.sorted(trusted)
     }
 
     func updateSearchActivityIndicator() {

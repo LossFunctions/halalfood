@@ -10,7 +10,7 @@
  *     --file=data/yelp_halal.json \
  *     --supabaseUrl=$SUPABASE_URL \
  *     --serviceKey=$SUPABASE_SERVICE_ROLE_KEY \
- *     [--batchSize=400] [--skipClosed=true]
+ *     [--batchSize=400] [--skipClosed=true] [--allowHalalStatusUpdates=false]
  */
 
 const fs = require('fs');
@@ -55,6 +55,49 @@ const forcedFullyHalalPrefixes = [
   'motwcoffee'
 ];
 
+async function fetchPaged(url, headers, pageSize = 1000, rangeUnit = 'items') {
+  const results = [];
+  let start = 0;
+  while (true) {
+    const end = start + pageSize - 1;
+    const resp = await fetch(url, {
+      headers: {
+        ...headers,
+        'Range-Unit': rangeUnit,
+        'Range': `${start}-${end}`,
+        'Prefer': 'count=exact'
+      }
+    });
+    if (!resp.ok && resp.status !== 206) {
+      const text = await resp.text();
+      throw new Error(`Fetch failed ${resp.status}: ${text}`);
+    }
+    const page = await resp.json();
+    results.push(...page);
+    if (page.length < pageSize) break;
+    start += pageSize;
+  }
+  return results;
+}
+
+async function fetchExistingPlaceMeta(SUPABASE_URL, SERVICE_KEY) {
+  const url = new URL(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/place`);
+  url.searchParams.set('select', 'external_id,halal_status,note');
+  url.searchParams.set('source', 'eq.yelp');
+  url.searchParams.set('status', 'not.eq.deleted');
+  const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` };
+  const rows = await fetchPaged(url, headers);
+  const map = new Map();
+  for (const row of rows) {
+    if (!row || typeof row.external_id !== 'string') continue;
+    map.set(row.external_id, {
+      halal_status: typeof row.halal_status === 'string' ? row.halal_status : null,
+      note: typeof row.note === 'string' && row.note.trim().length ? row.note.trim() : null
+    });
+  }
+  return map;
+}
+
 function parseArgs() {
   const args = new Map();
   for (const raw of process.argv.slice(2)) {
@@ -67,13 +110,14 @@ function parseArgs() {
   const SERVICE_KEY = args.get('serviceKey') || process.env.SUPABASE_SERVICE_ROLE_KEY;
   const batchSize = Math.max(50, Math.min(parseInt(args.get('batchSize') || '400', 10), 800));
   const skipClosed = /^true$/i.test(args.get('skipClosed') || 'true');
+  const allowHalalStatusUpdates = /^true$/i.test(args.get('allowHalalStatusUpdates') || 'false');
   if (!SUPABASE_URL || !SERVICE_KEY) {
     throw new Error('Provide --supabaseUrl and --serviceKey (service role), or set SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY');
   }
-  return { file, SUPABASE_URL, SERVICE_KEY, batchSize, skipClosed };
+  return { file, SUPABASE_URL, SERVICE_KEY, batchSize, skipClosed, allowHalalStatusUpdates };
 }
 
-function mapRow(item) {
+function mapRow(item, existingMeta, allowHalalStatusUpdates) {
   if (!item || !item.id) return null;
   const lat = item.latitude;
   const lon = item.longitude;
@@ -84,11 +128,13 @@ function mapRow(item) {
   const match = String(item.match || '').toLowerCase();
   const normalized = normalizeName(item.name || '');
   const forcedOnly = forcedFullyHalalPrefixes.some(prefix => normalized.startsWith(prefix));
-  const halalStatus = forcedOnly || match.includes('category') ? 'only' : 'yes';
+  let halalStatus = forcedOnly || match.includes('category') ? 'only' : 'yes';
   const rating = typeof item.rating === 'number' ? item.rating : null;
   const ratingCount = typeof item.review_count === 'number' ? item.review_count : null;
   const confidence = 0.7; // heuristic default
   const displayLocation = resolveDisplayLocation({ address });
+  const externalId = `yelp:${item.id}`;
+  const existing = existingMeta.get(externalId) || null;
   const sourceRaw = {
     url: item.url || null,
     categories: item.categories || [],
@@ -101,8 +147,14 @@ function mapRow(item) {
     sourceRaw.display_location = displayLocation;
   }
 
-  return {
-    external_id: `yelp:${item.id}`,
+  if (existing && existing.halal_status && !allowHalalStatusUpdates) {
+    halalStatus = existing.halal_status;
+  }
+
+  const rowNote = existing?.note ?? (note && note.length ? note : null);
+
+  const row = {
+    external_id: externalId,
     source: 'yelp',
     name: item.name || 'Yelp Place',
     category: 'restaurant',
@@ -115,8 +167,11 @@ function mapRow(item) {
     rating_count: ratingCount,
     confidence: confidence,
     source_raw: sourceRaw,
-    status: 'published'
+    status: 'published',
+    note: rowNote ?? null
   };
+
+  return row;
 }
 
 async function upsertBatch(SUPABASE_URL, SERVICE_KEY, rows) {
@@ -139,10 +194,14 @@ async function upsertBatch(SUPABASE_URL, SERVICE_KEY, rows) {
 }
 
 (async function main() {
-  const { file, SUPABASE_URL, SERVICE_KEY, batchSize, skipClosed } = parseArgs();
+  const { file, SUPABASE_URL, SERVICE_KEY, batchSize, skipClosed, allowHalalStatusUpdates } = parseArgs();
   const json = JSON.parse(fs.readFileSync(file, 'utf8'));
   const items = Array.isArray(json.items) ? json.items : [];
   console.log(`Loaded ${items.length} Yelp items from ${file}`);
+
+  console.log('Fetching existing Supabase Yelp place metadata…');
+  const existingMeta = await fetchExistingPlaceMeta(SUPABASE_URL, SERVICE_KEY);
+  console.log(`Loaded ${existingMeta.size} existing Yelp place records for note/halal status preservation`);
 
   const filtered = items.filter(it => {
     if (skipClosed && it.is_closed) return false;
@@ -150,7 +209,7 @@ async function upsertBatch(SUPABASE_URL, SERVICE_KEY, rows) {
   });
   console.log(`Preparing ${filtered.length} items for upsert (skipClosed=${skipClosed})`);
 
-  const rows = filtered.map(mapRow).filter(Boolean);
+  const rows = filtered.map(item => mapRow(item, existingMeta, allowHalalStatusUpdates)).filter(Boolean);
   let inserted = 0;
   for (let i = 0; i < rows.length; i += batchSize) {
     const slice = rows.slice(i, i + batchSize);

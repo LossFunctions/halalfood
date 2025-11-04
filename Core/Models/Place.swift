@@ -41,6 +41,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let coordinate: CLLocationCoordinate2D
     let category: PlaceCategory
     let rawCategory: String
+    let categories: Set<String>
     let address: String?
     let halalStatus: HalalStatus
     let rating: Double?
@@ -62,6 +63,14 @@ struct Place: Identifiable, Hashable, Sendable {
         }
 
         category = PlaceCategory(rawValue: rawCategory) ?? .other
+        if let rawList = dto.source_raw?.categories {
+            let normalized = rawList
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+            categories = Set(normalized)
+        } else {
+            categories = []
+        }
         address = dto.address
         halalStatus = HalalStatus(rawValue: dto.halal_status)
         rating = dto.rating
@@ -105,12 +114,14 @@ extension Place {
          source: String? = "manual",
          applePlaceID: String? = nil,
          note: String? = nil,
-         displayLocation: String? = nil) {
+         displayLocation: String? = nil,
+         categories: Set<String> = []) {
         self.id = id
         self.name = name
         self.coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         self.category = category
         self.rawCategory = category.rawValue
+        self.categories = categories
         self.address = address
         self.halalStatus = halalStatus
         self.rating = rating
@@ -135,12 +146,14 @@ extension Place {
          source: String?,
          applePlaceID: String?,
          note: String?,
-         displayLocation: String?) {
+         displayLocation: String?,
+         categories: Set<String>) {
         self.id = id
         self.name = name
         self.coordinate = coordinate
         self.category = category
         self.rawCategory = rawCategory
+        self.categories = categories
         self.address = address
         self.halalStatus = halalStatus
         self.rating = rating
@@ -161,6 +174,7 @@ extension Place: Codable {
         case longitude
         case category
         case rawCategory
+        case categories
         case address
         case displayLocation
         case halalStatus
@@ -189,6 +203,10 @@ extension Place: Codable {
         let source = try container.decodeIfPresent(String.self, forKey: .source)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         let note = try container.decodeIfPresent(String.self, forKey: .note)
+        let categoriesRaw = try container.decodeIfPresent([String].self, forKey: .categories) ?? []
+        let normalizedCategories = categoriesRaw
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
 
         self.init(
@@ -205,7 +223,8 @@ extension Place: Codable {
             source: source,
             applePlaceID: applePlaceID,
             note: note,
-            displayLocation: displayLocation
+            displayLocation: displayLocation,
+            categories: Set(normalizedCategories)
         )
     }
 
@@ -217,6 +236,7 @@ extension Place: Codable {
         try container.encode(coordinate.longitude, forKey: .longitude)
         try container.encode(category, forKey: .category)
         try container.encode(rawCategory, forKey: .rawCategory)
+        try container.encode(Array(categories), forKey: .categories)
         try container.encodeIfPresent(address, forKey: .address)
         try container.encodeIfPresent(displayLocation, forKey: .displayLocation)
         try container.encode(halalStatus, forKey: .halalStatus)
@@ -226,6 +246,21 @@ extension Place: Codable {
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
+    }
+}
+
+extension Place {
+    func hasCategory(_ candidate: String) -> Bool {
+        categories.contains(candidate.lowercased())
+    }
+
+    func hasAnyCategory<S: Sequence>(_ candidates: S) -> Bool where S.Element == String {
+        for candidate in candidates {
+            if categories.contains(candidate.lowercased()) {
+                return true
+            }
+        }
+        return false
     }
 }
 enum PlaceOverrides {

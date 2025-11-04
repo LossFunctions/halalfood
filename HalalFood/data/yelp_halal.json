@@ -1,6 +1,6 @@
 {
-  "total": 1965,
-  "generated_at": "2025-11-01T01:38:30.792Z",
+  "total": 1966,
+  "generated_at": "2025-11-04T00:46:20Z",
   "items": [
     {
       "id": "wGFSTTB6b4MHJJUzBnVJeg",
@@ -44038,6 +44038,29 @@
       "state": "NY",
       "country": "US",
       "zip_code": "10552",
+      "match": "manual"
+    },
+    {
+      "id": "lungi-new-york-2",
+      "name": "Lungi",
+      "alias": "lungi-new-york-2",
+      "url": "https://www.yelp.com/biz/lungi-new-york-2?adjust_creative=S0_Na3BINI1ZPDtCFfQiZQ&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=S0_Na3BINI1ZPDtCFfQiZQ",
+      "rating": null,
+      "review_count": null,
+      "is_closed": false,
+      "phone": "+12122560073",
+      "categories": [
+        "srilankan",
+        "indpak",
+        "halal"
+      ],
+      "latitude": 40.7616823,
+      "longitude": -73.9601642,
+      "address": "1136 1st Avenue, New York, NY 10065",
+      "city": "New York",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "10065",
       "match": "manual"
     }
   ]
