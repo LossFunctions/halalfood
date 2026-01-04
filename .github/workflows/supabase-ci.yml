@@ -1,0 +1,37 @@
+name: Supabase CI
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "database.types.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/supabase-ci.yml"
+
+jobs:
+  supabase:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Start local Supabase (if Docker is available)
+        run: |
+          if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+            npx supabase db start
+            npx supabase db reset
+          else
+            echo "Docker not available; skipping supabase db start/reset"
+          fi
+      - name: Verify generated types are up to date
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != '' }}
+        run: |
+          npm run types:gen
+          git diff --exit-code -- database.types.ts

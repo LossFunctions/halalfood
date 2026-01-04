@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "db:pull": "npx supabase db pull && npx supabase db pull --schema auth,storage",
+    "db:push": "npx supabase db push",
+    "types:gen": "npx supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public > database.types.ts"
+  },
+  "devDependencies": {
+    "supabase": "^2.70.5"
+  }
+}
