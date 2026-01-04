@@ -727,9 +727,31 @@ struct ContentView: View {
         return Set(candidates.map { PlaceOverrides.normalizedName(for: $0) })
     }()
 
-    private let maxNewSpotsDisplayed = 10
-
     private let newSpotConfigs: [NewSpotConfig] = [
+        NewSpotConfig(
+            placeID: UUID(uuidString: "95e9a6fd-6400-4e5b-934c-6443af9e118d")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/2eypUi3XiE64y4zQnWwKRA/o.jpg")!,
+            displayLocation: "Jericho, Long Island",
+            cuisine: "Burgers",
+            halalStatusOverride: .only,
+            openedOn: ("DEC", "23")
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "04c36c10-efd7-4a9e-9ae5-e1871bbe6a13")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/Y7i89KPniQU4iFI5WvYWhg/o.jpg")!,
+            displayLocation: "Bethpage, Long Island",
+            cuisine: "Chicken",
+            halalStatusOverride: .only,
+            openedOn: ("DEC", "06")
+        ),
+        NewSpotConfig(
+            placeID: UUID(uuidString: "71b2cf39-07d2-4e13-8b58-daf9952f3947")!,
+            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/OLNxK2vbOusTEXsl4JrLiw/o.jpg")!,
+            displayLocation: "Hicksville, Long Island",
+            cuisine: "Cafe",
+            halalStatusOverride: .only,
+            openedOn: ("OCT", "07")
+        ),
         NewSpotConfig(
             placeID: UUID(uuidString: "e35cfaee-b627-435a-9b38-3d3fc5d5fefa")!,
             imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/w_FSVa3k-RYm-7vvBo1sdQ/o.jpg")!,
@@ -850,10 +872,9 @@ struct ContentView: View {
 
     private var featuredNewSpots: [NewSpotEntry] {
         // Strict newest → oldest ordering for the list, independent of spotlight.
-        let sorted = newSpotEntries.sorted { lhs, rhs in
+        newSpotEntries.sorted { lhs, rhs in
             sortValue(for: lhs) > sortValue(for: rhs)
         }
-        return Array(sorted.prefix(maxNewSpotsDisplayed))
     }
 
     private func sortValue(for entry: NewSpotEntry) -> Int {
@@ -4323,11 +4344,15 @@ private struct NewSpotsScreen: View {
     let spotlight: NewSpotEntry?
     let topInset: CGFloat
     let onSelect: (Place) -> Void
+    @State private var isPreviouslyTrendingExpanded = false
+    private let primarySpotLimit = 6
 
     var body: some View {
         let spotlightEntry = spotlight
         // Include the hero in the list as well, per request
         let listEntries: [NewSpotEntry] = spots
+        let primaryEntries = Array(listEntries.prefix(primarySpotLimit))
+        let previousEntries = Array(listEntries.dropFirst(primarySpotLimit))
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if listEntries.isEmpty {
@@ -4336,7 +4361,20 @@ private struct NewSpotsScreen: View {
                         .padding(.top, 80)
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else {
-                    NewSpotsCard(spots: listEntries, onSelect: onSelect)
+                    if !primaryEntries.isEmpty {
+                        NewSpotsCard(
+                            title: "New Trending Spots",
+                            spots: primaryEntries,
+                            onSelect: onSelect
+                        )
+                    }
+                    if !previousEntries.isEmpty {
+                        PreviouslyTrendingCard(
+                            spots: previousEntries,
+                            isExpanded: $isPreviouslyTrendingExpanded,
+                            onSelect: onSelect
+                        )
+                    }
                     if let hero = spotlightEntry {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(spacing: 8) {
@@ -4360,7 +4398,7 @@ private struct NewSpotsScreen: View {
     }
 
     private struct NewSpotsCard: View {
-        @EnvironmentObject private var favoritesStore: FavoritesStore
+        let title: String
         let spots: [NewSpotEntry]
         let onSelect: (Place) -> Void
 
@@ -4369,23 +4407,65 @@ private struct NewSpotsScreen: View {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
                         .font(.headline.weight(.semibold))
-                    Text("New Trending Spots")
+                    Text(title)
                         .font(.headline.weight(.semibold))
                     Spacer()
                 }
                 .foregroundStyle(Color.primary)
 
-                ForEach(Array(spots.enumerated()), id: \.element.id) { index, spot in
-                    if index != 0 {
-                        Divider()
-                        .background(Color.black.opacity(0.06))
-                    }
-                    NewSpotRow(entry: spot, onSelect: onSelect)
-                }
+                NewSpotList(spots: spots, onSelect: onSelect)
             }
             .padding(18)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+        }
+    }
+
+    private struct PreviouslyTrendingCard: View {
+        let spots: [NewSpotEntry]
+        @Binding var isExpanded: Bool
+        let onSelect: (Place) -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    NewSpotList(spots: spots, onSelect: onSelect)
+                        .padding(.top, 8)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.headline.weight(.semibold))
+                        Text("Previously Trending")
+                            .font(.headline.weight(.semibold))
+                        Spacer()
+                        Text("\(spots.count)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                    }
+                    .foregroundStyle(Color.primary)
+                }
+                .tint(Color.primary)
+            }
+            .padding(18)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+        }
+    }
+
+    private struct NewSpotList: View {
+        let spots: [NewSpotEntry]
+        let onSelect: (Place) -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(Array(spots.enumerated()), id: \.element.id) { index, spot in
+                    if index != 0 {
+                        Divider()
+                            .background(Color.black.opacity(0.06))
+                    }
+                    NewSpotRow(entry: spot, onSelect: onSelect)
+                }
+            }
         }
     }
 

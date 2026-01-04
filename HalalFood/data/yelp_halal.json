@@ -1,6 +1,6 @@
 {
-  "total": 1966,
-  "generated_at": "2025-11-04T00:46:20Z",
+  "total": 1969,
+  "generated_at": "2026-01-03T01:21:20.002Z",
   "items": [
     {
       "id": "wGFSTTB6b4MHJJUzBnVJeg",
@@ -44061,6 +44061,75 @@
       "state": "NY",
       "country": "US",
       "zip_code": "10065",
+      "match": "manual"
+    },
+    {
+      "id": "we0eAYMb02mqQEU5A097yg",
+      "name": "Peri Peri Grill House",
+      "alias": "peri-peri-grill-house-bethpage",
+      "url": "https://www.yelp.com/biz/peri-peri-grill-house-bethpage?adjust_creative=pSX263ASA8SgUx5O8G952A&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=pSX263ASA8SgUx5O8G952A",
+      "rating": 4.9,
+      "review_count": 7,
+      "is_closed": false,
+      "phone": "+15162619953",
+      "categories": [
+        "chickenshop",
+        "halal",
+        "burgers"
+      ],
+      "latitude": 40.74172606459229,
+      "longitude": -73.49698954346518,
+      "address": "629 Hicksville Rd, Bethpage, NY 11714",
+      "city": "Bethpage",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11714",
+      "match": "manual"
+    },
+    {
+      "id": "KNllF3uTecI5KHCI-KMoFw",
+      "name": "Filli",
+      "alias": "filli-hicksville",
+      "url": "https://www.yelp.com/biz/filli-hicksville?adjust_creative=pSX263ASA8SgUx5O8G952A&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=pSX263ASA8SgUx5O8G952A",
+      "rating": 4.7,
+      "review_count": 6,
+      "is_closed": false,
+      "phone": "+15161110021",
+      "categories": [
+        "cafes",
+        "coffee",
+        "sandwiches"
+      ],
+      "latitude": 40.760747,
+      "longitude": -73.516139,
+      "address": "350 S Broadway, Unit 1, Hicksville, NY 11801",
+      "city": "Hicksville",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11801",
+      "match": "manual"
+    },
+    {
+      "id": "jx-2rEW3A3zltz26w1gyrg",
+      "name": "Sheikhs N Burgers",
+      "alias": "sheikhs-n-burgers-jericho",
+      "url": "https://www.yelp.com/biz/sheikhs-n-burgers-jericho?adjust_creative=pSX263ASA8SgUx5O8G952A&utm_campaign=yelp_api_v3&utm_medium=api_v3_business_lookup&utm_source=pSX263ASA8SgUx5O8G952A",
+      "rating": 5,
+      "review_count": 1,
+      "is_closed": false,
+      "phone": "+15169439525",
+      "categories": [
+        "juicebars",
+        "burgers",
+        "chicken_wings"
+      ],
+      "latitude": 40.779238,
+      "longitude": -73.529536,
+      "address": "287 N Broadway, Jericho, NY 11853",
+      "city": "Jericho",
+      "state": "NY",
+      "country": "US",
+      "zip_code": "11853",
       "match": "manual"
     }
   ]

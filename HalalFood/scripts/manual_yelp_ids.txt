@@ -9,3 +9,15 @@ https://www.yelp.com/biz/sma-sha-long-island-city-2
 
 # Add MOTW Coffee (Hicksville)
 https://www.yelp.com/biz/motw-coffee-hicksville
+
+# Add Peri Peri Grill House (Bethpage)
+https://www.yelp.com/biz/peri-peri-grill-house-bethpage
+
+# Add Gnocchi Bella (Forest Hills)
+https://www.yelp.com/biz/gnocchi-bella-forest-hills
+
+# Add Filli (Hicksville)
+https://www.yelp.com/biz/filli-hicksville
+
+# Add Sheikhs N Burgers (Jericho)
+https://www.yelp.com/biz/sheikhs-n-burgers-jericho

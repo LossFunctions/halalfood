@@ -52,7 +52,12 @@ const forcedFullyHalalPrefixes = [
   'karachikababboiz', 'karachikabab'
   ,
   // Request: Treat MOTW Coffee as fully halal
-  'motwcoffee'
+  'motwcoffee',
+  // Request: Treat new additions as fully halal
+  'periperigrillhouse',
+  'gnocchibella',
+  'filli',
+  'sheikhsnburgers'
 ];
 
 async function fetchPaged(url, headers, pageSize = 1000, rangeUnit = 'items') {
