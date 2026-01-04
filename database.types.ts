@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
   public: {
     Tables: {
       place: {
@@ -603,57 +598,6 @@ export type Database = {
           region_rank: number
           source: string
           source_raw: Json
-        }[]
-      }
-      get_places_in_bbox: {
-        Args: {
-          cat?: string
-          east: number
-          max_count?: number
-          north: number
-          south: number
-          west: number
-        }
-        Returns: {
-          address: string
-          apple_place_id: string
-          category: string
-          confidence: number
-          halal_status: string
-          id: string
-          lat: number
-          lon: number
-          name: string
-          note: string
-          rating: number
-          rating_count: number
-          source: string
-        }[]
-      }
-      get_places_in_bbox_v2: {
-        Args: {
-          cat?: string
-          east: number
-          max_count?: number
-          north: number
-          south: number
-          west: number
-        }
-        Returns: {
-          address: string
-          apple_place_id: string
-          category: string
-          confidence: number
-          display_location: string
-          halal_status: string
-          id: string
-          lat: number
-          lon: number
-          name: string
-          note: string
-          rating: number
-          rating_count: number
-          source: string
         }[]
       }
       get_places_in_bbox_v3: {
@@ -1563,3 +1507,4 @@ export const Constants = {
     },
   },
 } as const
+
