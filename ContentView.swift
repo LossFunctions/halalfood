@@ -6326,6 +6326,11 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         let hitFetchLimit: Bool
     }
 
+    private struct SeedBootstrapResult: Sendable {
+        let deduplicatedSeeds: [Place]
+        let sortedSeeds: [Place]
+    }
+
     private nonisolated static func fetchPlacesData(
         requestRegion: MKCoordinateRegion,
         fetchLimit: Int
@@ -6359,6 +6364,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         let seedRegion = normalizedRegion(for: region)
 
         Task { @MainActor [weak self] in
+            await Task.yield()
             guard let self else { return }
             if let snapshot = await self.diskCache.loadSnapshot(), !snapshot.places.isEmpty {
                 let filtered = snapshot.places
@@ -6386,18 +6392,33 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                     self.ensureGlobalDataset(forceRefresh: true)
                 }
             } else {
-                let seedTask = Task.detached(priority: .utility) {
-                    Self.loadBundledSeedPlaces()
-                }
-                let seeds = await seedTask.value
-                if !seeds.isEmpty {
+                let seedTask = Task.detached(priority: .utility) { () -> SeedBootstrapResult in
+                    let seeds = Self.loadBundledSeedPlaces()
+                    guard !seeds.isEmpty else {
+                        return SeedBootstrapResult(deduplicatedSeeds: [], sortedSeeds: [])
+                    }
                     let filteredSeeds = seeds.filteredByCurrentGeoScope()
-                    let sanitizedSeeds = filteredSeeds.filter(Self.trustedSourceFilter)
-                    if !sanitizedSeeds.isEmpty {
-                        self.mergeIntoGlobalDataset(sanitizedSeeds, persist: false)
-                        self.allPlaces = PlaceOverrides.sorted(sanitizedSeeds)
+                    let trustedSeeds = filteredSeeds.filter(Self.trustedSourceFilter)
+                    guard !trustedSeeds.isEmpty else {
+                        return SeedBootstrapResult(deduplicatedSeeds: [], sortedSeeds: [])
+                    }
+                    let deduplicatedSeeds = PlaceOverrides.deduplicate(trustedSeeds)
+                    let sortedSeeds = PlaceOverrides.sorted(deduplicatedSeeds)
+                    return SeedBootstrapResult(
+                        deduplicatedSeeds: deduplicatedSeeds,
+                        sortedSeeds: sortedSeeds
+                    )
+                }
+                let seedResult = await seedTask.value
+                if !seedResult.sortedSeeds.isEmpty {
+                    if self.globalDataset.isEmpty {
+                        self.globalDataset = seedResult.sortedSeeds
+                        self.globalDatasetVersion = self.globalDatasetVersion &+ 1
+                    }
+                    if self.allPlaces.isEmpty {
+                        self.allPlaces = seedResult.sortedSeeds
                         self.apply(filter: filter)
-                        self.cache.store(sanitizedSeeds, region: seedRegion)
+                        self.cache.store(seedResult.sortedSeeds, region: seedRegion)
                     }
                 }
                 self.ensureGlobalDataset()
