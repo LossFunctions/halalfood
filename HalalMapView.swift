@@ -190,6 +190,9 @@ struct HalalMapView: UIViewRepresentable {
 
         private let dotSpanThreshold = HalalMapView.dotSpanThreshold
         private let regionChangeDebounceNanoseconds: UInt64 = 200_000_000
+        private let duplicateOffsetEnableSpan: CLLocationDegrees = 0.008
+        private let duplicateOffsetDisableSpan: CLLocationDegrees = 0.01
+        private let duplicateOffsetRadius: CGFloat = 22
 
         private var parent: HalalMapView
         private var placeAnnotationsByID: [UUID: PlaceAnnotation] = [:]
@@ -201,6 +204,8 @@ struct HalalMapView: UIViewRepresentable {
         private var usesDotAnnotations = true
         private var annotationMode: AnnotationMode = .pins
         private var regionChangeTask: Task<Void, Never>?
+        private var duplicateOffsetsEnabled = false
+        private var duplicatePlaceGroups: [[UUID]] = []
         var isSettingRegion = false
 
         fileprivate weak var mapView: MKMapView?
@@ -230,6 +235,7 @@ struct HalalMapView: UIViewRepresentable {
             if let mapView, let region = mapView.safeRegion ?? lastRenderedRegion {
                 updateAnnotationDisplayMode(for: mapView, region: region, pinCount: parent.pins.count)
                 syncSelection(in: mapView)
+                applyDuplicateOffsetsIfNeeded(in: mapView, region: region)
             }
         }
 
@@ -317,6 +323,7 @@ struct HalalMapView: UIViewRepresentable {
 #endif
 
             currentPlaceAnnotations = Array(placeAnnotationsByID.values)
+            rebuildDuplicatePlaceGroups()
         }
 
         private func syncPinAnnotations(with pins: [PlacePin]) {
@@ -404,6 +411,7 @@ struct HalalMapView: UIViewRepresentable {
             PerformanceMetrics.point(event: .mapRegionChange, metadata: metadata)
 #endif
             updateAnnotationDisplayMode(for: mapView, region: parentMap, pinCount: parent.pins.count)
+            applyDuplicateOffsetsIfNeeded(in: mapView, region: parentMap)
 
             let previousRegion = lastRenderedRegion
             lastRenderedRegion = parentMap
@@ -525,6 +533,13 @@ struct HalalMapView: UIViewRepresentable {
             }
         }
 
+        func mapView(_ mapView: MKMapView, didAdd views: [MKAnnotationView]) {
+            guard annotationMode == .places else { return }
+            guard views.contains(where: { $0.annotation is PlaceAnnotation }) else { return }
+            guard let region = mapView.safeRegion ?? lastRenderedRegion else { return }
+            applyDuplicateOffsetsIfNeeded(in: mapView, region: region)
+        }
+
         @objc private func handleMapTap(_ recognizer: UITapGestureRecognizer) {
             guard recognizer.state == .ended else { return }
             guard let mapView else { return }
@@ -613,6 +628,108 @@ struct HalalMapView: UIViewRepresentable {
         private func glyph(for category: PlaceCategory) -> UIImage? {
             let configuration = UIImage.SymbolConfiguration(scale: .medium)
             return UIImage(systemName: "fork.knife", withConfiguration: configuration)
+        }
+
+        private struct CoordinateKey: Hashable {
+            let latitude: Double
+            let longitude: Double
+
+            init(_ coordinate: CLLocationCoordinate2D) {
+                let scale = 10_000.0
+                latitude = (coordinate.latitude * scale).rounded() / scale
+                longitude = (coordinate.longitude * scale).rounded() / scale
+            }
+        }
+
+        private func rebuildDuplicatePlaceGroups() {
+            var buckets: [CoordinateKey: [UUID]] = [:]
+            for annotation in currentPlaceAnnotations {
+                let key = CoordinateKey(annotation.coordinate)
+                buckets[key, default: []].append(annotation.place.id)
+            }
+            duplicatePlaceGroups = buckets.values
+                .filter { $0.count > 1 }
+                .map { $0.sorted { $0.uuidString < $1.uuidString } }
+        }
+
+        private func applyDuplicateOffsetsIfNeeded(in mapView: MKMapView, region: MKCoordinateRegion) {
+            guard annotationMode == .places, !usesDotAnnotations else {
+                resetDuplicateOffsets(in: mapView)
+                return
+            }
+
+            let span = max(region.span.latitudeDelta, region.span.longitudeDelta)
+            let scale = duplicateOffsetScale(for: span)
+            guard scale > 0 else {
+                resetDuplicateOffsets(in: mapView)
+                return
+            }
+
+            guard !duplicatePlaceGroups.isEmpty else {
+                resetDuplicateOffsets(in: mapView)
+                return
+            }
+
+            for group in duplicatePlaceGroups {
+                let views: [MKAnnotationView] = group.compactMap { id in
+                    guard let annotation = placeAnnotationsByID[id] else { return nil }
+                    return mapView.view(for: annotation)
+                }
+                guard views.count == group.count else { continue }
+                let maxViewWidth = views.map(\.frame.width).max() ?? 0
+                let baseRadius = min(36, max(CGFloat(16), max(maxViewWidth * 0.35, duplicateOffsetRadius)))
+                let radius = baseRadius * scale
+                let offsets = radialOffsets(count: group.count, radius: radius)
+                for (id, offset) in zip(group, offsets) {
+                    guard let annotation = placeAnnotationsByID[id],
+                          let view = mapView.view(for: annotation) else { continue }
+                    view.centerOffset = offset
+                }
+            }
+        }
+
+        private func updateDuplicateOffsetsState(for span: CLLocationDegrees) {
+            if duplicateOffsetsEnabled {
+                if span > duplicateOffsetDisableSpan {
+                    duplicateOffsetsEnabled = false
+                }
+            } else if span < duplicateOffsetEnableSpan {
+                duplicateOffsetsEnabled = true
+            }
+        }
+
+        private func duplicateOffsetScale(for span: CLLocationDegrees) -> CGFloat {
+            updateDuplicateOffsetsState(for: span)
+            guard duplicateOffsetsEnabled else { return 0 }
+            let clamped = min(max(span, duplicateOffsetEnableSpan), duplicateOffsetDisableSpan)
+            let t = (duplicateOffsetDisableSpan - clamped) / (duplicateOffsetDisableSpan - duplicateOffsetEnableSpan)
+            let eased = t * t
+            return CGFloat(max(0, min(1, eased)))
+        }
+
+        private func resetDuplicateOffsets(in mapView: MKMapView) {
+            for annotation in currentPlaceAnnotations {
+                guard let view = mapView.view(for: annotation) else { continue }
+                if view.centerOffset != .zero {
+                    view.centerOffset = .zero
+                }
+            }
+        }
+
+        private func radialOffsets(count: Int, radius: CGFloat) -> [CGPoint] {
+            guard count > 0 else { return [] }
+            if count == 2 {
+                let angle = CGFloat.pi / 4
+                return [
+                    CGPoint(x: cos(angle) * radius, y: sin(angle) * radius),
+                    CGPoint(x: cos(angle + CGFloat.pi) * radius, y: sin(angle + CGFloat.pi) * radius)
+                ]
+            }
+            let total = CGFloat(count)
+            return (0..<count).map { index in
+                let angle = (2 * CGFloat.pi * CGFloat(index)) / total
+                return CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+            }
         }
     }
 }
