@@ -38,6 +38,12 @@ enum PlaceAPI {
         let notModified: Bool
     }
 
+    struct FetchAllPlacePinsResponse {
+        let pins: [PlacePinDTO]
+        let eTag: String?
+        let notModified: Bool
+    }
+
     private static let supabaseHardLimit = 800
     static let mapFetchDefaultLimit = 220
     private static let subdivisionDepthLimit = 3
@@ -243,6 +249,109 @@ enum PlaceAPI {
 #endif
 
         return FetchAllPlacesResponse(places: collected, eTag: responseETag, notModified: false)
+    }
+
+    static func fetchAllPlacePins(
+        pageSize: Int = 1000,
+        ifNoneMatch: String? = nil
+    ) async throws -> FetchAllPlacePinsResponse {
+        let size = max(1, min(pageSize, 1000))
+        let selectColumns = "id,lat,lon,halal_status,updated_at,address"
+        let baseQueryItems = [
+            URLQueryItem(name: "select", value: selectColumns),
+            URLQueryItem(name: "order", value: "id")
+        ]
+
+        var collected: [PlacePinDTO] = []
+        var start = 0
+        let decoder = JSONDecoder()
+        var responseETag: String?
+        var receivedNotModified = false
+
+        while true {
+            let end = start + size - 1
+            var request = try makeGETRequest(path: "rest/v1/place_pins", queryItems: baseQueryItems)
+            request.setValue("items", forHTTPHeaderField: "Range-Unit")
+            request.setValue("\(start)-\(end)", forHTTPHeaderField: "Range")
+            request.setValue("count=exact", forHTTPHeaderField: "Prefer")
+            if start == 0, let ifNoneMatch {
+                request.setValue(ifNoneMatch, forHTTPHeaderField: "If-None-Match")
+                request.cachePolicy = .reloadRevalidatingCacheData
+            }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw PlaceAPIError.invalidResponse
+            }
+
+            if httpResponse.statusCode == 304 {
+                receivedNotModified = true
+                break
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) || httpResponse.statusCode == 206 else {
+                throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+            }
+
+            let page = try decoder.decode([PlacePinDTO].self, from: data)
+            collected.append(contentsOf: page)
+
+            if responseETag == nil,
+               let header = httpResponse.value(forHTTPHeaderField: "ETag") ?? httpResponse.value(forHTTPHeaderField: "Etag") {
+                responseETag = header
+            }
+
+            if page.count < size { break }
+            start += size
+        }
+
+        if receivedNotModified {
+            return FetchAllPlacePinsResponse(pins: [], eTag: ifNoneMatch, notModified: true)
+        }
+
+        return FetchAllPlacePinsResponse(pins: collected, eTag: responseETag, notModified: false)
+    }
+
+    static func fetchPlaceDetails(placeID: UUID) async throws -> PlaceDTO? {
+        let params = GetPlaceDetailsParams(placeID: placeID)
+        let encoder = JSONEncoder()
+        let payload = try encoder.encode(params)
+
+        let request = try makeRequest(body: payload, endpoint: "rest/v1/rpc/get_place_details")
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+        }
+
+        let decoder = JSONDecoder()
+        let rows = try decoder.decode([PlaceDTO].self, from: data)
+        return rows.first
+    }
+
+    static func fetchPlaceDetailsByIDs(_ placeIDs: [UUID]) async throws -> [PlaceDTO] {
+        let params = GetPlaceDetailsByIDsParams(placeIDs: placeIDs)
+        let encoder = JSONEncoder()
+        let payload = try encoder.encode(params)
+
+        let request = try makeRequest(body: payload, endpoint: "rest/v1/rpc/get_place_details_by_ids")
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(statusCode: httpResponse.statusCode, body: String(data: data, encoding: .utf8))
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([PlaceDTO].self, from: data)
     }
 
     static func fetchCommunityTopRated(limitPerRegion: Int = 20) async throws -> [CommunityTopRatedRecord] {
@@ -571,6 +680,22 @@ private struct SearchPlacesParams: Encodable, Sendable {
         case query = "p_query"
         case normalizedQuery = "p_normalized_query"
         case limit = "p_limit"
+    }
+}
+
+private struct GetPlaceDetailsParams: Encodable, Sendable {
+    let placeID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case placeID = "p_place_id"
+    }
+}
+
+private struct GetPlaceDetailsByIDsParams: Encodable, Sendable {
+    let placeIDs: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case placeIDs = "p_place_ids"
     }
 }
 

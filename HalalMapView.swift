@@ -20,6 +20,22 @@ final class PlaceAnnotation: NSObject, MKAnnotation {
     }
 }
 
+final class PlacePinAnnotation: NSObject, MKAnnotation {
+    var pin: PlacePin
+    dynamic var coordinate: CLLocationCoordinate2D
+
+    init(pin: PlacePin) {
+        self.pin = pin
+        self.coordinate = pin.coordinate
+        super.init()
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? PlacePinAnnotation else { return false }
+        return pin.id == other.pin.id
+    }
+}
+
 final class AppleMapItemAnnotation: NSObject, MKAnnotation {
     let mapItem: MKMapItem
     let identifier: String
@@ -106,11 +122,14 @@ final class HalalDotAnnotationView: MKAnnotationView {
 }
 
 struct HalalMapView: UIViewRepresentable {
+    static let dotSpanThreshold: CLLocationDegrees = 0.1
     @Binding var region: MKCoordinateRegion
     @Binding var selectedPlace: Place?
+    var pins: [PlacePin]
     var places: [Place]
     var appleMapItems: [MKMapItem] = []
     var onRegionChange: ((MKCoordinateRegion) -> Void)?
+    var onPinSelected: ((PlacePin) -> Void)?
     var onPlaceSelected: ((Place) -> Void)?
     var onAppleItemSelected: ((MKMapItem) -> Void)?
     var onMapTap: (() -> Void)?
@@ -144,7 +163,7 @@ struct HalalMapView: UIViewRepresentable {
             mapView.pointOfInterestFilter = .excludingAll
         }
         mapView.setRegion(region, animated: false)
-        context.coordinator.configureDisplayMode(using: region, placeCount: places.count)
+        context.coordinator.configureDisplayMode(using: region, pinCount: pins.count)
         context.coordinator.mapView = mapView
         context.coordinator.addTapRecognizer(to: mapView)
         context.coordinator.syncSelection(in: mapView)
@@ -164,16 +183,23 @@ struct HalalMapView: UIViewRepresentable {
         static let appleReuseIdentifier = "ApplePlaceMarker"
         static let dotReuseIdentifier = "PlaceDot"
 
-        private let dotSpanThreshold: CLLocationDegrees = 0.1
-        private let denseMarkerCountThreshold: Int = 120
+        private enum AnnotationMode {
+            case pins
+            case places
+        }
+
+        private let dotSpanThreshold = HalalMapView.dotSpanThreshold
         private let regionChangeDebounceNanoseconds: UInt64 = 200_000_000
 
         private var parent: HalalMapView
         private var placeAnnotationsByID: [UUID: PlaceAnnotation] = [:]
-        private var currentAnnotations: [PlaceAnnotation] = []
+        private var pinAnnotationsByID: [UUID: PlacePinAnnotation] = [:]
+        private var currentPlaceAnnotations: [PlaceAnnotation] = []
+        private var currentPinAnnotations: [PlacePinAnnotation] = []
         private var appleAnnotations: [AppleMapItemAnnotation] = []
         private var lastRenderedRegion: MKCoordinateRegion?
         private var usesDotAnnotations = true
+        private var annotationMode: AnnotationMode = .pins
         private var regionChangeTask: Task<Void, Never>?
         var isSettingRegion = false
 
@@ -190,17 +216,19 @@ struct HalalMapView: UIViewRepresentable {
             mapView.addGestureRecognizer(tap)
         }
 
-        func configureDisplayMode(using region: MKCoordinateRegion, placeCount: Int) {
-            usesDotAnnotations = shouldUseDotAppearance(for: region, placeCount: placeCount)
+        func configureDisplayMode(using region: MKCoordinateRegion, pinCount: Int) {
+            usesDotAnnotations = shouldUseDotAppearance(for: region, placeCount: pinCount)
+            annotationMode = usesDotAnnotations ? .pins : .places
         }
 
         func update(parent: HalalMapView) {
             self.parent = parent
-            syncAnnotations(with: parent.places)
+            syncPinAnnotations(with: parent.pins)
+            syncPlaceAnnotations(with: parent.places)
             syncAppleAnnotations(with: parent.appleMapItems)
 
             if let mapView, let region = mapView.safeRegion ?? lastRenderedRegion {
-                updateAnnotationDisplayMode(for: mapView, region: region, placeCount: parent.places.count)
+                updateAnnotationDisplayMode(for: mapView, region: region, pinCount: parent.pins.count)
                 syncSelection(in: mapView)
             }
         }
@@ -208,7 +236,7 @@ struct HalalMapView: UIViewRepresentable {
         func applyRegionIfNeeded(_ region: MKCoordinateRegion, to mapView: MKMapView, animated: Bool) {
             guard !isSettingRegion else { return }
 
-            updateAnnotationDisplayMode(for: mapView, region: region, placeCount: parent.places.count)
+            updateAnnotationDisplayMode(for: mapView, region: region, pinCount: parent.pins.count)
 
             let tolerance: CLLocationDegrees = 7e-4
 
@@ -230,8 +258,9 @@ struct HalalMapView: UIViewRepresentable {
             mapView.setRegion(region, animated: shouldAnimate)
         }
 
-        private func syncAnnotations(with places: [Place]) {
-            guard let mapView else { return }
+        private func syncPlaceAnnotations(with places: [Place]) {
+            let shouldRender = annotationMode == .places
+            let mapView = shouldRender ? self.mapView : nil
 #if DEBUG
             let span = PerformanceMetrics.begin(
                 event: .mapAnnotationSync,
@@ -254,7 +283,9 @@ struct HalalMapView: UIViewRepresentable {
                 }
             }
             if !annotationsToRemove.isEmpty {
-                mapView.removeAnnotations(annotationsToRemove)
+                if let mapView {
+                    mapView.removeAnnotations(annotationsToRemove)
+                }
                 for annotation in annotationsToRemove {
                     placeAnnotationsByID.removeValue(forKey: annotation.place.id)
                 }
@@ -278,14 +309,57 @@ struct HalalMapView: UIViewRepresentable {
                 }
             }
 
-            if !annotationsToAdd.isEmpty {
+            if let mapView, !annotationsToAdd.isEmpty {
                 mapView.addAnnotations(annotationsToAdd)
             }
 #if DEBUG
             addedCount = annotationsToAdd.count
 #endif
 
-            currentAnnotations = Array(placeAnnotationsByID.values)
+            currentPlaceAnnotations = Array(placeAnnotationsByID.values)
+        }
+
+        private func syncPinAnnotations(with pins: [PlacePin]) {
+            let shouldRender = annotationMode == .pins
+            let mapView = shouldRender ? self.mapView : nil
+
+            let incomingIDs = Set(pins.map { $0.id })
+
+            var annotationsToRemove: [PlacePinAnnotation] = []
+            for id in pinAnnotationsByID.keys where !incomingIDs.contains(id) {
+                if let annotation = pinAnnotationsByID[id] {
+                    annotationsToRemove.append(annotation)
+                }
+            }
+            if !annotationsToRemove.isEmpty {
+                if let mapView {
+                    mapView.removeAnnotations(annotationsToRemove)
+                }
+                for annotation in annotationsToRemove {
+                    pinAnnotationsByID.removeValue(forKey: annotation.pin.id)
+                }
+            }
+
+            var annotationsToAdd: [PlacePinAnnotation] = []
+            for pin in pins {
+                if let annotation = pinAnnotationsByID[pin.id] {
+                    if annotation.coordinate.latitude != pin.coordinate.latitude ||
+                        annotation.coordinate.longitude != pin.coordinate.longitude {
+                        annotation.coordinate = pin.coordinate
+                    }
+                    annotation.pin = pin
+                } else {
+                    let annotation = PlacePinAnnotation(pin: pin)
+                    pinAnnotationsByID[pin.id] = annotation
+                    annotationsToAdd.append(annotation)
+                }
+            }
+
+            if let mapView, !annotationsToAdd.isEmpty {
+                mapView.addAnnotations(annotationsToAdd)
+            }
+
+            currentPinAnnotations = Array(pinAnnotationsByID.values)
         }
 
         private func syncAppleAnnotations(with items: [MKMapItem]) {
@@ -329,7 +403,7 @@ struct HalalMapView: UIViewRepresentable {
             let metadata = "center=(\(centerLat),\(centerLon)) span=(\(spanLat)x\(spanLon)) animated=\(animated)"
             PerformanceMetrics.point(event: .mapRegionChange, metadata: metadata)
 #endif
-            updateAnnotationDisplayMode(for: mapView, region: parentMap, placeCount: parent.places.count)
+            updateAnnotationDisplayMode(for: mapView, region: parentMap, pinCount: parent.pins.count)
 
             let previousRegion = lastRenderedRegion
             lastRenderedRegion = parentMap
@@ -379,7 +453,7 @@ struct HalalMapView: UIViewRepresentable {
                 if usesDotAnnotations {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.dotReuseIdentifier, for: annotation) as! HalalDotAnnotationView
                     view.clusteringIdentifier = nil
-                    view.apply(color: tintColor(for: placeAnnotation.place))
+                    view.apply(color: tintColor(for: placeAnnotation.place.halalStatus))
                     return view
                 } else {
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.reuseIdentifier, for: annotation) as! MKMarkerAnnotationView
@@ -387,12 +461,19 @@ struct HalalMapView: UIViewRepresentable {
                     view.collisionMode = .circle
                     view.displayPriority = .required
                     view.canShowCallout = true
-                    view.markerTintColor = tintColor(for: placeAnnotation.place)
+                    view.markerTintColor = tintColor(for: placeAnnotation.place.halalStatus)
                     view.glyphImage = glyph(for: placeAnnotation.place.category)
                     view.titleVisibility = .visible
                     view.subtitleVisibility = .adaptive
                     return view
                 }
+            }
+
+            if let pinAnnotation = annotation as? PlacePinAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.dotReuseIdentifier, for: annotation) as! HalalDotAnnotationView
+                view.clusteringIdentifier = nil
+                view.apply(color: tintColor(for: pinAnnotation.pin.halalStatus))
+                return view
             }
 
             if annotation is AppleMapItemAnnotation {
@@ -418,6 +499,12 @@ struct HalalMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let annotation = view.annotation as? PlacePinAnnotation {
+                parent.onPinSelected?(annotation.pin)
+                mapView.deselectAnnotation(view.annotation, animated: false)
+                return
+            }
+
             if usesDotAnnotations, view.annotation is PlaceAnnotation || view.annotation is AppleMapItemAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 return
@@ -458,33 +545,53 @@ struct HalalMapView: UIViewRepresentable {
             true
         }
 
-        private func updateAnnotationDisplayMode(for mapView: MKMapView, region: MKCoordinateRegion, placeCount: Int) {
-            let shouldUseDots = shouldUseDotAppearance(for: region, placeCount: placeCount)
-            guard shouldUseDots != usesDotAnnotations else { return }
+        private func updateAnnotationDisplayMode(for mapView: MKMapView, region: MKCoordinateRegion, pinCount: Int) {
+            let shouldUsePins = shouldUseDotAppearance(for: region, placeCount: pinCount)
+            let nextMode: AnnotationMode = shouldUsePins ? .pins : .places
+            guard nextMode != annotationMode else { return }
 
-            usesDotAnnotations = shouldUseDots
-            let baseAnnotations: [MKAnnotation] = currentAnnotations.map { $0 } + appleAnnotations.map { $0 }
-            guard !baseAnnotations.isEmpty else { return }
+            annotationMode = nextMode
+            usesDotAnnotations = shouldUsePins
 
-            mapView.removeAnnotations(baseAnnotations)
-            mapView.addAnnotations(baseAnnotations)
+            func toAnnotations<T: MKAnnotation>(_ annotations: [T]) -> [MKAnnotation] {
+                annotations.map { $0 as MKAnnotation }
+            }
+
+            let previousAnnotations: [MKAnnotation]
+            let nextAnnotations: [MKAnnotation]
+            if nextMode == .pins {
+                previousAnnotations = toAnnotations(currentPlaceAnnotations)
+                nextAnnotations = toAnnotations(currentPinAnnotations)
+            } else {
+                previousAnnotations = toAnnotations(currentPinAnnotations)
+                nextAnnotations = toAnnotations(currentPlaceAnnotations)
+            }
+
+            let appleAnnotationList: [MKAnnotation] = appleAnnotations.map { $0 as MKAnnotation }
+            let toRemove = previousAnnotations + appleAnnotationList
+            let toAdd = nextAnnotations + appleAnnotationList
+
+            if !toRemove.isEmpty {
+                mapView.removeAnnotations(toRemove)
+            }
+            if !toAdd.isEmpty {
+                mapView.addAnnotations(toAdd)
+            }
         }
 
-        private func shouldUseDotAppearance(for region: MKCoordinateRegion, placeCount: Int) -> Bool {
-            let spanBased = max(region.span.latitudeDelta, region.span.longitudeDelta) >= dotSpanThreshold
-            let densityBased = placeCount >= denseMarkerCountThreshold
-            return spanBased || densityBased
+        private func shouldUseDotAppearance(for region: MKCoordinateRegion, placeCount _: Int) -> Bool {
+            max(region.span.latitudeDelta, region.span.longitudeDelta) >= dotSpanThreshold
         }
 
         fileprivate func syncSelection(in mapView: MKMapView) {
-            guard !usesDotAnnotations else { return }
+            guard annotationMode == .places else { return }
 
             let selectedAnnotations = mapView.selectedAnnotations.compactMap { $0 as? PlaceAnnotation }
 
             if let target = parent.selectedPlace {
                 let alreadySelected = selectedAnnotations.contains { $0.place.id == target.id }
                 if !alreadySelected,
-                   let annotation = currentAnnotations.first(where: { $0.place.id == target.id }) {
+                   let annotation = currentPlaceAnnotations.first(where: { $0.place.id == target.id }) {
                     mapView.selectAnnotation(annotation, animated: true)
                 }
             } else if !selectedAnnotations.isEmpty {
@@ -496,8 +603,8 @@ struct HalalMapView: UIViewRepresentable {
             regionChangeTask?.cancel()
         }
 
-        private func tintColor(for place: Place) -> UIColor {
-            if place.halalStatus == .only {
+        private func tintColor(for halalStatus: Place.HalalStatus) -> UIColor {
+            if halalStatus == .only {
                 return .systemGreen
             }
             return .systemOrange

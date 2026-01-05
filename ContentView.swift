@@ -684,10 +684,12 @@ struct ContentView: View {
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
         span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
     )
+    @AppStorage("hasLoadedPinsOnce") private var hasLoadedPinsOnce = false
     @State private var selectedFilter: MapFilter = .all
     @State private var bottomTab: BottomTab = .places
     @State private var selectedPlace: Place?
     @StateObject private var viewModel = MapScreenViewModel()
+    @StateObject private var pinsStore = PlacePinsStore()
     @StateObject private var locationManager = LocationProvider()
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
     @StateObject private var favoritesStore = FavoritesStore()
@@ -708,9 +710,13 @@ struct ContentView: View {
     @State private var communityPrecomputeTask: Task<Void, Never>?
     @State private var communityComputationGeneration: Int = 0
     @State private var visiblePlaces: [Place] = []
+    @State private var visiblePins: [PlacePin] = []
     @State private var viewportCache = ViewportCache()
     @State private var searchDebounceTask: DispatchWorkItem?
+    @State private var pinSelectionTask: Task<Void, Never>?
     @State private var filterSelectionVersion: Int = 0
+    @State private var showInitialPinsLoader = false
+    @State private var initialPinsProgress = 0.0
 #if DEBUG
     @State private var didLogInitialAppear = false
     @StateObject private var communityInstrumentation = CommunityInstrumentation()
@@ -726,6 +732,11 @@ struct ContentView: View {
         ]
         return Set(candidates.map { PlaceOverrides.normalizedName(for: $0) })
     }()
+    init() {
+        let hasCachedPins = PlacePinsDiskCache.cachedSnapshotExists()
+        _showInitialPinsLoader = State(initialValue: !hasCachedPins)
+        _initialPinsProgress = State(initialValue: hasCachedPins ? 1.0 : 0.05)
+    }
 
     private let newSpotConfigs: [NewSpotConfig] = [
         NewSpotConfig(
@@ -1295,6 +1306,15 @@ struct ContentView: View {
         }
     }
 
+    private var mapPins: [PlacePin] {
+        switch bottomTab {
+        case .favorites, .topRated, .newSpots:
+            return mapPlaces.map(PlacePin.init(place:))
+        default:
+            return visiblePins
+        }
+    }
+
     private var mapAppleItems: [MKMapItem] {
         switch bottomTab {
         case .favorites, .topRated:
@@ -1325,113 +1345,61 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if bottomTab == .newSpots {
-                NewSpotsScreen(
-                    spots: featuredNewSpots,
-                    spotlight: spotlightEntry,
-                    topInset: currentTopSafeAreaInset(),
-                    onSelect: { place in
-                        selectedPlace = place
+        ZStack {
+            if showInitialPinsLoader {
+                InitialPinsLoadingView(
+                    progress: initialPinsProgress,
+                    isRefreshing: pinsStore.isRefreshing,
+                    errorMessage: pinsStore.lastError,
+                    onRetry: {
+                        initialPinsProgress = 0.12
+                        withAnimation(.linear(duration: 6.0)) {
+                            initialPinsProgress = 0.9
+                        }
+                        pinsStore.refresh()
+                    },
+                    onContinue: {
+                        showInitialPinsLoader = false
                     }
                 )
-                .environmentObject(favoritesStore)
+                .transition(.opacity)
             } else {
-                MapTabContainer(
-                    mapRegion: $mapRegion,
-                    selectedPlace: $selectedPlace,
-                    selectedApplePlace: $selectedApplePlace,
-                    places: mapPlaces,
-                    appleMapItems: mapAppleItems,
-                    isLoading: viewModel.isLoading,
-                    shouldShowLoadingIndicator: viewModel.isLoading && viewModel.places.isEmpty,
-                    onRegionChange: { region in
-                        viewModel.regionDidChange(to: region, filter: selectedFilter)
-                        let effective = RegionGate.enforcedRegion(for: region)
-                        appleHalalSearch.search(in: effective)
-                        refreshVisiblePlaces()
-                    },
-                    onPlaceSelected: { place in
-                        selectedPlace = place
-                    },
-                    onAppleItemSelected: { mapItem in
-                        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
-                    },
-                    onMapTap: {
-                        if activeDropdown != nil {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                activeDropdown = nil
-                            }
-                        }
-                        if bottomTab == .favorites {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                bottomTab = .places
-                            }
-                        }
-                    }
-                )
-
-                VStack(alignment: .leading, spacing: 0) {
-                    searchBar
-                    mapFilterBar
-                }
-                .padding(.top, 16)
-                .padding(.horizontal, 16)
-
-                if bottomTab == .topRated {
-                    TopRatedScreen(
-                        places: topRatedDisplay,
-                        sortOption: topRatedSort,
-                        region: topRatedRegion,
-                        topInset: currentTopSafeAreaInset(),
-                        bottomInset: currentBottomSafeAreaInset(),
-                        isCommunityLoading: topRatedSort == .community
-                            && communityCache[.all] == nil
-                            && (communityPrecomputeTask != nil || !viewModel.hasTrustedCommunityDataset()),
-                        onSelect: { place in
-                            focus(on: place)
-                        },
-                        onSortChange: { topRatedSort = $0 },
-                        onRegionChange: { topRatedRegion = $0 }
-                    )
-                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
-                    .ignoresSafeArea()
-                }
+                mapShell
             }
-        }
-        .overlay(alignment: .topTrailing) {
-            if bottomTab != .topRated && bottomTab != .newSpots {
-                locateMeButton
-                    .padding(.top, locateButtonTopPadding)
-                    .padding(.trailing, 16)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            bottomOverlay
         }
         .onAppear {
-        viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
-        // Preload global dataset so New Spots can resolve specific place IDs immediately
-        viewModel.ensureGlobalDataset()
-        locationManager.requestAuthorizationIfNeeded()
-        if let existingLocation = locationManager.lastKnownLocation {
-            centerMap(on: existingLocation, markCentered: false)
-        }
-        locationManager.requestCurrentLocation()
-        let effective = RegionGate.enforcedRegion(for: mapRegion)
-        appleHalalSearch.search(in: effective)
-        refreshVisiblePlaces()
-        scheduleCommunityPrecomputationIfNeeded()
-#if DEBUG
-            if !didLogInitialAppear {
-                AppPerformanceTracker.shared.end(.appLaunch, metadata: "ContentView onAppear")
-                didLogInitialAppear = true
+            if pinsStore.didLoadFromDisk, pinsStore.pins.isEmpty, !showInitialPinsLoader {
+                showInitialPinsLoader = true
+                initialPinsProgress = 0.05
             }
+            startInitialPinsLoaderIfNeeded()
+            DispatchQueue.main.async {
+                viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
+                // Preload global dataset so New Spots can resolve specific place IDs immediately
+                viewModel.ensureGlobalDataset()
+                pinsStore.refreshIfNeeded()
+                locationManager.requestAuthorizationIfNeeded()
+                if let existingLocation = locationManager.lastKnownLocation {
+                    centerMap(on: existingLocation, markCentered: false)
+                }
+                locationManager.requestCurrentLocation()
+                let effective = RegionGate.enforcedRegion(for: mapRegion)
+                appleHalalSearch.search(in: effective)
+                refreshVisiblePlaces()
+                refreshVisiblePins()
+                scheduleCommunityPrecomputationIfNeeded()
+#if DEBUG
+                if !didLogInitialAppear {
+                    AppPerformanceTracker.shared.end(.appLaunch, metadata: "ContentView onAppear")
+                    didLogInitialAppear = true
+                }
 #endif
+            }
         }
         .onChange(of: selectedFilter) { oldValue, newValue in
             guard oldValue != newValue else { return }
             viewModel.filterChanged(to: newValue, region: mapRegion)
+            refreshVisiblePins()
         }
         .onChange(of: selectedPlace) { oldValue, newValue in
             guard newValue == nil, oldValue != nil else { return }
@@ -1457,6 +1425,23 @@ struct ContentView: View {
             guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             guard bottomTab == .places || bottomTab == .newSpots else { return }
             refreshVisiblePlaces()
+        }
+        .onChange(of: pinsStore.didLoadFromDisk) { _, didLoad in
+            guard didLoad else { return }
+            guard pinsStore.pins.isEmpty else { return }
+            if !showInitialPinsLoader {
+                showInitialPinsLoader = true
+                initialPinsProgress = 0.05
+            }
+            startInitialPinsLoaderIfNeeded()
+        }
+        .onChange(of: pinsStore.pins) { _, _ in
+            if showInitialPinsLoader, !pinsStore.pins.isEmpty {
+                hasLoadedPinsOnce = true
+                completeInitialPinsLoader()
+            }
+            guard bottomTab == .places || bottomTab == .newSpots else { return }
+            refreshVisiblePins()
         }
         .onChange(of: viewModel.globalDatasetVersion) { _ in
             guard bottomTab == .places || bottomTab == .newSpots else { return }
@@ -1599,6 +1584,7 @@ struct ContentView: View {
                 } else {
                     locationManager.requestCurrentLocation()
                     refreshVisiblePlaces()
+                    refreshVisiblePins()
                 }
             case .newSpots:
                 selectedApplePlace = nil
@@ -1606,6 +1592,7 @@ struct ContentView: View {
                 // Ensure the global dataset is loaded so New Spots IDs resolve reliably
                 viewModel.ensureGlobalDataset()
                 refreshVisiblePlaces()
+                refreshVisiblePins()
             case .topRated:
                 selectedApplePlace = nil
                 if let selected = selectedPlace,
@@ -1673,6 +1660,111 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
+    }
+
+    private var mapShell: some View {
+        return ZStack(alignment: .top) {
+            if bottomTab == .newSpots {
+                NewSpotsScreen(
+                    spots: featuredNewSpots,
+                    spotlight: spotlightEntry,
+                    topInset: currentTopSafeAreaInset(),
+                    onSelect: { place in
+                        selectedPlace = place
+                    }
+                )
+                .environmentObject(favoritesStore)
+            } else {
+                MapTabContainer(
+                    mapRegion: $mapRegion,
+                    selectedPlace: $selectedPlace,
+                    selectedApplePlace: $selectedApplePlace,
+                    pins: mapPins,
+                    places: mapPlaces,
+                    appleMapItems: mapAppleItems,
+                    isLoading: viewModel.isLoading,
+                    shouldShowLoadingIndicator: viewModel.isLoading && viewModel.places.isEmpty,
+                    onRegionChange: { region in
+                        let effective = RegionGate.enforcedRegion(for: region)
+                        appleHalalSearch.search(in: effective)
+                        if shouldFetchDetails(for: region) {
+                            viewModel.regionDidChange(to: region, filter: selectedFilter)
+                        }
+                        refreshVisiblePlaces()
+                        refreshVisiblePins()
+                    },
+                    onPinSelected: { pin in
+                        selectedApplePlace = nil
+                        pinSelectionTask?.cancel()
+                        if let cached = viewModel.place(with: pin.id) {
+                            selectedPlace = cached
+                            return
+                        }
+                        pinSelectionTask = Task { @MainActor in
+                            defer { pinSelectionTask = nil }
+                            if let place = await viewModel.fetchPlaceDetails(for: pin.id) {
+                                selectedPlace = place
+                            }
+                        }
+                    },
+                    onPlaceSelected: { place in
+                        selectedPlace = place
+                    },
+                    onAppleItemSelected: { mapItem in
+                        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+                    },
+                    onMapTap: {
+                        if activeDropdown != nil {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeDropdown = nil
+                            }
+                        }
+                        if bottomTab == .favorites {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                bottomTab = .places
+                            }
+                        }
+                    }
+                )
+
+                VStack(alignment: .leading, spacing: 0) {
+                    searchBar
+                    mapFilterBar
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 16)
+
+                if bottomTab == .topRated {
+                    TopRatedScreen(
+                        places: topRatedDisplay,
+                        sortOption: topRatedSort,
+                        region: topRatedRegion,
+                        topInset: currentTopSafeAreaInset(),
+                        bottomInset: currentBottomSafeAreaInset(),
+                        isCommunityLoading: topRatedSort == .community
+                            && communityCache[.all] == nil
+                            && (communityPrecomputeTask != nil || !viewModel.hasTrustedCommunityDataset()),
+                        onSelect: { place in
+                            focus(on: place)
+                        },
+                        onSortChange: { topRatedSort = $0 },
+                        onRegionChange: { topRatedRegion = $0 }
+                    )
+                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+                    .ignoresSafeArea()
+                }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if bottomTab != .topRated && bottomTab != .newSpots {
+                locateMeButton
+                    .padding(.top, locateButtonTopPadding)
+                    .padding(.trailing, 16)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            bottomOverlay
+        }
     }
 
     private var filterBarItems: [MapFilterBarItem] {
@@ -2169,6 +2261,7 @@ private extension ContentView {
         selectedPlace = place
         isSearchOverlayPresented = false
         refreshVisiblePlaces()
+        refreshVisiblePins()
     }
 
     func focus(on mapItem: MKMapItem) {
@@ -2186,6 +2279,7 @@ private extension ContentView {
         selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
         isSearchOverlayPresented = false
         refreshVisiblePlaces()
+        refreshVisiblePins()
     }
 
     func resolvedPlace(for snapshot: FavoritePlaceSnapshot) -> Place {
@@ -2247,6 +2341,50 @@ private extension ContentView {
         let baseVersion = trimmed.isEmpty ? viewModel.filteredPlacesVersion : viewModel.searchResultsVersion
         let version = baseVersion &+ filterSelectionVersion
         visiblePlaces = viewportCache.slice(for: mapRegion, version: version, source: base)
+    }
+
+    private func refreshVisiblePins() {
+        guard bottomTab == .places || bottomTab == .newSpots else { return }
+        let scopedPins = pinsStore.pins.filteredByCurrentGeoScope()
+        let filteredPins: [PlacePin]
+        switch selectedFilter {
+        case .all:
+            filteredPins = scopedPins
+        case .fullyHalal:
+            filteredPins = scopedPins.filter { $0.halalStatus == .only }
+        case .partialHalal:
+            filteredPins = scopedPins.filter { $0.halalStatus == .yes }
+        }
+        let bbox = mapRegion.bbox
+        visiblePins = filteredPins.filter { pin in
+            pin.latitude >= bbox.south && pin.latitude <= bbox.north &&
+                pin.longitude >= bbox.west && pin.longitude <= bbox.east
+        }
+    }
+
+    private func shouldFetchDetails(for region: MKCoordinateRegion) -> Bool {
+        let span = max(region.span.latitudeDelta, region.span.longitudeDelta)
+        return span < HalalMapView.dotSpanThreshold
+    }
+
+    private func startInitialPinsLoaderIfNeeded() {
+        guard showInitialPinsLoader else { return }
+        guard initialPinsProgress < 0.1 else { return }
+        initialPinsProgress = 0.08
+        withAnimation(.linear(duration: 8.0)) {
+            initialPinsProgress = 0.92
+        }
+    }
+
+    private func completeInitialPinsLoader() {
+        guard showInitialPinsLoader else { return }
+        withAnimation(.easeOut(duration: 0.35)) {
+            initialPinsProgress = 1.0
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            showInitialPinsLoader = false
+        }
     }
 }
 
@@ -2401,6 +2539,90 @@ private struct SearchOverlayView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+    }
+}
+
+private struct InitialPinsLoadingView: View {
+    let progress: Double
+    let isRefreshing: Bool
+    let errorMessage: String?
+    let onRetry: () -> Void
+    let onContinue: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.primary.opacity(0.12))
+                        .frame(width: 96, height: 96)
+                    Text("H")
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(Color.primary)
+                }
+
+                VStack(spacing: 6) {
+                    Text("HalalFood")
+                        .font(.title2.weight(.semibold))
+                    Text("Discovering the latest and greatest halal spots…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                LoadingBar(progress: progress, tint: Color.accentColor)
+                    .frame(maxWidth: 220)
+
+                if let errorMessage, !isRefreshing {
+                    Text("We couldn't load the map yet. \(errorMessage)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    HStack(spacing: 12) {
+                        Button("Retry", action: onRetry)
+                            .buttonStyle(.borderedProminent)
+                        Button("Continue", action: onContinue)
+                            .buttonStyle(.bordered)
+                    }
+                } else {
+                    Text("Loading pins for the first time…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 12)
+        }
+    }
+}
+
+private struct LoadingBar: View {
+    let progress: Double
+    let tint: Color
+
+    private var clampedProgress: Double {
+        min(max(progress, 0.0), 1.0)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(6, proxy.size.width * clampedProgress)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.12))
+                Capsule()
+                    .fill(tint)
+                    .frame(width: width)
+            }
+        }
+        .frame(height: 8)
+        .accessibilityLabel("Loading progress")
+        .accessibilityValue(Text("\(Int(clampedProgress * 100)) percent"))
     }
 }
 
@@ -5747,6 +5969,27 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         return nil
     }
 
+    func fetchPlaceDetails(for id: UUID) async -> Place? {
+        if let existing = place(with: id) { return existing }
+
+        do {
+            guard let dto = try await PlaceAPI.fetchPlaceDetails(placeID: id),
+                  let place = Place(dto: dto),
+                  isTrustedPlace(place) else {
+                return nil
+            }
+
+            insertOrUpdatePlace(place)
+            mergeIntoGlobalDataset([place], persist: false)
+            refreshSearchResultsIfNeeded(with: place)
+            return place
+        } catch {
+            errorMessage = Self.message(for: error)
+            presentingError = true
+            return nil
+        }
+    }
+
     func initialLoad(region: MKCoordinateRegion, filter: MapFilter) {
         currentFilter = filter
         bootstrapFromDiskIfNeeded(region: region, filter: filter)
@@ -6143,10 +6386,13 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                     self.ensureGlobalDataset(forceRefresh: true)
                 }
             } else {
-                let seeds = self.loadBundledSeedPlaces()
+                let seedTask = Task.detached(priority: .utility) {
+                    Self.loadBundledSeedPlaces()
+                }
+                let seeds = await seedTask.value
                 if !seeds.isEmpty {
                     let filteredSeeds = seeds.filteredByCurrentGeoScope()
-                    let sanitizedSeeds = filteredSeeds.filter(self.isTrustedPlace(_:))
+                    let sanitizedSeeds = filteredSeeds.filter(Self.trustedSourceFilter)
                     if !sanitizedSeeds.isEmpty {
                         self.mergeIntoGlobalDataset(sanitizedSeeds, persist: false)
                         self.allPlaces = PlaceOverrides.sorted(sanitizedSeeds)
@@ -6882,7 +7128,7 @@ private static let nonHalalChainBlocklist: Set<String> = {
         }
     }
 
-    func loadBundledSeedPlaces() -> [Place] {
+    nonisolated static func loadBundledSeedPlaces() -> [Place] {
         guard let url = Bundle.main.url(forResource: "places_seed", withExtension: "json") else { return [] }
         do {
             let data = try Data(contentsOf: url)
@@ -7041,13 +7287,16 @@ private extension ContentView {
     func centerMap(on location: CLLocation, span: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08), markCentered: Bool = true) {
         let region = MKCoordinateRegion(center: location.coordinate, span: span)
         mapRegion = region
-        viewModel.forceRefresh(region: region, filter: selectedFilter)
+        if shouldFetchDetails(for: region) {
+            viewModel.forceRefresh(region: region, filter: selectedFilter)
+        }
         let effective = RegionGate.enforcedRegion(for: region)
         appleHalalSearch.search(in: effective)
         if markCentered {
             hasCenteredOnUser = true
         }
         refreshVisiblePlaces()
+        refreshVisiblePins()
     }
 }
 
@@ -7055,11 +7304,13 @@ private struct MapTabContainer: View {
     @Binding var mapRegion: MKCoordinateRegion
     @Binding var selectedPlace: Place?
     @Binding var selectedApplePlace: ApplePlaceSelection?
+    let pins: [PlacePin]
     let places: [Place]
     let appleMapItems: [MKMapItem]
     let isLoading: Bool
     let shouldShowLoadingIndicator: Bool
     let onRegionChange: (MKCoordinateRegion) -> Void
+    let onPinSelected: (PlacePin) -> Void
     let onPlaceSelected: (Place) -> Void
     let onAppleItemSelected: (MKMapItem) -> Void
     let onMapTap: () -> Void
@@ -7069,9 +7320,11 @@ private struct MapTabContainer: View {
             HalalMapView(
                 region: $mapRegion,
                 selectedPlace: $selectedPlace,
+                pins: pins,
                 places: places,
                 appleMapItems: appleMapItems,
                 onRegionChange: onRegionChange,
+                onPinSelected: onPinSelected,
                 onPlaceSelected: onPlaceSelected,
                 onAppleItemSelected: onAppleItemSelected,
                 onMapTap: onMapTap

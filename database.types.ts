@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
   public: {
     Tables: {
       place: {
@@ -145,6 +150,13 @@ export type Database = {
             foreignKeyName: "place_photo_place_id_fkey"
             columns: ["place_id"]
             isOneToOne: false
+            referencedRelation: "place_pins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_photo_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
             referencedRelation: "place_preview"
             referencedColumns: ["id"]
           },
@@ -262,6 +274,33 @@ export type Database = {
           f_table_schema?: unknown
           srid?: number | null
           type?: string | null
+        }
+        Relationships: []
+      }
+      place_pins: {
+        Row: {
+          address: string | null
+          halal_status: Database["public"]["Enums"]["halal_status"] | null
+          id: string | null
+          lat: number | null
+          lon: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string | null
+          lat?: number | null
+          lon?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string | null
+          lat?: number | null
+          lon?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -596,6 +635,46 @@ export type Database = {
           rating_count: number
           region: string
           region_rank: number
+          source: string
+          source_raw: Json
+        }[]
+      }
+      get_place_details: {
+        Args: { p_place_id: string }
+        Returns: {
+          address: string
+          apple_place_id: string
+          category: string
+          confidence: number
+          display_location: string
+          halal_status: string
+          id: string
+          lat: number
+          lon: number
+          name: string
+          note: string
+          rating: number
+          rating_count: number
+          source: string
+          source_raw: Json
+        }[]
+      }
+      get_place_details_by_ids: {
+        Args: { p_place_ids: string[] }
+        Returns: {
+          address: string
+          apple_place_id: string
+          category: string
+          confidence: number
+          display_location: string
+          halal_status: string
+          id: string
+          lat: number
+          lon: number
+          name: string
+          note: string
+          rating: number
+          rating_count: number
           source: string
           source_raw: Json
         }[]
@@ -1507,4 +1586,3 @@ export const Constants = {
     },
   },
 } as const
-

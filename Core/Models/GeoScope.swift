@@ -56,6 +56,7 @@ struct RegionGate {
 
         // Always require US if provided
         if let country = country, !countryIsUS(country) { return false }
+        if let state = state, !stateIsNY(state) { return false }
 
         if nyc.contains(lat: lat, lon: lon) { return true }
 
@@ -144,6 +145,15 @@ struct RegionGate {
             }
         }
 
+        let fullStateNames: [(String, String)] = [
+            ("NEW JERSEY", "NJ"),
+            ("NEW YORK", "NY"),
+            ("CONNECTICUT", "CT")
+        ]
+        for (name, code) in fullStateNames where upper.contains(name) {
+            return code
+        }
+
         // Fallback: scan entire string for isolated two-letter state
         let words = upper.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
         for w in words where w.count == 2 {
@@ -183,6 +193,18 @@ extension Sequence where Element == Place {
         self.filter { place in
             guard RegionGate.allows(lat: place.coordinate.latitude, lon: place.coordinate.longitude) else { return false }
             if let address = place.address, let state = RegionGate.deriveUSStateCode(fromAddress: address) {
+                return state == "NY"
+            }
+            return true
+        }
+    }
+}
+
+extension Sequence where Element == PlacePin {
+    func filteredByCurrentGeoScope() -> [PlacePin] {
+        self.filter { pin in
+            guard RegionGate.allows(lat: pin.latitude, lon: pin.longitude) else { return false }
+            if let address = pin.address, let state = RegionGate.deriveUSStateCode(fromAddress: address) {
                 return state == "NY"
             }
             return true
