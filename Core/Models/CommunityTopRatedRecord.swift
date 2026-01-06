@@ -14,6 +14,7 @@ struct CommunityTopRatedRecord: Decodable {
     let rating: Double?
     let ratingCount: Int?
     let confidence: Double?
+    let servesAlcohol: Bool?
     let source: String?
     let applePlaceID: String?
     let note: String?
@@ -34,6 +35,7 @@ struct CommunityTopRatedRecord: Decodable {
         case rating
         case ratingCount = "rating_count"
         case confidence
+        case servesAlcohol = "serves_alcohol"
         case source
         case applePlaceID = "apple_place_id"
         case note
@@ -56,6 +58,7 @@ struct CommunityTopRatedRecord: Decodable {
         rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
         confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+        servesAlcohol = try container.decodeIfPresent(Bool.self, forKey: .servesAlcohol)
         source = try container.decodeIfPresent(String.self, forKey: .source)
         applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         note = try container.decodeIfPresent(String.self, forKey: .note)
@@ -76,6 +79,7 @@ struct CommunityTopRatedRecord: Decodable {
             rating: rating,
             rating_count: ratingCount,
             confidence: confidence,
+            serves_alcohol: servesAlcohol,
             source: source,
             apple_place_id: applePlaceID,
             note: note,

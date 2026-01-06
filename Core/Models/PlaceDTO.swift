@@ -12,6 +12,7 @@ struct PlaceDTO: Decodable, Identifiable {
     let rating: Double?
     let rating_count: Int?
     let confidence: Double?
+    let serves_alcohol: Bool?
     let source: String?
     let apple_place_id: String?
     let note: String?
@@ -34,6 +35,7 @@ struct PlaceDTO: Decodable, Identifiable {
         case rating
         case rating_count
         case confidence
+        case serves_alcohol
         case source
         case apple_place_id
         case note

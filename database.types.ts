@@ -37,6 +37,7 @@ export type Database = {
           price_tier: number | null
           rating: number | null
           rating_count: number | null
+          serves_alcohol: boolean | null
           source: string | null
           source_id: string | null
           source_raw: Json | null
@@ -65,6 +66,7 @@ export type Database = {
           price_tier?: number | null
           rating?: number | null
           rating_count?: number | null
+          serves_alcohol?: boolean | null
           source?: string | null
           source_id?: string | null
           source_raw?: Json | null
@@ -93,6 +95,7 @@ export type Database = {
           price_tier?: number | null
           rating?: number | null
           rating_count?: number | null
+          serves_alcohol?: boolean | null
           source?: string | null
           source_id?: string | null
           source_raw?: Json | null
@@ -655,6 +658,7 @@ export type Database = {
           note: string
           rating: number
           rating_count: number
+          serves_alcohol: boolean
           source: string
           source_raw: Json
         }[]
@@ -675,6 +679,7 @@ export type Database = {
           note: string
           rating: number
           rating_count: number
+          serves_alcohol: boolean
           source: string
           source_raw: Json
         }[]
@@ -700,6 +705,7 @@ export type Database = {
           name: string
           rating: number
           rating_count: number
+          serves_alcohol: boolean
           source: string
         }[]
       }
@@ -770,6 +776,7 @@ export type Database = {
           note: string
           rating: number
           rating_count: number
+          serves_alcohol: boolean
           source: string
         }[]
       }
@@ -789,6 +796,7 @@ export type Database = {
           note: string
           rating: number
           rating_count: number
+          serves_alcohol: boolean
           source: string
         }[]
       }

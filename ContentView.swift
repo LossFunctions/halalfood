@@ -957,6 +957,7 @@ struct ContentView: View {
             rating: place.rating,
             ratingCount: place.ratingCount,
             confidence: place.confidence,
+            servesAlcohol: place.servesAlcohol,
             source: place.source,
             applePlaceID: place.applePlaceID,
             note: place.note,

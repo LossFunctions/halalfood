@@ -47,6 +47,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let rating: Double?
     let ratingCount: Int?
     let confidence: Double?
+    let servesAlcohol: Bool?
     let source: String?
     let applePlaceID: String?
     let note: String?
@@ -76,6 +77,7 @@ struct Place: Identifiable, Hashable, Sendable {
         rating = dto.rating
         ratingCount = dto.rating_count
         confidence = dto.confidence
+        servesAlcohol = dto.serves_alcohol
         source = dto.source
         applePlaceID = dto.apple_place_id
         note = dto.note
@@ -111,6 +113,7 @@ extension Place {
          rating: Double? = nil,
          ratingCount: Int? = nil,
          confidence: Double? = nil,
+         servesAlcohol: Bool? = nil,
          source: String? = "manual",
          applePlaceID: String? = nil,
          note: String? = nil,
@@ -127,6 +130,7 @@ extension Place {
         self.rating = rating
         self.ratingCount = ratingCount
         self.confidence = confidence
+        self.servesAlcohol = servesAlcohol
         self.source = source
         self.applePlaceID = applePlaceID
         self.note = note
@@ -143,6 +147,7 @@ extension Place {
          rating: Double?,
          ratingCount: Int?,
          confidence: Double?,
+         servesAlcohol: Bool?,
          source: String?,
          applePlaceID: String?,
          note: String?,
@@ -159,6 +164,7 @@ extension Place {
         self.rating = rating
         self.ratingCount = ratingCount
         self.confidence = confidence
+        self.servesAlcohol = servesAlcohol
         self.source = source
         self.applePlaceID = applePlaceID
         self.note = note
@@ -181,6 +187,7 @@ extension Place: Codable {
         case rating
         case ratingCount
         case confidence
+        case servesAlcohol
         case source
         case applePlaceID
         case note
@@ -200,6 +207,7 @@ extension Place: Codable {
         let rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         let ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
         let confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+        let servesAlcohol = try container.decodeIfPresent(Bool.self, forKey: .servesAlcohol)
         let source = try container.decodeIfPresent(String.self, forKey: .source)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         let note = try container.decodeIfPresent(String.self, forKey: .note)
@@ -220,6 +228,7 @@ extension Place: Codable {
             rating: rating,
             ratingCount: ratingCount,
             confidence: confidence,
+            servesAlcohol: servesAlcohol,
             source: source,
             applePlaceID: applePlaceID,
             note: note,
@@ -243,6 +252,7 @@ extension Place: Codable {
         try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(ratingCount, forKey: .ratingCount)
         try container.encodeIfPresent(confidence, forKey: .confidence)
+        try container.encodeIfPresent(servesAlcohol, forKey: .servesAlcohol)
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)

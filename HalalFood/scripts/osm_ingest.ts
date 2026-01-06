@@ -129,6 +129,34 @@ function normalizeHalalStatus(tags: Record<string,string>|undefined): 'yes'|'onl
   return 'unknown';
 }
 
+const alcoholNamePatterns = [
+  /\bbar\b/i,
+  /\bpub\b/i,
+  /\btavern\b/i,
+  /\bbrewery\b/i,
+  /\bbrewpub\b/i,
+  /\bbrewhouse\b/i,
+  /\bwinery\b/i,
+  /\bwine bar\b/i,
+  /\balehouse\b/i,
+  /\bspeakeasy\b/i,
+  /\bcocktail\b/i,
+  /\bdistillery\b/i
+];
+
+function detectServesAlcohol(tags: Record<string,string>, name: string): boolean | null {
+  const tagValue = (tags['alcohol'] ?? tags['drink:alcohol'] ?? tags['serves:alcohol'] ?? '').toLowerCase();
+  if (/^(yes|true|1)$/.test(tagValue)) return true;
+
+  for (const pattern of alcoholNamePatterns) {
+    if (pattern.test(name)) {
+      return true;
+    }
+  }
+
+  return null;
+}
+
 function addressFrom(tags: Record<string,string>|undefined) {
   if (!tags) return null;
   const parts = [
@@ -165,6 +193,7 @@ type UpsertRow = {
   rating?: number|null;
   rating_count?: number|null;
   confidence?: number|null;
+  serves_alcohol?: boolean|null;
   source_raw?: unknown;
   status?: string;
 };
@@ -218,6 +247,9 @@ async function main() {
           // Preserve display_location inside source_raw during rollout.
           (sourceRaw as Record<string, unknown>).display_location = displayLocation;
         }
+        const servesAlcohol = category === 'restaurant'
+          ? detectServesAlcohol(tags, tags['name'] ?? '(Unnamed)')
+          : null;
         const row: UpsertRow = {
           external_id: `${el.type}:${el.id}`,
           source: 'osm',
@@ -230,10 +262,13 @@ async function main() {
           halal_status: halal,
           rating: null,
           rating_count: null,
-          confidence: null,
+          confidence: category === 'restaurant' ? 0.9 : null,
           source_raw: sourceRaw,
           status: 'published',
         };
+        if (servesAlcohol !== null) {
+          row.serves_alcohol = servesAlcohol;
+        }
         aggregate.set(row.external_id, row);
       }
     } catch (error) {

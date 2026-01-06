@@ -42,6 +42,9 @@ async function fetchDetails(id) {
 
 function normalize(b) {
   const address = Array.isArray(b.location?.display_address) ? b.location.display_address.join(', ') : '';
+  const attributes = b.attributes && typeof b.attributes === 'object'
+    ? { alcohol: b.attributes.alcohol ?? null }
+    : null;
   return {
     id: b.id,
     name: b.name,
@@ -52,6 +55,7 @@ function normalize(b) {
     is_closed: !!b.is_closed,
     phone: b.phone || b.display_phone || null,
     categories: Array.isArray(b.categories) ? b.categories.map(c => c.alias || c.title).filter(Boolean) : [],
+    attributes,
     latitude: b.coordinates?.latitude ?? null,
     longitude: b.coordinates?.longitude ?? null,
     address,
@@ -79,8 +83,14 @@ function normalize(b) {
 
   const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   const items = Array.isArray(data.items) ? data.items : [];
-  if (items.some(x => x.id === item.id)) {
-    console.log('Item already present in dataset:', item.id, '-', item.name);
+  const existingIndex = items.findIndex(x => x.id === item.id);
+  if (existingIndex >= 0) {
+    items[existingIndex] = item;
+    data.items = items;
+    data.total = items.length;
+    data.generated_at = new Date().toISOString();
+    fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+    console.log('Updated manual item:', item.id, '-', item.name);
   } else {
     items.push(item);
     data.items = items;
@@ -90,4 +100,3 @@ function normalize(b) {
     console.log('Appended manual item:', item.id, '-', item.name);
   }
 })();
-

@@ -27,6 +27,7 @@ returns table (
     rating double precision,
     rating_count integer,
     confidence double precision,
+    serves_alcohol boolean,
     source text
 ) as $$
 declare
@@ -45,6 +46,7 @@ begin
         pl.rating::double precision,
         pl.rating_count::integer,
         pl.confidence::double precision,
+        pl.serves_alcohol,
         pl.source
     from public.place pl
     where pl.lat between south and north
