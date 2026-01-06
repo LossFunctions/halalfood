@@ -710,13 +710,18 @@ struct ContentView: View {
     @State private var communityPrecomputeTask: Task<Void, Never>?
     @State private var communityComputationGeneration: Int = 0
     @State private var visiblePlaces: [Place] = []
+    @State private var refinedPlacesCache: [Place] = []
+    @State private var refinedPlacesCacheVersion: Int = 0
     @State private var visiblePins: [PlacePin] = []
     @State private var viewportCache = ViewportCache()
     @State private var searchDebounceTask: DispatchWorkItem?
     @State private var pinSelectionTask: Task<Void, Never>?
+    @State private var favoritesPanelTask: Task<Void, Never>?
     @State private var filterSelectionVersion: Int = 0
     @State private var showInitialPinsLoader = false
     @State private var initialPinsProgress = 0.0
+    @State private var isFavoritesPanelCollapsed = false
+    @State private var isFavoritesPanelPinnedCollapsed = false
 #if DEBUG
     @State private var didLogInitialAppear = false
     @StateObject private var communityInstrumentation = CommunityInstrumentation()
@@ -732,10 +737,13 @@ struct ContentView: View {
         ]
         return Set(candidates.map { PlaceOverrides.normalizedName(for: $0) })
     }()
+    private let favoritesPanelAutoExpandNanoseconds: UInt64 = 650_000_000
     init() {
         let hasCachedPins = PlacePinsDiskCache.cachedSnapshotExists()
-        _showInitialPinsLoader = State(initialValue: !hasCachedPins)
-        _initialPinsProgress = State(initialValue: hasCachedPins ? 1.0 : 0.05)
+        let didLoadOnce = UserDefaults.standard.bool(forKey: "hasLoadedPinsOnce")
+        let shouldShowInitial = !didLoadOnce && !hasCachedPins
+        _showInitialPinsLoader = State(initialValue: shouldShowInitial)
+        _initialPinsProgress = State(initialValue: shouldShowInitial ? 0.05 : 1.0)
     }
 
     private let newSpotConfigs: [NewSpotConfig] = [
@@ -1002,8 +1010,19 @@ struct ContentView: View {
         return false
     }
 
+    private var isRefinedFilterActive: Bool {
+        selectedCategoryOption != nil || selectedCuisineOption != nil
+    }
+
+    private var filterSelectionSignature: Int {
+        var hasher = Hasher()
+        hasher.combine(selectedCategoryOption?.rawValue ?? "")
+        hasher.combine(selectedCuisineOption?.rawValue ?? "")
+        return hasher.finalize()
+    }
+
     private var filteredPlaces: [Place] {
-        let usingRefinedDataset = (selectedCategoryOption != nil || selectedCuisineOption != nil)
+        let usingRefinedDataset = isRefinedFilterActive
         let baseDataset: [Place]
         if usingRefinedDataset {
             viewModel.ensureGlobalDataset()
@@ -1027,23 +1046,23 @@ struct ContentView: View {
             } else {
                 filtered = fromViewModel
             }
-            return filtered.isEmpty ? scoped : filtered
+            return filtered
         }
 
         if selectedCategoryOption == .new {
             viewModel.ensureGlobalDataset()
             let featured = newSpotPlaces
-            return featured.isEmpty ? scoped : featured
+            return featured
         }
 
         if let category = selectedCategoryOption {
             let filtered = scoped.filter { matchesCategory($0, option: category) }
-            return filtered.isEmpty ? scoped : filtered
+            return filtered
         }
 
         if let cuisine = selectedCuisineOption {
             let filtered = scoped.filter { matchesCuisine($0, option: cuisine) }
-            return filtered.isEmpty ? scoped : filtered
+            return filtered
         }
 
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1311,6 +1330,12 @@ struct ContentView: View {
         case .favorites, .topRated, .newSpots:
             return mapPlaces.map(PlacePin.init(place:))
         default:
+            if isRefinedFilterActive {
+                if shouldFetchDetails(for: mapRegion) {
+                    return []
+                }
+                return mapPlaces.map(PlacePin.init(place:))
+            }
             return visiblePins
         }
     }
@@ -1359,6 +1384,7 @@ struct ContentView: View {
                         pinsStore.refresh()
                     },
                     onContinue: {
+                        hasLoadedPinsOnce = true
                         showInitialPinsLoader = false
                     }
                 )
@@ -1368,7 +1394,10 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            if pinsStore.didLoadFromDisk, pinsStore.pins.isEmpty, !showInitialPinsLoader {
+            if !hasLoadedPinsOnce,
+               pinsStore.didLoadFromDisk,
+               pinsStore.pins.isEmpty,
+               !showInitialPinsLoader {
                 showInitialPinsLoader = true
                 initialPinsProgress = 0.05
             }
@@ -1429,6 +1458,7 @@ struct ContentView: View {
         .onChange(of: pinsStore.didLoadFromDisk) { _, didLoad in
             guard didLoad else { return }
             guard pinsStore.pins.isEmpty else { return }
+            guard !hasLoadedPinsOnce else { return }
             if !showInitialPinsLoader {
                 showInitialPinsLoader = true
                 initialPinsProgress = 0.05
@@ -1439,6 +1469,8 @@ struct ContentView: View {
             if showInitialPinsLoader, !pinsStore.pins.isEmpty {
                 hasLoadedPinsOnce = true
                 completeInitialPinsLoader()
+            } else if !hasLoadedPinsOnce, !pinsStore.pins.isEmpty {
+                hasLoadedPinsOnce = true
             }
             guard bottomTab == .places || bottomTab == .newSpots else { return }
             refreshVisiblePins()
@@ -1447,6 +1479,18 @@ struct ContentView: View {
             guard bottomTab == .places || bottomTab == .newSpots else { return }
             guard selectedCategoryOption != nil || selectedCuisineOption != nil else { return }
             refreshVisiblePlaces()
+        }
+        .onChange(of: bottomTab) { _, newValue in
+            if newValue != .favorites {
+                favoritesPanelTask?.cancel()
+                favoritesPanelTask = nil
+                if isFavoritesPanelCollapsed {
+                    isFavoritesPanelCollapsed = false
+                }
+                if isFavoritesPanelPinnedCollapsed {
+                    isFavoritesPanelPinnedCollapsed = false
+                }
+            }
         }
         .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
@@ -1687,11 +1731,14 @@ struct ContentView: View {
                     onRegionChange: { region in
                         let effective = RegionGate.enforcedRegion(for: region)
                         appleHalalSearch.search(in: effective)
-                        if shouldFetchDetails(for: region) {
+                        if shouldFetchDetails(for: region), !isRefinedFilterActive {
                             viewModel.regionDidChange(to: region, filter: selectedFilter)
                         }
                         refreshVisiblePlaces()
                         refreshVisiblePins()
+                        if bottomTab == .favorites, isFavoritesPanelCollapsed, !isFavoritesPanelPinnedCollapsed {
+                            scheduleFavoritesPanelReopen()
+                        }
                     },
                     onPinSelected: { pin in
                         selectedApplePlace = nil
@@ -1719,11 +1766,7 @@ struct ContentView: View {
                                 activeDropdown = nil
                             }
                         }
-                        if bottomTab == .favorites {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                bottomTab = .places
-                            }
-                        }
+                        collapseFavoritesPanelForMapInteraction()
                     }
                 )
 
@@ -1964,14 +2007,38 @@ struct ContentView: View {
         let showFavorites = bottomTab == .favorites
         return VStack(spacing: showFavorites ? 16 : 0) {
             if showFavorites {
-                FavoritesPanel(
-                    favorites: favoritesDisplay,
-                    sortOption: favoritesSort,
-                    onSelect: { snapshot in
-                        focus(on: resolvedPlace(for: snapshot))
-                    },
-                    onSortChange: { favoritesSort = $0 }
-                )
+                Group {
+                    if isFavoritesPanelCollapsed {
+                        FavoritesCollapsedPill(
+                            count: favoritesDisplay.count,
+                            onTap: {
+                                favoritesPanelTask?.cancel()
+                                favoritesPanelTask = nil
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isFavoritesPanelCollapsed = false
+                                }
+                                isFavoritesPanelPinnedCollapsed = false
+                            }
+                        )
+                    } else {
+                        FavoritesPanel(
+                            favorites: favoritesDisplay,
+                            sortOption: favoritesSort,
+                            onSelect: { snapshot in
+                                focus(on: resolvedPlace(for: snapshot))
+                            },
+                            onCollapse: {
+                                favoritesPanelTask?.cancel()
+                                favoritesPanelTask = nil
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isFavoritesPanelCollapsed = true
+                                }
+                                isFavoritesPanelPinnedCollapsed = true
+                            },
+                            onSortChange: { favoritesSort = $0 }
+                        )
+                    }
+                }
                 .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
                 .padding(.horizontal, 16)
             }
@@ -1981,6 +2048,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
         .ignoresSafeArea(edges: .bottom)
         .animation(.easeInOut(duration: 0.2), value: bottomTab)
+        .animation(.easeInOut(duration: 0.2), value: isFavoritesPanelCollapsed)
     }
 
     private var bottomOverlayPadding: CGFloat {
@@ -2125,6 +2193,12 @@ private extension ContentView {
         }
         filterSelectionVersion &+= 1
         refreshVisiblePlaces()
+        if selectedCategoryOption == nil && selectedCuisineOption == nil {
+            refreshVisiblePins()
+            if shouldFetchDetails(for: mapRegion) {
+                viewModel.regionDidChange(to: mapRegion, filter: selectedFilter)
+            }
+        }
     }
 
     private func selectCuisine(_ option: CuisineFilterOption?) {
@@ -2160,6 +2234,12 @@ private extension ContentView {
         }
         filterSelectionVersion &+= 1
         refreshVisiblePlaces()
+        if selectedCategoryOption == nil && selectedCuisineOption == nil {
+            refreshVisiblePins()
+            if shouldFetchDetails(for: mapRegion) {
+                viewModel.regionDidChange(to: mapRegion, filter: selectedFilter)
+            }
+        }
     }
 
     @ViewBuilder
@@ -2332,19 +2412,33 @@ private extension ContentView {
 
     private func refreshVisiblePlaces() {
         guard bottomTab == .places || bottomTab == .newSpots else { return }
-        let base = filteredPlaces
-        if selectedCategoryOption != nil || selectedCuisineOption != nil {
-            visiblePlaces = base
+        if isRefinedFilterActive {
+            let baseVersion = viewModel.globalDatasetVersion
+            let localVersion = baseVersion == 0 ? viewModel.filteredPlacesVersion : 0
+            let cacheVersion = baseVersion &+ localVersion &+ filterSelectionVersion &+ filterSelectionSignature
+            if refinedPlacesCacheVersion != cacheVersion {
+                refinedPlacesCacheVersion = cacheVersion
+                refinedPlacesCache = filteredPlaces
+            }
+            let next = viewportCache.slice(for: mapRegion, version: cacheVersion, source: refinedPlacesCache)
+            if next != visiblePlaces {
+                visiblePlaces = next
+            }
             return
         }
+        let base = filteredPlaces
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseVersion = trimmed.isEmpty ? viewModel.filteredPlacesVersion : viewModel.searchResultsVersion
-        let version = baseVersion &+ filterSelectionVersion
-        visiblePlaces = viewportCache.slice(for: mapRegion, version: version, source: base)
+        let version = baseVersion &+ filterSelectionVersion &+ filterSelectionSignature
+        let next = viewportCache.slice(for: mapRegion, version: version, source: base)
+        if next != visiblePlaces {
+            visiblePlaces = next
+        }
     }
 
     private func refreshVisiblePins() {
         guard bottomTab == .places || bottomTab == .newSpots else { return }
+        guard !isRefinedFilterActive else { return }
         let scopedPins = pinsStore.pins.filteredByCurrentGeoScope()
         let filteredPins: [PlacePin]
         switch selectedFilter {
@@ -2356,9 +2450,12 @@ private extension ContentView {
             filteredPins = scopedPins.filter { $0.halalStatus == .yes }
         }
         let bbox = mapRegion.bbox
-        visiblePins = filteredPins.filter { pin in
+        let next = filteredPins.filter { pin in
             pin.latitude >= bbox.south && pin.latitude <= bbox.north &&
                 pin.longitude >= bbox.west && pin.longitude <= bbox.east
+        }
+        if next != visiblePins {
+            visiblePins = next
         }
     }
 
@@ -2384,6 +2481,34 @@ private extension ContentView {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
             showInitialPinsLoader = false
+        }
+    }
+
+    private func collapseFavoritesPanelForMapInteraction() {
+        guard bottomTab == .favorites else { return }
+        guard !isFavoritesPanelPinnedCollapsed else { return }
+        if !isFavoritesPanelCollapsed {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isFavoritesPanelCollapsed = true
+            }
+        }
+        scheduleFavoritesPanelReopen()
+    }
+
+    private func scheduleFavoritesPanelReopen() {
+        guard !isFavoritesPanelPinnedCollapsed else { return }
+        favoritesPanelTask?.cancel()
+        favoritesPanelTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: favoritesPanelAutoExpandNanoseconds)
+            } catch {
+                return
+            }
+            guard bottomTab == .favorites else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isFavoritesPanelCollapsed = false
+            }
+            favoritesPanelTask = nil
         }
     }
 }
@@ -2554,28 +2679,14 @@ private struct InitialPinsLoadingView: View {
             Color(.systemBackground)
                 .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                ZStack {
-                    Circle()
-                        .fill(Color.primary.opacity(0.12))
-                        .frame(width: 96, height: 96)
-                    Text("H")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundStyle(Color.primary)
-                }
+            VStack(spacing: 18) {
+                logoView
 
-                VStack(spacing: 6) {
-                    Text("HalalFood")
-                        .font(.title2.weight(.semibold))
-                    Text("Discovering the latest and greatest halal spots…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-
-                LoadingBar(progress: progress, tint: Color.accentColor)
-                    .frame(maxWidth: 220)
+                Text("Get ready for the latest and greatest halal spots")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
 
                 if let errorMessage, !isRefreshing {
                     Text("We couldn't load the map yet. \(errorMessage)")
@@ -2590,39 +2701,26 @@ private struct InitialPinsLoadingView: View {
                         Button("Continue", action: onContinue)
                             .buttonStyle(.bordered)
                     }
-                } else {
-                    Text("Loading pins for the first time…")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                } else if isRefreshing || progress < 1.0 {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(Color.accentColor)
                 }
             }
             .padding(.top, 12)
         }
     }
-}
 
-private struct LoadingBar: View {
-    let progress: Double
-    let tint: Color
-
-    private var clampedProgress: Double {
-        min(max(progress, 0.0), 1.0)
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let width = max(6, proxy.size.width * clampedProgress)
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.primary.opacity(0.12))
-                Capsule()
-                    .fill(tint)
-                    .frame(width: width)
-            }
+    private var logoView: some View {
+        Group {
+            Image("FinalAppLogo_Real")
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFit()
+                .accessibilityLabel("HalalFood logo")
         }
-        .frame(height: 8)
-        .accessibilityLabel("Loading progress")
-        .accessibilityValue(Text("\(Int(clampedProgress * 100)) percent"))
+        .frame(width: 96, height: 96)
+        .background(Color.primary.opacity(0.06), in: Circle())
     }
 }
 
@@ -4413,21 +4511,36 @@ private struct FavoritesPanel: View {
     let favorites: [FavoritePlaceSnapshot]
     let sortOption: FavoritesSortOption
     let onSelect: (FavoritePlaceSnapshot) -> Void
+    let onCollapse: () -> Void
     let onSortChange: (FavoritesSortOption) -> Void
 
-    private let detailColor = Color.primary.opacity(0.65)
+    private let detailColor = Color.secondary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "heart.fill")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
                 Text("Favorites")
-                    .font(.headline)
+                    .font(.headline.weight(.semibold))
                 if !favorites.isEmpty {
                     Text("\(favorites.count)")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(detailColor)
                 }
                 Spacer()
+                Button(action: onCollapse) {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.secondary)
+                        .padding(8)
+                        .background(Color(.systemBackground), in: Circle())
+                        .overlay(
+                            Circle().stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
             }
 
             if !favorites.isEmpty {
@@ -4461,8 +4574,11 @@ private struct FavoritesPanel: View {
             }
         }
         .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 18, y: 10)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
     }
 
     private func sortButton(for option: FavoritesSortOption) -> some View {
@@ -4472,13 +4588,59 @@ private struct FavoritesPanel: View {
         } label: {
             Text(option.title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isSelected ? Color.white : detailColor)
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.08))
+                        .fill(isSelected ? Color.accentColor : Color(.systemBackground))
                 )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.black.opacity(isSelected ? 0 : 0.08), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FavoritesCollapsedPill: View {
+    let count: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 10) {
+                Image(systemName: "heart.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Favorites")
+                    .font(.subheadline.weight(.semibold))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(Color(.systemBackground))
+                        )
+                }
+                Image(systemName: "chevron.up")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.08), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
     }
@@ -4556,7 +4718,14 @@ private struct FavoriteRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            Color(.systemBackground),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+        )
     }
 }
 

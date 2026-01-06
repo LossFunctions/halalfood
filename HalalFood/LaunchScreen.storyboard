@@ -14,31 +14,23 @@
                         <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="12" translatesAutoresizingMaskIntoConstraints="NO" id="STACK-BOOT">
+                            <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="STACK-BOOT">
                                 <subviews>
-                                    <label opaque="NO" text="HalalFood" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="LABEL-TITLE">
-                                        <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="28"/>
-                                        <color key="textColor" red="0.110" green="0.105" blue="0.102" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                        <nil key="highlightedColor"/>
-                                    </label>
-                                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="BAR-BG">
-                                        <rect key="frame" x="0.0" y="0.0" width="200" height="8"/>
-                                        <subviews>
-                                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="BAR-FILL">
-                                                <rect key="frame" x="0.0" y="0.0" width="120" height="8"/>
-                                                <color key="backgroundColor" red="0.165" green="0.541" blue="0.275" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                            </view>
-                                        </subviews>
-                                        <color key="backgroundColor" red="0.890" green="0.882" blue="0.870" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                    <imageView contentMode="scaleAspectFit" image="FinalAppLogo_Real" translatesAutoresizingMaskIntoConstraints="NO" id="IMG-LOGO">
+                                        <rect key="frame" x="147" y="329" width="96" height="96"/>
                                         <constraints>
-                                            <constraint firstAttribute="height" constant="8" id="BAR-BG-HEIGHT"/>
-                                            <constraint firstAttribute="width" constant="200" id="BAR-BG-WIDTH"/>
-                                            <constraint firstItem="BAR-FILL" firstAttribute="leading" secondItem="BAR-BG" secondAttribute="leading" id="BAR-FILL-LEAD"/>
-                                            <constraint firstItem="BAR-FILL" firstAttribute="top" secondItem="BAR-BG" secondAttribute="top" id="BAR-FILL-TOP"/>
-                                            <constraint firstItem="BAR-FILL" firstAttribute="bottom" secondItem="BAR-BG" secondAttribute="bottom" id="BAR-FILL-BOTTOM"/>
-                                            <constraint firstItem="BAR-FILL" firstAttribute="width" secondItem="BAR-BG" secondAttribute="width" multiplier="0.6" id="BAR-FILL-WIDTH"/>
+                                            <constraint firstAttribute="width" constant="96" id="IMG-WIDTH"/>
+                                            <constraint firstAttribute="height" constant="96" id="IMG-HEIGHT"/>
                                         </constraints>
-                                    </view>
+                                    </imageView>
+                                    <label opaque="NO" text="Get ready for the latest and greatest halal spots" textAlignment="center" lineBreakMode="wordWrap" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="LABEL-SUBTITLE">
+                                        <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="16"/>
+                                        <color key="textColor" red="0.373" green="0.369" blue="0.365" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <nil key="highlightedColor"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="260" id="LABEL-WIDTH"/>
+                                        </constraints>
+                                    </label>
                                 </subviews>
                             </stackView>
                         </subviews>
@@ -55,4 +47,7 @@
             <point key="canvasLocation" x="53" y="375"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="FinalAppLogo_Real" width="1024" height="1024"/>
+    </resources>
 </document>

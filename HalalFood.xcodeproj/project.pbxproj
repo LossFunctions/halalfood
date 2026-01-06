@@ -15,6 +15,7 @@
 		C1D2E3F405162738495A6B7D /* PlacePinsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F405162738495A6B7C /* PlacePinsStore.swift */; };
 		C1F0B2C62F123457008D2917 /* places_seed.json in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2C42F123456008D2917 /* places_seed.json */; };
 		C1F0B2D12F123458008D2917 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */; };
+		B5A1B2C62F999999008D2917 /* FinalAppLogo_Real.png in Resources */ = {isa = PBXBuildFile; fileRef = B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */; };
 		A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */; };
 		B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */; };
 		B505B9DC2E7CC7FA008D2917 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9DB2E7CC7FA008D2917 /* ContentView.swift */; };
@@ -64,6 +65,7 @@
 		C1D2E3F405162738495A6B7C /* PlacePinsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePinsStore.swift; sourceTree = "<group>"; };
 		C1F0B2C42F123456008D2917 /* places_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = places_seed.json; sourceTree = "<group>"; };
 		C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = HalalFood/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HalalFood/FinalAppLogo_Real.png; sourceTree = "<group>"; };
 		9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKMapItem+Compat.swift"; sourceTree = "<group>"; };
 		C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YelpRatingRow.swift; sourceTree = "<group>"; };
 		B505B9D62E7CC7FA008D2917 /* HalalFood.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HalalFood.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -157,6 +159,7 @@
 				C1F0B2C52F123457008D2917 /* data */,
 				B505BA252E7CE741008D2917 /* Info.plist */,
 				C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */,
+				B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */,
 				B505BA1B2E7CE233008D2917 /* Core */,
 				B505B9E62E7CC7FC008D2917 /* HalalFoodTests */,
 				B505B9F02E7CC7FC008D2917 /* HalalFoodUITests */,
@@ -371,6 +374,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C1F0B2D12F123458008D2917 /* LaunchScreen.storyboard in Resources */,
+				B5A1B2C62F999999008D2917 /* FinalAppLogo_Real.png in Resources */,
 				C1F0B2C62F123457008D2917 /* places_seed.json in Resources */,
 				B505B9DE2E7CC7FC008D2917 /* Assets.xcassets in Resources */,
 			);
