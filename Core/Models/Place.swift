@@ -311,7 +311,7 @@ enum PlaceOverrides {
     }
 
     private static func removingOutdatedDuplicates(from places: [Place]) -> [Place] {
-        sanitize(places, dropOutdatedOSM: true)
+        sanitize(places, dropOutdatedOSM: false)
     }
 
     private static func sanitize(_ places: [Place], dropOutdatedOSM: Bool) -> [Place] {
