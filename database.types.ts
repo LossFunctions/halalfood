@@ -703,6 +703,7 @@ export type Database = {
           lat: number
           lon: number
           name: string
+          note: string
           rating: number
           rating_count: number
           serves_alcohol: boolean
