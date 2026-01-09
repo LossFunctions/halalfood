@@ -716,6 +716,7 @@ struct ContentView: View {
     @State private var viewportCache = ViewportCache()
     @State private var searchDebounceTask: DispatchWorkItem?
     @State private var pinSelectionTask: Task<Void, Never>?
+    @State private var newSpotFetchTask: Task<Void, Never>?
     @State private var favoritesPanelTask: Task<Void, Never>?
     @State private var filterSelectionVersion: Int = 0
     @State private var showInitialPinsLoader = false
@@ -737,6 +738,9 @@ struct ContentView: View {
         ]
         return Set(candidates.map { PlaceOverrides.normalizedName(for: $0) })
     }()
+    private static let highEndPlaceIDs: Set<UUID> = [
+        UUID(uuidString: "54322bf6-3346-48f3-8d84-cebcfe4cc103")!
+    ]
     private let favoritesPanelAutoExpandNanoseconds: UInt64 = 650_000_000
     init() {
         let hasCachedPins = PlacePinsDiskCache.cachedSnapshotExists()
@@ -906,6 +910,35 @@ struct ContentView: View {
         return month * 100 + day
     }
 
+    private func preloadNewSpotDetailsIfNeeded() {
+        guard newSpotFetchTask == nil else { return }
+        var seen = Set<UUID>()
+        let missingIDs = newSpotConfigs.compactMap { config -> UUID? in
+            let id = config.placeID
+            guard viewModel.place(with: id) == nil else { return nil }
+            guard seen.insert(id).inserted else { return nil }
+            return id
+        }
+        guard !missingIDs.isEmpty else { return }
+
+        newSpotFetchTask = Task {
+            do {
+                let dtos = try await PlaceAPI.fetchPlaceDetailsByIDs(missingIDs)
+                let places = dtos.compactMap(Place.init(dto:))
+                await MainActor.run {
+                    if !places.isEmpty {
+                        viewModel.mergeIntoGlobalDataset(places, persist: false)
+                    }
+                    newSpotFetchTask = nil
+                }
+            } catch {
+                await MainActor.run {
+                    newSpotFetchTask = nil
+                }
+            }
+        }
+    }
+
     private var appleOverlayItems: [MKMapItem] {
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard selectedFilter == .all else { return [] }
@@ -1036,6 +1069,12 @@ struct ContentView: View {
         if selectedCategoryOption == .highEnd {
             viewModel.ensureGlobalDataset()
             let fromViewModel = viewModel.curatedPlaces(matching: ContentView.highEndTokens)
+            let curatedByID = ContentView.highEndPlaceIDs.compactMap { viewModel.place(with: $0) }
+            let scopedByID = curatedByID.filteredByCurrentGeoScope()
+            let curatedCombined = PlaceOverrides.deduplicate(fromViewModel + scopedByID)
+            if !curatedCombined.isEmpty {
+                return PlaceOverrides.sorted(curatedCombined)
+            }
             let filtered: [Place]
             if fromViewModel.isEmpty {
                 filtered = scoped.filter { place in
@@ -1047,7 +1086,8 @@ struct ContentView: View {
             } else {
                 filtered = fromViewModel
             }
-            return filtered
+            let fallbackByID = scoped.filter { ContentView.highEndPlaceIDs.contains($0.id) }
+            return PlaceOverrides.deduplicate(filtered + fallbackByID)
         }
 
         if selectedCategoryOption == .new {
@@ -1407,6 +1447,7 @@ struct ContentView: View {
                 viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
                 // Preload global dataset so New Spots can resolve specific place IDs immediately
                 viewModel.ensureGlobalDataset()
+                preloadNewSpotDetailsIfNeeded()
                 pinsStore.refreshIfNeeded()
                 locationManager.requestAuthorizationIfNeeded()
                 if let existingLocation = locationManager.lastKnownLocation {
@@ -1636,6 +1677,7 @@ struct ContentView: View {
                 isSearchOverlayPresented = false
                 // Ensure the global dataset is loaded so New Spots IDs resolve reliably
                 viewModel.ensureGlobalDataset()
+                preloadNewSpotDetailsIfNeeded()
                 refreshVisiblePlaces()
                 refreshVisiblePins()
             case .topRated:
@@ -2180,6 +2222,9 @@ private extension ContentView {
         }
         if selectedCategoryOption != nil {
             viewModel.ensureGlobalDataset()
+            if selectedCategoryOption == .new {
+                preloadNewSpotDetailsIfNeeded()
+            }
         }
         if let current = selectedCategoryOption {
             if current == .highEnd || current == .new {

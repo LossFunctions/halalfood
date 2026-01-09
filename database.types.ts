@@ -41,6 +41,7 @@ export type Database = {
           source: string | null
           source_id: string | null
           source_raw: Json | null
+          state: string | null
           status: string | null
           updated_at: string | null
         }
@@ -70,6 +71,7 @@ export type Database = {
           source?: string | null
           source_id?: string | null
           source_raw?: Json | null
+          state?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -99,6 +101,7 @@ export type Database = {
           source?: string | null
           source_id?: string | null
           source_raw?: Json | null
+          state?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -755,6 +758,16 @@ export type Database = {
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
       refresh_community_top_rated_v1: { Args: never; Returns: undefined }
+      resolve_place_state: {
+        Args: {
+          p_address: string
+          p_display_location: string
+          p_lat: number
+          p_lon: number
+          p_source_raw: Json
+        }
+        Returns: string
+      }
       save_apple_place_id: {
         Args: { p_apple_place_id: string; p_place_id: string }
         Returns: {
