@@ -1,0 +1,100 @@
+id,name_file,name_db,existing_halal_status,new_cc_halal_status,differs_from_existing,cc_halal_likelihood,cc_halal_type,cc_halal_confidence,cc_is_zabiha,cc_certifier_org,cc_note
+bf61aac2-923f-44aa-88c5-2420cd79f7d9,Mekkah Mart Mediterranean Market,Mekkah Mart Mediterranean Market,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+f91974fe-3851-4ed7-9861-ccf9d46b885e,Melike,Melike,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+d95083b2-4cd7-4d1f-9f9b-a63d942db960,Melinda's Halal Meat Market,Melinda's Halal Meat Market,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+48625385-ecdc-42c1-8925-f18e4c570aec,Melt Sandwich Shop - Halal,Melt Sandwich Shop - Halal,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+04941735-3228-462f-a44f-d5e2f2c4409c,Memo Shish Kebab,Memo Shish Kebab,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+dd941535-c49b-4c5e-b9d3-7dee6169b46e,Memo Shish Kebab - Brooklyn,Memo Shish Kebab - Brooklyn,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+c8647460-5b62-4693-b371-891e0dbace21,Mera,Mera ,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,75,,,Halal: Options. Reviews mention halal.
+8ff4415b-b885-44d3-b94e-d786fd2f3bc5,Merguez & Frites,Merguez & Frites,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+5fc384a3-64a8-4e95-8b23-7c34a85b4ba8,Mezamix Shawarma,Mezamix Shawarma,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+df71fc11-1961-4941-b78e-fa91833a55c2,Meze,Meze,yes,unclear,true,UNCLEAR,UNKNOWN,30,,,Halal: Unclear. Certified halal. No official menu/certification found.
+2b606c13-80f4-4945-8872-1404effbdd02,Mezeh,Mezeh,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+8779f5be-3b5c-4573-93e1-44ae52451692,Mia Halal Food,Mia Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+70475b15-e3fd-40e5-9e37-96b438eb3f34,Michelangelo's Pizza,Michelangelo's Pizza,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,60,,,Halal: Options. Official info indicates halal.
+3328b889-d7f0-41c7-b01e-45a5c779c306,Middle Eastern Halal Food,Middle Eastern Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+310e7f53-58e8-4035-aaba-ec177ffda77b,Middle Eastern Halal Food 69st,Middle Eastern Halal Food 69st,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+a7361d40-5bf9-4e9c-b29f-c9817159e215,Middle Eastern Halal Food Cart,Middle Eastern Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+deb29f99-1325-460e-8eca-f07b30c22292,Mido's Halal Food,Mido’s Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+b916d42a-e40e-4cf9-9c82-ded53d6b2e92,Milano Pizza & Halal Fried Chicken,Milano Pizza & Halal Fried Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+9aba3e45-5115-456c-bba2-4a097934ece4,Milk & Honey Cafe,Milk & Honey Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+46833aeb-f86f-4f6b-979e-18cfbd107816,Milk N Honey,Milk N Honey,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,20,,,Halal: Unclear. Marked as not halal.
+6876bd71-81ab-4204-ba24-d18f5f6008a6,Milky Ways Ice Cream & Cereal Bar,Milky Ways Ice Cream & Cereal Bar,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,25,,,Halal: Unclear. Marked as not halal.
+914ca980-26b7-4901-b56e-258b51f6b066,Mint Heights,Mint Heights,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+e602ffbd-6cde-479b-88e6-ef59ecb1b5d6,Mint Masala,Mint Masala,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+3e873806-1731-493f-9f96-fdeec7042608,Mint Masala,Mint Masala,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+f620f3ab-77f2-4853-a4c4-f4bac16b7d67,miraj healthy grill,miraj healthy grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+2c58868c-cd2f-476a-9c03-35f783d8fe33,Miraj Healthy Grill,Miraj Healthy Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Listed on Zabiha.
+c6e3b7b3-53b7-4c5f-88de-98cc3e2d341b,Miraj Healthy Grill,Miraj Healthy Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+b40484ed-5831-4d25-8b32-fb8927a1b7c4,Miriam,Miriam,yes,unclear,true,UNCLEAR,UNKNOWN,25,,,Halal: Unclear. Certified halal. No official menu/certification found.
+67c5ddd8-67ee-42b8-8d73-b0766f1c91bc,MJ Deli & Convenient Store,MJ Deli & Convenient Store,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+d454e80e-38be-4703-ae0c-63260ca5be47,Modoo - Chicken & Noodle Bar,Modoo - Chicken & Noodle Bar,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,70,,,Halal: Options. Certified halal.
+2b06a063-7b38-490c-9c45-789ea903e5df,Moe's Halal Food,Moe's Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+bf055513-5a02-4ebf-894d-d17e5ddc9016,Moe's Pastrami & Burger,Moe's Pastrami & Burger,yes,only,true,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+012564d2-6b00-4d10-aff4-461f6fb215bf,Moho Mexican Grill,Moho Mexican Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,HMS,Halal: Fully. Certified by HMS. Listed on Zabiha.
+3a736d77-735e-4ecd-877f-63bb149e7717,Moho Mexican Grill,Moho Mexican Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,SBNY,Halal: Fully. Certified by SBNY. Listed on Zabiha.
+bfad7741-7d18-4f5b-8a07-b1c001c27877,Momo Crave,Momo Crave,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+b2d7bcdc-d649-490b-8469-cba2afe3cc51,Momo's Mediterranean Grill,Momo's Mediterranean Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+947869de-1550-4126-a2d3-8da169964940,Moonlite Grill & Chicken,Moonlite Grill & Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+c1e01e6d-2ae4-4b95-9176-39d9485b4d8c,Motek,Motek,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,15,,,Halal: Unclear. Marked as not halal.
+e35cfaee-b627-435a-9b38-3d3fc5d5fefa,MOTW Coffee,MOTW Coffee,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+3743b341-c5f0-43ed-b68b-c9aec1561c14,Mr Chopped Cheese & Grill,Mr Chopped Cheese & Grill ,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+9b34351c-376b-42ea-85c2-25023cb73e59,Mr King Chicken & Pizza,Mr King Chicken & Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+706108ab-9453-47e9-9d43-9e66a84f770b,Mr. Chang Halal Chinese,Mr. Chang Halal Chinese,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+980e09ce-745d-49c8-8980-d252dc909ea4,Mughal Palace,Mughal Palace,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+2801ed2b-81de-4fa9-a261-bc5bfba49c92,Mughlai,Mughlai,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+a0b07747-96e1-427d-bae0-7cbd59306e52,Muhsins Halal Food,Muhsins Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+9e768d1a-5bbf-43de-b6d1-62dc1b239a1e,Mumbai Dreams,Mumbai Dreams,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Listed on Zabiha.
+bf874045-7994-4e00-86bc-0cbd9d8b8c81,Mumbai Place,Mumbai Place,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+468464cd-378f-497f-9fe1-55514e0dd3d4,Munch N' Out,Munch N’ Out,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+0384029a-69f2-4857-a289-36f44596cf36,Musaafer,Musaafer,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+ab5f9b0b-f156-4631-83a2-e9bbb98ce124,Musas Chinese Resturaunt,Musas Chinese Resturaunt,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+d92a16b3-3e8d-4704-af73-62b0826d4749,Muscle Man Subs,Muscle Man Subs,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+62bb7d0d-6551-41df-9f40-6adfb5594594,Mushin's Halal Food,Mushin's Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+1701db9c-ee2b-4045-82aa-848f6c9598ce,Muslim Halal Meats,Muslim Halal Meats,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+8277a3f7-0fca-4f12-aba8-9d534e515ce3,Mustang,Mustang,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+a6c783d9-cdac-490d-9ace-6db520b0f1c3,My Deli Gourmet & Grill,My Deli Gourmet & Grill,only,yes,true,LIKELY_HALAL,HALAL_OPTIONS_ONLY,80,,,Halal: Options. Official info indicates halal.
+7b2a128f-3904-43ef-bd01-d5f3aed02600,My House Burgers & Shakes,My House Burgers & Shakes,yes,only,true,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+b8b459a2-11ac-4f56-b490-9b8d638d30b3,My Juice Bar NY,My Juice Bar NY,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+d98a52fc-b266-4caa-a43c-6adf6beeaaa9,My Pizza,My Pizza,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,80,,,Halal: Options. Official info indicates halal.
+3ab272f3-b7b0-48e7-b324-3ddd175c6c21,My Teriyaki,My Teriyaki,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+d1af4881-119a-406e-a80c-eaa04d261fc5,Myteriyakii,Myteriyakii,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+82976e9b-73a9-4a84-bc00-efa47dc979d9,Namaste,Namaste,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+dd372f9d-2d0e-46b2-82ac-2a355fac1ad9,Namaste Tashi Delek,Namaste Tashi Delek,only,unclear,true,UNCLEAR,UNKNOWN,55,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+8f171a9d-fe93-4ba1-9ae1-a45f89e0ed30,Namkeen,Namkeen,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+15789b7e-5b1f-4570-ab43-ab1a5a67e25a,Nāna Good Eats,Näna Good Eats,yes,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. Certified halal. No official menu/certification found.
+5d040fe1-09a0-4c41-89f8-1be907e84532,Nancy Halal Food Truck,Nancy Halal Food Truck,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+3b63d012-7310-4dcb-bffe-994220c94651,Nanking,Nanking,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+57b30ee3-fb10-4edd-a176-c643c712c6b6,Nanking Restaurant,Nanking Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+6ab7c2b8-b3da-4446-ad5b-010cb07afbf5,Naq's Halal Food,Naq's Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+5106405c-5235-4cd6-86ee-f7fa0420daaa,Naqs Halal Food,Naqs Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+fbf2411b-fe76-4e5b-a339-403ff9347faf,Nargis Cafe,Nargis Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+dddcae48-3423-48e1-bea4-c5c2288c881d,Nature's Grill Cafe,Nature's Grill Cafe,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Certified halal.
+a06c10bd-2936-4cb1-8878-101f85898c63,Nawab,Nawab,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+ad8b7a49-b9bf-4d04-9db1-269c52af2ceb,Nawabi Bhoj,Nawabi Bhoj,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+11ef0064-b9bc-4bbc-96ec-11a2776a65d0,NAYA,NAYA,yes,unclear,true,UNCLEAR,HALAL_OPTIONS_ONLY,50,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+19090c9f-dce6-4091-bd82-18a03acef0af,Naz's Halal Food - Brentwood,Naz's Halal Food - Brentwood,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+d7803eb2-7d64-4387-b5a2-3778bffbe192,Naz's Halal Food - Carle Place,Naz's Halal Food - Carle Place,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+b2d4caee-9eea-4d90-a84b-9abf21440ac6,Naz's Halal Food - Glen Cove,Naz's Halal Food - Glen Cove,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+4be743ff-17e2-438e-a45e-fa45c59d2faf,Naz's Halal Food - Levittown,Naz's Halal Food - Levittown,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+bbd285bb-f2b8-43fa-9d97-e382b75c6abf,Naz's Halal Food - Northfield,Naz's Halal Food - Northfield,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+80b89c18-56d7-47dd-a960-58c1a8735ac9,Naz's Halal Food - Patchogue,Naz's Halal Food - Patchogue,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+e4a20c26-e718-4eef-93ae-61ac7e8555da,Naz's Halal Food - Shirley,Naz's Halal Food - Shirley,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+e591e6cf-565e-4153-9baa-dfeb675c4efc,Naz's Halal Food - Utica,Naz’s Halal Food - Utica,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+e25d7293-dda6-4168-9330-0c679eade5ce,Naz's Halal Food- Deer Park,Naz's Halal Food- Deer Park,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+fe79d7fc-e142-4cd9-bc63-e1507e723aec,Nazar Restaurant & Market,Nazar Restaurant & Market,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+f1627d60-b533-485c-ac89-09ae3e801330,Nazs Halal Food - Staten Island,Nazs Halal Food - Staten Island,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+c021e5de-8df2-43de-8a59-3cf5d69f7c62,Nebula Halal Food,Nebula Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+98472698-8e2e-44e0-b69c-1d8dc8adb636,Neem Indian Cuisine,Neem Indian Cuisine,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully.
+c681d65b-d039-424e-9c80-b48bd9cad2e0,Neerob Restaurant & Halal Chinese,Neerob Restaurant & Halal Chinese,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+0da62d9c-5955-4de4-9ea7-b6b7b7d580ea,Neha palace indian restaurant,Neha palace indian restaurant ,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Certified halal.
+30bbadf1-86b6-4802-a29b-3548999fbc0a,New Nurlan Restaurant,New Nurlan Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+b55810c7-807c-486c-9e2f-61bf1fd69fe2,New On the Block Deli & Grill,New On the Block Deli & Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+2c28d7a8-80f4-484b-866a-f1878e3fd73a,New Texas Fried Chicken & Pizza,New Texas Fried Chicken & Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+8b1378dc-282e-44b1-99de-71d237700ff0,New York Best Halal Food,New York Best Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+5542c31d-646f-46a5-845b-44ef7add5ef8,New York Pho House,New York Pho House,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Official info indicates halal.
+876675dd-eb6e-4306-8342-d3b4ef871d18,New York Pho House,New York Pho House,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully.
+3183a867-bdf9-496a-9089-79a15dcd88e6,New York Pizza Grill & Cafe,New York Pizza Grill & Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully.
+e09f6db6-af92-4c87-8835-bb116810ff1e,New York's Best Halal Food,New York's Best Halal Food,only,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+0c169acb-327a-41d7-b00c-f8345a723493,Nisars Halal Cart,Nisars Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+f12c20ba-f9ce-4d0b-9aca-343ccabc2360,Nishaan,Nishaan,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Reviews mention halal.

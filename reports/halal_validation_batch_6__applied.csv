@@ -1,0 +1,100 @@
+id,name_file,name_db,existing_halal_status,new_cc_halal_status,differs_from_existing,cc_halal_likelihood,cc_halal_type,cc_halal_confidence,cc_is_zabiha,cc_certifier_org,cc_note
+e390e33b-b2dd-4ef3-8a42-9cc44584ad2f,Halal Bros Grill,Halal Bros Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Certified halal.
+e58b190f-33a8-49a3-b526-c719606ccb56,Halal Bros Grill,Halal Bros Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Certified halal.
+85218382-bb90-442f-8fea-1c3c335485c3,Halal Bros Kabab Grill,Halal Bros Kabab Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,HMS,Halal: Fully. Certified by HMS.
+f68b4a54-939b-4c92-9add-63cb28c743ca,Halal Brothers,Halal Brothers,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Certified halal.
+8904a943-fb83-4f3b-9907-4d55c3a111b3,Halal Brothers Food Truck,Halal Brothers Food Truck,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Certified halal.
+d854e045-eff7-4f6e-aa72-29bf79cd6108,Halal Cajun Platters,Halal Cajun Platters,only,only,false,LIKELY_HALAL,FULLY_HALAL,65,,,Halal: Fully. Certified halal.
+143c4b43-8600-4c72-b966-5ff75cf7cc2d,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully. Official info indicates halal.
+36ebdce6-50e2-4183-b27f-9a3d078e05be,Halal Cart,Halal Cart,only,unclear,true,UNCLEAR,UNKNOWN,35,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+43de63af-59fd-4160-9d6b-e8819ad36f21,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,62,,,Halal: Fully. Official info indicates halal.
+44b05699-dd4d-45a6-b32f-30cdc90ed7ab,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,65,,,Halal: Fully.
+765bb023-3ea2-46c2-8aac-2840b8984aff,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,62,,,Halal: Fully.
+8017e6fd-16b2-4283-9766-2834bfcd109f,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,65,,,Halal: Fully.
+a2acf99c-c461-4fa7-b41d-8ab9cd42d7ff,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+bf1b5464-de94-498a-a3b3-7846962dce78,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,62,,,Halal: Fully. Official info indicates halal.
+c0cd3de6-8db0-4a1a-b305-08a1b4c38f70,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+d5708b0f-4b1c-4d8d-8c39-f448a190dbd4,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+e66e6cba-a9fa-492d-b0bc-3931b53d6762,Halal Cart,Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+9def7833-0872-403d-a151-ee1f6a7bcb73,Halal Cart - 86th and 3rd,Halal Cart - 86th and 3rd,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+7a586004-08cb-47bf-82e6-819ae44f5e27,Halal Cart At Flushing and Broadway,Halal Cart At Flushing and Broadway,only,only,false,LIKELY_HALAL,FULLY_HALAL,62,,,Halal: Fully.
+6c41ed86-a372-48c2-a769-5f3496548b02,Halal Chengdu Chinese Kitchen,Halal Chengdu Chinese Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+0b444fe8-1bd1-4a7b-9e7d-16f05f891aaa,Halal Chicken N Chapli,Halal Chicken N Chapli,only,only,false,LIKELY_HALAL,FULLY_HALAL,82,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+18c8c979-4d80-4ef4-a9fa-f48885c36b1b,Halal Chicks,Halal Chicks,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Certified halal.
+5bc563ee-d21a-4424-89a2-332207f269bb,Halal Chicks,Halal Chicks,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Reviews mention halal.
+f6439149-8157-443a-8b5d-e591db50333d,Halal Chicks,Halal Chicks,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Reviews mention halal.
+0abc6538-e9d7-4d27-8a20-baf51b6191eb,Halal City,Halal City,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+30bbf3c3-d5a4-435b-a2d6-6398a60bc802,Halal City,Halal City,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+50ce8343-dfde-4059-b952-563a3742a899,Halal Coffee Shop,Halal Coffee Shop,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Official info indicates halal.
+ed7bb117-09e7-408d-9066-28c41747a17c,Halal Cooco's Den,Halal Cooco's Den,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+b06777a0-1811-442f-956b-67daf1e171c2,Halal Desi Habibi,Halal Desi Habibi,only,only,false,LIKELY_HALAL,FULLY_HALAL,82,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+ffd5d0c7-aebc-4421-ad3e-bf001c5ee43b,Halal Diner,Halal Diner,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Reviews mention halal.
+f2ca8d56-c351-4118-bd5c-5c5bab4a7af1,Halal Doner Kabab,Halal Doner Kabab,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Certified halal.
+233e3825-1126-48e2-9d47-e8c8f6e0be91,Halal Dynasty,Halal Dynasty,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+581c9ac3-80a8-429b-8f8b-0128d573c10f,Halal Eats,Halal Eats,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,true,,Halal: Fully. Listed on Zabiha.
+229dda5f-cf4f-4e71-8408-cf3c53e0109a,Halal Eatz,Halal Eatz,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,true,SBNY,Halal: Fully. Certified by SBNY. Listed on Zabiha.
+ab0053bf-6fd5-4c8a-a080-fd916b5d7fbf,Halal Express,Halal Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+a980fbda-f757-4acd-8511-d82921ac98cf,Halal Express Kabab House,Halal Express Kabab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,78,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+7211af2f-4ae0-4b6c-915d-46f31823b0b5,Halal Fast Food and Coffee,Halal Fast Food and Coffee,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+137863e0-e4d6-4d8d-9cbf-77bc85e8b229,Halal Flamez,Halal Flamez,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Reviews mention halal.
+227fe418-3a67-4757-9da5-ad9a7a5aa657,Halal Food,Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,55,,,Halal: Fully.
+4d902c43-106d-49ff-8b13-c1d466305295,Halal Food Cart,Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,62,,,Halal: Fully.
+9e61085c-8771-454c-8455-e91af4928c1b,Halal Food Cart,Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+b187f519-8d35-4677-b519-1c12d0880eea,Halal Food Cart,Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully.
+5c72bd9e-9a47-4d3c-8e48-5023ccadeecf,Halal Food Market,Halal Food Market,only,only,false,LIKELY_HALAL,FULLY_HALAL,65,,,Halal: Fully. Official info indicates halal.
+4e5729aa-a2fe-4e1a-8025-abaa3ff1484f,Halal Food Truck,Halal Food Truck,only,only,false,LIKELY_HALAL,FULLY_HALAL,55,,,Halal: Fully.
+64e37da9-42f1-4a14-a2b3-f447d56b3af6,Halal Food Truck,Halal Food Truck,only,only,false,LIKELY_HALAL,FULLY_HALAL,58,,,Halal: Fully.
+1e06cd90-c9e6-472e-ba43-125c982dbab2,Halal Fresh Chinese & Indian Cuisine,Halal Fresh Chinese & Indian Cuisine,only,only,false,LIKELY_HALAL,FULLY_HALAL,78,,,Halal: Fully. Official info indicates halal.
+c91e8156-0ae2-44a6-b542-0aa672839fbd,Halal G's,Halal G's,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+fbc4bc83-2e21-4e03-9acc-89e750cc68ef,Halal G's,Halal G's,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+d5629380-caf9-4c2c-94c0-7392219f3959,Halal Garden Chinese Kitchen,Halal Garden Chinese Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+662c9244-7c34-4a23-8e48-47704f43751b,Halal Grill Bros,Halal Grill Bros,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+654ac30c-64f6-4b89-ab7e-552f4d382fd0,Halal Grill Bros Brooklyn,Halal Grill Bros Brooklyn,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+e357c4d8-0d8e-4481-a22e-11c4fd61e896,Halal Grill Eats,Halal Grill Eats,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+734694db-5a53-46f3-b928-76c3cbdf7662,Halal Grill Shack,Halal Grill Shack,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Listed on Zabiha.
+c0297f8b-d1c0-45b4-893d-e533ac24545b,Halal Guys Express,Halal Guys Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Official info indicates halal.
+fe95de0c-7caa-4266-a767-279d0150a06b,Halal Gyro & Fried Chicken,Halal Gyro & Fried Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+9a8e4c4e-b3cf-4662-aec0-0ed3697c671d,Halal Gyro King,Halal Gyro King,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully.
+68076224-aef2-4233-a619-fb6bda383130,Halal Gyro King 6,Halal Gyro King 6,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Reviews mention halal.
+86984d8a-f30f-4f3a-a045-3ddab9d55651,Halal Havén,Halal Havën,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+bed0124c-eed1-4172-ab3d-eeb32aace824,Halal Hot Fried Chicken & Pizza,Halal Hot Fried Chicken & Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Reviews mention halal.
+86d33c66-6b7d-417d-a3c0-9c1e57877301,Halal Hut,Halal Hut,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Reviews mention halal.
+94f02d76-27ed-4656-a650-f2ef45a40cb8,Halal Hut,Halal Hut,only,only,false,LIKELY_HALAL,FULLY_HALAL,78,,,Halal: Fully. Certified halal.
+bd5ba7c3-b759-4efa-a54c-2dd4e0c1ce94,Halal Hut,Halal Hut,only,only,false,LIKELY_HALAL,FULLY_HALAL,78,,,Halal: Fully. Certified halal.
+ea02a7a7-159b-4e75-af30-3422267c322b,Halal In-N-Out,Halal In-N-Out,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+807f39d3-a63a-4c33-8d09-225c508ebb0b,Halal Indian Grill,Halal Indian Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+24d82913-a7a5-422d-a61e-06fc4d1dc6e2,Halal King,Halal King,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Reviews mention halal.
+1e8e4a84-968b-43d9-80f6-14ed3f0e5a47,Halal Kitchen,Halal Kitchen,only,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. No official menu/certification found.
+3db15b88-a9f2-4580-9059-dfee49e93e66,Halal Kitchen,Halal Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+6f411456-38ac-4beb-a7bd-452b7ac8779a,Halal Kitchen,Halal Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Reviews mention halal.
+41a578ce-66c0-4f84-8dd4-f03753bf2b62,Halal Lemongrass Express,Halal Lemongrass Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+562bf7b5-01d5-49be-a5ad-e2c1141042b8,Halal Mix,Halal Mix,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+7de457af-688d-4896-ae65-9d6758726ec8,Halal Mix,Halal Mix,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+082b7763-4e15-4a12-bfa7-aa8e336334e2,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+0d9930f2-6bba-45b1-8345-04764fb41a0f,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+18e4956a-a232-44c4-83d7-f9553201b1dc,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+263d7ada-69ee-472b-9a54-6207f35ac262,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+32f5dde2-f28f-42a7-83d1-264836b12029,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+6b1cdcf7-d5c8-4d2a-9c5a-7f102afbdd5d,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+6dc22a08-3910-416c-a569-2a3ef440554e,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+717968cc-e341-424e-8133-d5f3fd12020d,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+7d6cb5c7-82cc-4800-b317-ac937249e298,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+7f29ddeb-2d4e-4591-ad22-9de0f5a7133c,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+7f47880c-fc59-4ba9-9b46-977a1026cdf4,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+9498f5f1-dc9b-4164-9ac2-6a352df9e415,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+9a0d45ec-4dff-4630-a4ba-de52d046389d,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+a23504ae-ce64-408a-bebc-99a05eca6f50,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+a56ebfd5-3a21-4b77-b252-df8665d0fa02,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+a9ef2c8a-c3f5-4878-b0de-ee8bf35f328b,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+ad2b3747-5d13-4ba1-97ab-f45bc634a8c6,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+b360c898-3140-4a21-b82d-a6e530ca646e,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+b7fd708f-24d1-494d-9c56-fddda41ef9c2,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+d643ba52-da05-4161-9495-600fedbce310,Halal Munchies,Halal Munchies,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+b0ce834c-9f3b-409d-a619-f1c39b780436,Halal N Out,Halal N Out,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+fdc825fe-d75e-41f1-b32c-7f3184d5eb6b,Halal N spice,Halal N spice,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully. Official info indicates halal.
+b625f0f4-fc18-4c0b-91ba-0438ad1359bf,Halal N' Fresh,Halal N' Fresh,only,only,false,LIKELY_HALAL,FULLY_HALAL,72,,,Halal: Fully.
+1d04c511-bf48-450c-bbed-499a2ce73167,Halal On Wheels,Halal On Wheels,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Reviews mention halal.
+dddbd53f-7fb9-419e-8ab5-d25596f876d9,Halal On Wheels,Halal On Wheels,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully.
+79448432-184a-4397-9ad2-f9a4fb2fd037,Halal Sandwich Shop,Halal Sandwich Shop,only,only,false,LIKELY_HALAL,FULLY_HALAL,78,,,Halal: Fully.
+1fae4b31-9541-46ef-bf43-69733625d288,Halal Skinny Guys MIDO,Halal Skinny Guys MIDO,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Reviews mention halal.
+443ea09e-548a-4f97-9fdd-fcda7100d7f2,Halal Spot,Halal Spot,only,only,false,LIKELY_HALAL,FULLY_HALAL,68,,,Halal: Fully. Reviews mention halal.

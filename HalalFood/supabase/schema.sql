@@ -51,7 +51,6 @@ begin
       halal_status text check (halal_status in ('unknown','yes','only','no')),
       rating double precision,
       rating_count integer,
-      confidence double precision,
       source text default 'osm' not null,
       apple_place_id text,
       note text,
@@ -100,9 +99,6 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='rating_count') then
       alter table public.place add column rating_count integer;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='confidence') then
-      alter table public.place add column confidence double precision;
     end if;
     if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='place' and column_name='source') then
       alter table public.place add column source text not null default 'seed';
@@ -242,28 +238,27 @@ returns table (
   halal_status text,
   rating double precision,
   rating_count integer,
-  confidence double precision,
   source text,
   apple_place_id text,
   note text
 )
 language sql stable parallel safe as $$
   select p.id, p.name, p.category, p.lat, p.lon, p.address, p.halal_status,
-         p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+         p.rating, p.rating_count, p.source, p.apple_place_id, p.note
   from public.place as p
   where p.status = 'published'
     and p.halal_status in ('yes', 'only')
     and (cat = 'all' or p.category = cat)
     and ST_Intersects(p.geog::geometry, ST_MakeEnvelope(west, south, east, north, 4326))
   -- Sort by distance to the viewport center first to prioritize nearby places,
-  -- then by rating/confidence for stability.
+  -- then by rating count for stability.
   order by
     ST_Distance(
       p.geog,
       ST_SetSRID(ST_MakePoint((west + east) / 2.0, (south + north) / 2.0), 4326)::geography
     ) asc,
     p.rating desc nulls last,
-    p.confidence desc nulls last,
+    p.rating_count desc nulls last,
     p.name asc
   limit greatest(1, least(max_count, 1000));
 $$;
@@ -291,14 +286,13 @@ returns table (
   halal_status text,
   rating double precision,
   rating_count integer,
-  confidence double precision,
   source text,
   apple_place_id text,
   note text
 )
 language sql stable parallel safe as $$
   select p.id, p.name, p.category, p.lat, p.lon, p.address, p.display_location, p.halal_status,
-         p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+         p.rating, p.rating_count, p.source, p.apple_place_id, p.note
   from public.place as p
   where p.status = 'published'
     and p.halal_status in ('yes', 'only')
@@ -310,7 +304,7 @@ language sql stable parallel safe as $$
       ST_SetSRID(ST_MakePoint((west + east) / 2.0, (south + north) / 2.0), 4326)::geography
     ) asc,
     p.rating desc nulls last,
-    p.confidence desc nulls last,
+    p.rating_count desc nulls last,
     p.name asc
   limit greatest(1, least(max_count, 1000));
 $$;
@@ -334,7 +328,6 @@ returns table (
   halal_status text,
   rating double precision,
   rating_count integer,
-  confidence double precision,
   source text,
   apple_place_id text,
   note text
@@ -354,7 +347,7 @@ as $$
       greatest(1, least(coalesce(p_limit, 40), 1000)) as resolved_limit
   )
   select p.id, p.name, p.category, p.lat, p.lon, p.address,
-         p.halal_status, p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+         p.halal_status, p.rating, p.rating_count, p.source, p.apple_place_id, p.note
   from public.place as p
   cross join input as i
   where p.status = 'published'
@@ -370,7 +363,7 @@ as $$
       ))
     )
   order by p.rating desc nulls last,
-           p.confidence desc nulls last,
+           p.rating_count desc nulls last,
            p.name asc
   limit (select resolved_limit from input);
 $$;
@@ -395,7 +388,6 @@ returns table (
   halal_status text,
   rating double precision,
   rating_count integer,
-  confidence double precision,
   source text,
   apple_place_id text,
   note text
@@ -415,7 +407,7 @@ as $$
       greatest(1, least(coalesce(p_limit, 40), 1000)) as resolved_limit
   )
   select p.id, p.name, p.category, p.lat, p.lon, p.address, p.display_location,
-         p.halal_status, p.rating, p.rating_count, p.confidence, p.source, p.apple_place_id, p.note
+         p.halal_status, p.rating, p.rating_count, p.source, p.apple_place_id, p.note
   from public.place as p
   cross join input as i
   where p.status = 'published'
@@ -431,7 +423,7 @@ as $$
       ))
     )
   order by p.rating desc nulls last,
-           p.confidence desc nulls last,
+           p.rating_count desc nulls last,
            p.name asc
   limit (select resolved_limit from input);
 $$;
@@ -478,7 +470,7 @@ $$;
 
 grant execute on function public.save_apple_place_id(uuid, text) to anon, authenticated;
 
-drop function if exists public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer, double precision);
+drop function if exists public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer);
 create or replace function public.upsert_apple_place(
   p_apple_place_id text,
   p_name text,
@@ -488,8 +480,7 @@ create or replace function public.upsert_apple_place(
   p_display_location text default null,
   p_halal_status text default 'unknown',
   p_rating double precision default null,
-  p_rating_count integer default null,
-  p_confidence double precision default null
+  p_rating_count integer default null
 )
 returns table (
   id uuid,
@@ -502,7 +493,6 @@ returns table (
   halal_status text,
   rating double precision,
   rating_count integer,
-  confidence double precision,
   source text,
   apple_place_id text
 )
@@ -544,7 +534,6 @@ begin
       halal_status,
       rating,
       rating_count,
-      confidence,
       source,
       apple_place_id,
       external_id,
@@ -559,7 +548,6 @@ begin
       v_halal,
       p_rating,
       p_rating_count,
-      p_confidence,
       'apple',
       trim(p_apple_place_id),
       v_external_id,
@@ -574,15 +562,14 @@ begin
           halal_status = excluded.halal_status,
           rating = coalesce(excluded.rating, tgt.rating),
           rating_count = coalesce(excluded.rating_count, tgt.rating_count),
-          confidence = coalesce(excluded.confidence, tgt.confidence),
           apple_place_id = excluded.apple_place_id,
           source = 'apple',
           status = 'published'
     returning tgt.id, tgt.name, tgt.category, tgt.lat, tgt.lon, tgt.address,
-              tgt.display_location, tgt.halal_status, tgt.rating, tgt.rating_count, tgt.confidence,
+              tgt.display_location, tgt.halal_status, tgt.rating, tgt.rating_count,
               tgt.source, tgt.apple_place_id;
 end;
 $$;
 
-grant execute on function public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer, double precision)
+grant execute on function public.upsert_apple_place(text, text, double precision, double precision, text, text, text, double precision, integer)
   to anon, authenticated;

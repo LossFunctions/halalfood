@@ -198,7 +198,6 @@ extension FavoritePlaceSnapshot {
             halalStatus: Place.HalalStatus(rawValue: halalStatusRaw),
             rating: rating,
             ratingCount: ratingCount,
-            confidence: nil,
             source: source,
             applePlaceID: applePlaceID
         )

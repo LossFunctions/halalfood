@@ -10,11 +10,9 @@ struct ApplePlaceUpsertPayload: Encodable, Sendable {
     let halalStatus: String
     let rating: Double?
     let ratingCount: Int?
-    let confidence: Double?
 
     init?(mapItem: MKMapItem,
-          halalStatus: Place.HalalStatus = .unknown,
-          confidence: Double? = 0.6) {
+          halalStatus: Place.HalalStatus = .unknown) {
         let trimmedName = mapItem.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedName.isEmpty else { return nil }
 
@@ -29,7 +27,6 @@ struct ApplePlaceUpsertPayload: Encodable, Sendable {
         self.halalStatus = halalStatus.rawValue
         self.rating = nil
         self.ratingCount = nil
-        self.confidence = confidence
     }
 
     enum CodingKeys: String, CodingKey {
@@ -41,6 +38,5 @@ struct ApplePlaceUpsertPayload: Encodable, Sendable {
         case halalStatus = "p_halal_status"
         case rating = "p_rating"
         case ratingCount = "p_rating_count"
-        case confidence = "p_confidence"
     }
 }

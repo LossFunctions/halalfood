@@ -1,0 +1,100 @@
+id,name_file,name_db,existing_halal_status,new_cc_halal_status,differs_from_existing,cc_halal_likelihood,cc_halal_type,cc_halal_confidence,cc_is_zabiha,cc_certifier_org,cc_note
+02a03651-1278-4e27-83b9-1c0553d705c3,KOL Noodle,KOL Noodle,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+374762c1-f7ee-403d-a362-a98bd716b5a6,Kolapata,Kolapata,yes,only,true,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+d3641469-4725-483b-a96b-a2f559bd7e25,Konak,Konak,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+15075ac4-7c77-4170-831a-edea696190de,KPOT Korean BBQ & Hot Pot,KPOT Korean BBQ & Hot Pot,yes,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. Certified halal. No official menu/certification found.
+e9559349-93e5-4a68-8cdd-f0414392b9bf,Krave It,Krave It,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,75,true,,Halal: Options. Official info indicates halal. Listed on Zabiha.
+dea656c5-02de-4b4f-a31f-e03c8d4a0d48,Krinti Mediterranean Grill,Krinti Mediterranean Grill,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,65,,,Halal: Options. Reviews mention halal.
+acdd3c9a-e105-4e8a-8622-992dc551aadb,Krispy Crown Fried Chicken,Krispy Crown Fried Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Certified halal.
+218c4c13-afb1-4873-899f-5e53c7ed5a56,Krispy Mango Cafe & Bakeshop,Krispy Mango Cafe & Bakeshop,yes,unclear,true,UNCLEAR,UNKNOWN,25,,,Halal: Unclear. No official menu/certification found.
+a6950006-0472-4763-8db8-4d1414ec70ca,Krunchy Krust Pizza,Krunchy Krust Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,HMS,Halal: Fully. Certified by HMS. Listed on Zabiha.
+a5f76c4a-2fd1-47fc-921a-0da1c21632a4,Kumasi Restaurant,Kumasi Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully.
+d87fec12-7715-4caf-8c67-3483b4d921ba,Kung Fu Tea,Kung Fu Tea,yes,unclear,true,UNCLEAR,UNKNOWN,30,,,Halal: Unclear. Certified halal. No official menu/certification found.
+6312df4c-3f80-48b4-8a90-68d2f3fdddf6,Kwik Meal,Kwik Meal,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+6684ed95-4f82-4348-bdb0-c091f857b76f,L&B Spumoni Gardens,L&B Spumoni Gardens,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,20,,,Halal: Unclear. Evidence suggests not halal.
+cc209bb0-a44f-4d86-a81b-4a83ef441ad2,La Estacion,La Estacion,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+a14ea957-c924-4c3a-ba70-b78861a64502,Labbaik Karahi Restaurant,Labbaik Karahi Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,true,SBNY,Halal: Fully. Certified by SBNY. Listed on Zabiha.
+884ce214-fb00-40bf-a804-4c662779d19e,Laghman Express,Laghman Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+f16ac9f6-6071-46f2-82fc-4631a4dc6ddf,Laghman Express,Laghman Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+7f652d13-f666-4d04-b032-db1b70eea440,Lahore kabab House,Lahore kabab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+3bc72acc-80a1-4e15-8829-82939633805d,Lahori Chilli Restaurant & Sweets,Lahori Chilli Restaurant & Sweets,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+4977c46f-db2d-4f6e-b88e-57198eeb3300,Lahori Kabab,Lahori Kabab,only,unclear,true,UNCLEAR,UNKNOWN,20,,,Halal: Unclear. No official menu/certification found.
+4148056c-3c7f-4582-98c7-de1a0081df2e,Laila,Laila,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+eef8bc33-2e24-4337-bcf0-fec675167c11,Laila,Laila,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+a3188283-18d6-45c6-9dcc-c259cddaaa4f,Lakruwana Restaurant,Lakruwana Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Reviews mention halal.
+f822074e-d9e4-490e-b4a4-640ee88742e5,Laojie Hotpot,Laojie Hotpot,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,15,,,Halal: Unclear. Marked as not halal.
+5c29dc17-00ec-470e-9b59-7e04114b0857,Lava Rock Kitchen,Lava Rock Kitchen,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,HMS,Halal: Fully. Certified by HMS.
+e1ef20ef-9b11-40e5-b03d-d8050626ebb3,Lava Rock Kitchen,Lava Rock Kitchen,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,HMS,Halal: Fully. Certified by HMS.
+d89db50a-c11c-47cf-ae7b-0b6ff3113dd3,Lava Shawarma,Lava Shawarma,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+13f11ec5-f2d8-4acd-983c-5c86f5b111f6,Layali Beirut Cafe Restaurant,Layali Beirut Cafe Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+877e01ca-fbf4-4a55-b644-ca946d823786,Layla Halal Food,Layla Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+aba24a28-bbaf-44a7-8eed-a35f24706f48,Laziza Pizzeria,Laziza Pizzeria,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+bd093c98-5011-4798-b870-5caee707093f,Lebanese Eatery,Lebanese Eatery,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+d72ac811-f21c-4ca1-af00-093704b50f85,Legend Chicken,Legend Chicken,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+6045dc1c-f90a-41db-b3d2-cdeb3644e8cd,Lets Get Delicious,Lets Get Delicious,yes,unclear,true,UNCLEAR,UNKNOWN,15,,,Halal: Unclear. No official menu/certification found.
+f22f7c03-f9d2-4c82-b6ca-8701b1951b36,Levant,Levant,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+a67a7201-b98a-41d9-9689-5ca162f79aba,Lido Kosher Deli,Lido Kosher Deli,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,5,,,Halal: Unclear. Marked as not halal.
+b00b8bc1-8de9-445a-92c7-2740968d98b6,Lily's Chinese Food,Lily's Chinese Food,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,15,,,Halal: Unclear. Evidence suggests not halal.
+d648d151-00c2-410f-ac1b-629a869f0360,Limani,Limani,yes,unclear,true,UNCLEAR,UNKNOWN,25,,,Halal: Unclear. Reviews mention halal. No official menu/certification found.
+86ea546d-f2f5-4581-bf1b-eae7309f87bc,Limón Mexican Grill,Limón Mexican Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,60,,,Halal: Fully. Official info indicates halal.
+92f53c95-41dd-460f-99ee-9b72b614a5eb,Little Flower,Little Flower,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+ac1957e3-1e89-4076-8512-4b83073750b4,Little Gujrat Deli,Little Gujrat Deli,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+d16ebc0b-cc8a-4de7-9811-b98e454f89e3,Little Istanbul Restaurant,Little Istanbul Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+26b11137-53de-4d11-8dbe-b27a233cb845,Little Kabab Station,Little Kabab Station,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+6c1694ae-0975-4a65-9ca4-b33db3d748db,Little Morocco,Little Morocco,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+7f9d1945-a52d-460f-930a-74c8b5cebc4e,Little Mumbai Market,Little Mumbai Market,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,65,,,Halal: Options. Official info indicates halal.
+0094e5b9-8a13-4b71-80f8-8080897dbad7,Little Myanmar,Little Myanmar,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+d97b3d84-9054-4b21-9b15-179bfcba225e,Little Pepper,Little Pepper,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,15,,,Halal: Unclear. Marked as not halal.
+9f11a84d-dea7-48b9-a3de-aa4b0c91e8ec,Little Vincent's Pizzeria,Little Vincent's Pizzeria,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,20,,,Halal: Unclear. Evidence suggests not halal.
+71931b2c-a8a9-41e3-a7cb-b45c643f4277,Lokanta Turkish Grill,Lokanta Turkish Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+34cb4ab2-de3a-4800-a686-a7b373ddf8fe,Long Island Halal Meat & Grocery,Long Island Halal Meat & Grocery,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+626c213e-8165-4bab-99b4-35d356f6d299,LoveMama,LoveMama,yes,unclear,true,UNCLEAR,HALAL_OPTIONS_ONLY,50,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+12c1c8d9-2fce-4345-adc7-7f68f350bc7e,Lucky Halal Food,Lucky Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+17b50b72-b86e-49ab-8046-fd0d744590d1,Lucky Rabbit Noodles,Lucky Rabbit Noodles,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,55,,,Halal: Options. Official info indicates halal.
+759e9452-29a8-4fca-9343-956f23e0c2c2,Lumas Halal Food,Lumas Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+a5dc425c-2372-43b0-aa08-ced55f135720,Luna Halal Food,Luna Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+9de4eb27-13db-4ac1-aeda-bf561c06f195,Lungi,Lungi,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+7ec86a45-c7db-4bd1-8274-7c19a1965f4d,Lutheran Halal Cafe,Lutheran Halal Cafe,only,unclear,true,UNCLEAR,UNKNOWN,20,,,Halal: Unclear. No official menu/certification found.
+d02e66a0-563e-46f6-a21e-f6337f13f350,Lutheran Halal Cafe,Lutheran Halal Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+cf373b85-c147-47d9-9fc8-7ee42c67160c,M & S Halal Food,M & S Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+bf7c4e64-d8db-4a93-acea-637cefc516c7,Mac Shawarma,Mac Shawarma,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+7efad29b-eac5-42cc-aaf9-a45d4b35efa0,Mad For Chicken East Meadow,Mad For Chicken East Meadow,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+54a48407-47ab-4416-8027-900da175866e,Mad For Chicken Plainview,Mad For Chicken Plainview,yes,unclear,true,UNCLEAR,UNKNOWN,35,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+a8a9cf2d-016b-4894-8528-fa3ea4d38234,Madina Halal Deli,Madina Halal Deli,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,true,,Halal: Fully. Listed on Zabiha.
+4e142eda-6832-4116-a852-5ff03dfe0731,Madina Halal Food,Madina Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+720a977a-4335-48c5-be00-24cd9649457a,Madina Halal Food,Madina Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+b56c1563-f54e-42b3-9899-a8e18c4dbcc6,Madinah Grocery And Halal Meat,Madinah Grocery And Halal Meat,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+02938502-b33b-41fc-ba04-df7b71fc4d49,Mahmoud's Corner,Mahmoud's Corner,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+780f93b3-47cf-4023-ac8a-85d82aa07090,Main Bakhtar Halal Kabab,Main Bakhtar Halal Kabab,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+8c125c39-00ea-4534-8137-b093ba1c9eec,Main Bakhtar Halal Kabab,Main Bakhtar Halal Kabab,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+848b85eb-f96e-4e25-a40c-a5cb6ebe48e5,Mala Madre Taqueria,Mala Madre Taqueria,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+94089b42-cb81-418b-9660-a5a6db791b94,Mama G's Halal Kitchen,Mama G's Halal Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+d093c978-52c7-487c-856d-f3f8e34c4bb0,Mama Halal Food,Mama Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+d86a5f7e-d7b8-4402-8821-cff11fb2d27f,Mamar Bari Indian Cuisine,Mamar Bari Indian Cuisine,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+26727de1-08af-457b-bb38-ae6be705feb7,MamaSushi,MamaSushi,yes,unclear,true,UNCLEAR,UNKNOWN,25,,,Halal: Unclear. No official menu/certification found.
+8f51fb9d-6636-4c4d-bfbf-ca3ecfa4944a,Mamoun's Falafel,Mamoun's Falafel,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+eb763618-a426-44ff-a9c4-0ef727e0736e,Mamoun's Falafel,Mamoun's Falafel,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+fb6acd49-f5dc-4eb7-a040-897c9ce58fc7,Mamoun's Falafel,Mamoun's Falafel,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+5fa0ba79-48f9-4c6b-8e0a-5eb807f74ca7,Mando Halal Food,Mando Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+8b932e71-4b69-40b7-a633-e4b7c2f10403,Marigold,Marigold,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+f24e4701-1995-4454-a8e2-c13cf26f9b23,Marrakech Restaurant,Marrakech Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+af1a339e-f755-45da-8274-a207b7016e68,Masal Cafe,Masal Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+54bde222-acd5-4483-9a62-cf3a054d5716,Masala Grill,Masala Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+1dac9435-03b2-4044-a686-22740ae60f69,Masala Times Greenwich Village,Masala Times Greenwich Village,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+6d792cf0-bb9f-463c-b805-23ec66c39f18,MashAllah Sweets & Restaurant,MashAllah Sweets & Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+1f267413-b06e-46c2-8cb0-48be855a32e3,Mason Sandwich Company,Mason Sandwich Company,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,20,,,Halal: Unclear. Evidence suggests not halal.
+b8edd4c4-cf74-4131-bb24-e26a313052bd,Mavi Grill,Mavi Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+4fb6bf72-882e-4156-a70a-f2324bbecec7,Max Soha Restaurant,Max Soha Restaurant,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,65,,,Halal: Options. Reviews mention halal.
+cbc0ec37-30d8-4836-a118-fc4aee327879,Maya Mexican Grill,Maya Mexican Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+e30433d3-29ce-4a95-9e8a-dde66fad1659,Mazadar Grill & Catering,Mazadar Grill & Catering,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+d1c144f2-594e-4837-8fd1-32528c145dd6,Mazza Mediterranean,Mazza Mediterranean,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+6d19010d-14dd-4c46-bc1a-9b05ff463443,Meat Me BBQ,Meat Me BBQ,yes,unclear,true,UNCLEAR,UNKNOWN,35,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+5dc29b9a-6442-46be-9ed9-00a92752fa08,MeatUp Dumbo,MeatUp Dumbo,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+4b2ad9bb-ba1b-4c1a-bb9f-bc6515e81485,Medi Bistro,Medi Bistro,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+65277a29-7bc4-4dd3-9be2-0d4fbfafcf8b,Medina Halal Food,Medina Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+c748c2a6-37c2-4757-b1ab-be34465e5da1,Mediterranean Halal Food,Mediterranean Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully.
+2d9220e5-b830-4209-ae11-742ddcefb7d9,Mediterranean Kebab House,Mediterranean Kebab House,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+c4cda923-722b-46bc-991d-a3833194d53f,Mediterranean Kitchen,Mediterranean Kitchen,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully.
+8fff304b-407f-471e-87ae-459d7a63565a,Medo Halal Food,Medo Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+bb1cfc23-b289-47ba-a816-d3e2169cb7f4,Meet N Eat,Meet N Eat,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,true,,Halal: Fully. Listed on Zabiha.
+5086cd35-3c3b-48be-ba81-e43e3fa2051a,Mehfil Restaurant & Banquet,Mehfil Restaurant & Banquet,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Listed on Zabiha.

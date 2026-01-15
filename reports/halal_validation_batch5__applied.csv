@@ -1,0 +1,100 @@
+id,name_file,name_db,existing_halal_status,new_cc_halal_status,differs_from_existing,cc_halal_likelihood,cc_halal_type,cc_halal_confidence,cc_is_zabiha,cc_certifier_org,cc_note
+71b2cf39-07d2-4e13-8b58-daf9952f3947,Filli,Filli,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Certified halal.
+87088335-3499-467e-a7ab-3a91701be963,Finest Halal Meat & Deli,Finest Halal Meat & Deli,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Listed on Zabiha.
+48814516-661d-44dd-8625-cfa9841f6c53,Fire Kabob,Fire Kabob,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+3abb287b-f5b1-4a8a-b91f-2af1430aabb8,Fire Stone Grill and Pizza,Fire Stone Grill and Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,SBNY,Halal: Fully. Certified by SBNY. Listed on Zabiha.
+1198c15b-e9f3-43ef-a39f-b05124397d24,First Deli,First Deli,only,only,false,LIKELY_HALAL,FULLY_HALAL,70,,,Halal: Fully. Official info indicates halal.
+64666420-100c-4ee5-bad6-80361f5d6c0c,Fitoor Cafe & Grill,Fitoor Cafe & Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+c464ea12-435d-4234-be02-c8579206ff7e,Five Star Halal Food,Five Star Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+61e9216b-858e-4951-aef8-704eb5e9a2fd,Five Star Pizza & Burger,Five Star Pizza & Burger,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,75,,,Halal: Options. Official info indicates halal.
+93a1670b-fe63-48a0-8d80-0861dbd75b2b,Flame Halal Gyro,Flame Halal Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+c2f074a6-9616-473d-9b0b-2c29e9053e59,Flames Indian Aroma,Flames Indian Aroma,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+50e10297-21e7-44ab-981d-d2667f5f3f18,Flaming Grill,Flaming Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+ad262f5f-f2ab-4ef4-8beb-2194d5d1b92d,Flaming Grill,Flaming Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+29780082-4a8e-4180-921d-364b352e8b43,Flatbush Kitchen Mix Grill,Flatbush Kitchen Mix Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Certified halal.
+dc505bdf-6207-4d9a-ae98-3ee8136f1aa9,Flavour Restaurant & Grill,Flavour Restaurant & Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+f2e7df0e-d0e9-4f21-b398-f8768639503c,Flippin Buns,Flippin Buns,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+176fb096-e068-4d9f-bd95-bd13543117e1,Flowers Cafe,Flowers Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+7fe4b599-8614-4805-87fe-95f20114cb92,Fluffies Hot Chicken - Midtown,Fluffies Hot Chicken - Midtown,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+6e3d1a5a-86ef-48b5-b78d-1b8e24193551,Fogo de Chão Brazilian Steakhouse,Fogo de Chão Brazilian Steakhouse,yes,unclear,true,UNCLEAR,UNKNOWN,30,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+9387aa8a-e11f-41c6-842a-3ffe27b80ebb,Fordham Fried Seafood And Chicken,Fordham Fried Seafood And Chicken,only,yes,true,LIKELY_HALAL,HALAL_OPTIONS_ONLY,75,,,Halal: Options. Certified halal.
+973b42a5-1b9a-40af-9def-d5923ccbfdd6,Forefeathers,Forefeathers,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+433408f8-c63a-4016-819a-0848d172e83b,Forefeathers Chicken Madness,Forefeathers Chicken Madness,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+2be9838e-d962-43de-bfb7-b927195bc287,Fouta Halal Food 2 Restaurant,Fouta Halal Food 2 Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+dc5dfa54-bade-4eb5-aea5-9b77cecbd33e,Frangos,Frangos,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+06de58e5-33de-4406-b88c-4f1f64dac4a6,Frangos Peri Peri,Frangos Peri Peri,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+076a7d86-24b6-4e3e-9672-df352db519e2,Fresh halal grill,Fresh halal grill ,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+30d8a302-2221-4b71-96e1-fe2507056342,Fry Chick,Fry Chick,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+65336498-2eb5-47e5-ad2d-697e78ae6302,Fulton Food Court,Fulton Food Court,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,70,,,Halal: Options. Official info indicates halal.
+1971e4b3-0fb4-4d43-a630-2ae3945574cd,Gaia Masala & Burger,Gaia Masala & Burger,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+9062646b-f930-4043-8393-a8e7d25da380,Gaia Masala & Burger,Gaia Masala & Burger,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+5f6016d1-b34b-4563-970b-8977549e6278,Gallifood,Gallifood,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+61e59f0e-2133-424a-8fb3-6279a0f75aa6,Gandhi Fine Indian Cuisine,Gandhi Fine Indian Cuisine,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+e34f3447-261d-4251-8103-ad39069a8243,Garden Catering,Garden Catering,yes,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+054a9538-8d08-4b41-b30a-5dbc30327312,Gauc Time,Gauc Time,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+b38dad95-d40d-486b-b76a-6197474461a2,Gazab,Gazab,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+53f09de3-e879-4148-a8b7-0f411421cc95,Geo Halal Meat & Grocery,Geo Halal Meat & Grocery,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+c99e91b0-cbd9-43bb-9671-c77339739484,German Doner Kebab,German Doner Kebab,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+d8667614-5231-4858-99c1-aebd4b39b7b8,GGs Masalah Grill,GGs Masalah Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+229fac8c-ddd6-4545-ae7c-bb8810e92eb2,Gnocchi Bella,Gnocchi Bella,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+b979e4bd-226c-42e8-8f5e-8af76650e54b,Go Greek,Go Greek,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,35,,,Halal: Unclear. Evidence suggests not halal.
+74281c0a-cc32-4639-bb38-832d79cee21b,God Bless Deli,God Bless Deli,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Listed in a halal directory.
+6d171c64-534c-4530-b982-a51c3f35c345,Golden House Kitchen,Golden House Kitchen,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+13c5e9ba-a717-47f3-a6c3-3cd63205de2d,GOSHT,GOSHT,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+b8a6e05f-7773-48fd-885c-c4c735af620c,Gosht Josper Grill,Gosht Josper Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+e8a662cc-7881-4aeb-8f74-ca8ed40d24f1,Graffitery,Graffitery,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+fd59659f-dbca-4f53-b92f-ba3091b6a4c2,Grand Sahara Mediterranean Grill,Grand Sahara Mediterranean Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+dd3dac42-68fc-44ce-8d27-41e20fdaf50e,Greek Cove,Greek Cove,yes,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. Certified halal. No official menu/certification found.
+d40612a3-990a-41b0-a199-e67dd1f6b26e,GreekRave,GreekRave,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+e571bf9e-2e13-491a-b12d-74e42a01c66d,Green Gold Kitchen,Green Gold Kitchen,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,25,,,Halal: Unclear. Evidence suggests not halal.
+999f6c5a-241e-4dc4-82cf-998a25c20e35,Grill & Height Deli,Grill & Height Deli,only,yes,true,LIKELY_HALAL,HALAL_OPTIONS_ONLY,75,,,Halal: Options. Official info indicates halal.
+d65f1dbc-331a-4b2b-b2f1-b7d8c889edea,GrillWaale,GrillWaale,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+4cdda0c5-f0dd-4556-874f-628fa019d81b,Guac Island,Guac Island,only,unclear,true,UNCLEAR,UNKNOWN,35,,,Halal: Unclear. No official menu/certification found.
+8672832a-e885-4d79-93da-631333fee31c,Guac Time,Guac Time,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+f2d3886b-d6c5-4cd7-a166-e4a908e09968,Guac Time,Guac Time,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,HFSAA,Halal: Fully. Certified by HFSAA. Listed on Zabiha.
+f6b0054f-b4fd-45f3-9e8d-205fe8c89eed,Guac Time,Guac Time,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+e3a312e7-47c9-4521-8492-5045d59ac12d,Guac Time Mexican Grill,Guac Time Mexican Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+c60d5016-187c-421c-a14d-d8382fc30292,Guacamole Mexican Grill,Guacamole Mexican Grill,yes,unclear,true,UNCLEAR,UNKNOWN,40,,,Halal: Unclear. No official menu/certification found.
+4ed5c659-3293-4165-8cd9-70fb9ea1f7e9,Gulchatay Restaurant,Gulchatay Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+66dca857-9532-4e74-a3d7-b08159404967,GupShup,GupShup,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,85,,,Halal: Options. Official info indicates halal.
+88863d6d-fd51-4776-b951-a8c619f240bc,Gyro & BBQ,Gyro & BBQ,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+a845dada-2fca-4c91-a08b-7bfe5fbbe5ca,Gyro & Halal House,Gyro & Halal House,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+8b1e072b-f29b-4c61-822a-d0c8e84833e0,Gyro and Kashmiri Pizza,Gyro and Kashmiri Pizza,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+eec3cc86-c910-4d0d-b0cf-bcbc779cc8fc,Gyro Boys,Gyro Boys,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+5ab2f681-1df5-489e-90f0-7f2f244cda12,Gyro Cafe,Gyro Cafe,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+1035358b-9086-4cc7-85f5-3315a09968ae,Gyro Express,Gyro Express,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+f9a14b95-e5f5-40a8-b231-f433433d7291,Gyro Express,Gyro Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+0597862b-100c-4a59-809f-364ca5e33b7d,Gyro Gyro,Gyro Gyro,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,70,true,,Halal: Options. Official info indicates halal. Listed on Zabiha.
+e892905f-9ef0-40b7-bf62-66f74a22f2fb,Gyro Hut,Gyro Hut,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+23e39c40-48a1-4ce1-b393-f32f1f5ad48e,Gyro King,Gyro King,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+9699f1cd-6a58-4e2a-bc64-d6a545a92c7d,Gyro King,Gyro King,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+b888c0d4-31dc-48ed-8658-21d680531ce1,Gyro King,Gyro King,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+4b52c3a7-e8c0-4181-a448-f3a614b1c4c1,Gyro King - Staten island,Gyro King - Staten island,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+77273051-3473-4299-b21d-66e78ea3c901,Gyro King Xpress,Gyro King Xpress,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+2925b38d-6dac-4891-a111-d2d1bb9ef428,Gyro Mania,Gyro Mania,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+240cbebb-0b82-4062-b6d3-b6a9db01fe22,Gyro Spot,Gyro Spot,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+a1006001-41c9-4b88-91f1-523a66c00661,Gyro Spot,Gyro Spot,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+22415329-74bd-47f5-8bc8-372b1d42e364,Gyrohouse NYC,Gyrohouse NYC,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+ffe006e7-7e21-4aee-9bdf-d3727f5cde27,Haandi,Haandi,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+11cee36a-8d6a-4d02-bece-11d87544fa89,Habiba B&B Halal,Habiba B&B Halal,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+ed148b3f-c625-4d61-b68e-de71cace7fdb,Habiba B&B Halal Food Truck,Habiba B&B Halal Food Truck,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully.
+0205d2a9-42ad-4268-b54a-6cc7ab893546,Habibi Gyro,Habibi Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+0e01d624-e7b0-45bf-8303-a04a7ab2c86b,Habibi Halal Food,Habibi Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+fb367fa8-5f99-43f5-992e-61eac62af8f7,Habibi Halal Food,Habibi Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+b3227886-d74d-41cf-8f42-53fb10a19353,Habibi Halal Gyro & Restaurant,Habibi Halal Gyro & Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+c70d4f69-a5cb-4a81-815b-2d23f6c98ce3,Habibi Moroccan Halal Food,Habibi Moroccan Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+94163ddc-47b6-4ba2-a476-254038841004,Hadramout Restaurant,Hadramout Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+f2cfba36-bbd4-4daa-af4d-6f3e96bba75c,Hajis Famous Deli,Hajis Famous Deli,yes,only,true,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+2fb02c6c-2a78-4610-b309-6a3117f5dc7e,Hajrah Halal Food,Hajrah Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+2c55a1e9-6d0a-4d59-afff-eb74cf48b353,Haka,Haka,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+563771f7-8795-4bd3-8952-1b9581128665,Halal Bite,Halal Bite,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+6cde4082-b2eb-4ecf-98c0-822d9d04b051,Halal Bite,Halal Bite,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+e9eae0cc-20a9-48e2-8872-8aeb1ca41672,Halal Bites Parkchester,Halal Bites Parkchester,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+b06d04c8-ce6f-41f5-af6f-19e1cc89d1f6,Halal Bitez,Halal Bitez,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+7f802f0f-3546-48b1-99be-a9d4abe89b3a,Halal Boyz,Halal Boyz,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+c23a387e-521a-4f86-b052-175aa6ca3298,Halal Boyz,Halal Boyz,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+b648d8b0-d51f-4faa-a685-6b01dd9ed524,Halal Bro's & Brasa,Halal Bro's & Brasa,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+e8dca20d-0bfe-4064-a0f7-98392c5edd70,Halal Bros Cortlandt,Halal Bros Cortlandt,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+42ad7533-7aa1-4195-9094-2f6e5f41a10a,Halal Bros Grill,Halal Bros Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+bf612ac9-7bd3-45b8-84e0-30675071c945,Halal Bros Grill,Halal Bros Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+d0d3a180-390b-4404-b256-19d738c28f47,Halal Bros Grill,Halal Bros Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.

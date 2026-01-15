@@ -118,48 +118,9 @@ const alcoholNamePatterns = [
   /\bdistillery\b/i
 ];
 
-function clamp01(value) {
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  return value;
-}
-
-function hasHalalSignal(normalizedName, categories) {
-  if (normalizedName.includes('halal')) return true;
-  if (!Array.isArray(categories)) return false;
-  return categories.some(cat => String(cat || '').toLowerCase() === 'halal');
-}
-
 function isNonHalalChain(normalizedName) {
   if (!normalizedName) return false;
   return nonHalalChainTokens.some(token => normalizedName.includes(token));
-}
-
-function computeConfidence({ match, forcedOnly, halalStatus, normalizedName, categories, isBlacklisted }) {
-  let confidence = 0.6;
-  if (match.includes('category')) {
-    confidence = 0.85;
-  } else if (match.includes('manual')) {
-    confidence = 0.8;
-  } else if (match.includes('term')) {
-    confidence = 0.6;
-  }
-
-  if (forcedOnly) {
-    confidence = Math.max(confidence, 0.95);
-  }
-  if (hasHalalSignal(normalizedName, categories)) {
-    confidence = Math.max(confidence, 0.9);
-  }
-  if (halalStatus === 'only') {
-    confidence = Math.max(confidence, 0.8);
-  }
-
-  if (isBlacklisted) {
-    confidence = halalStatus === 'no' ? Math.max(confidence, 0.9) : Math.min(confidence, 0.1);
-  }
-
-  return clamp01(confidence);
 }
 
 function detectServesAlcohol(name, categories) {
@@ -304,15 +265,6 @@ function mapRow(item, existingMeta, allowHalalStatusUpdates) {
     halalStatus = existing.halal_status;
   }
 
-  const confidence = computeConfidence({
-    match,
-    forcedOnly,
-    halalStatus,
-    normalizedName: normalized,
-    categories,
-    isBlacklisted
-  });
-
   if (existing && typeof existing.serves_alcohol === 'boolean') {
     servesAlcohol = existing.serves_alcohol;
   }
@@ -331,7 +283,6 @@ function mapRow(item, existingMeta, allowHalalStatusUpdates) {
     halal_status: halalStatus,
     rating: rating,
     rating_count: ratingCount,
-    confidence: confidence,
     serves_alcohol: servesAlcohol ?? null,
     source_raw: sourceRaw,
     status: 'published',

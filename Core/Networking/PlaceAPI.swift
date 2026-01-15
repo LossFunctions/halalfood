@@ -146,7 +146,7 @@ enum PlaceAPI {
     ) async throws -> FetchAllPlacesResponse {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
-        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,confidence,serves_alcohol,source,apple_place_id,note,source_raw"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,apple_place_id,note,source_raw"
         let baseQueryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
@@ -528,7 +528,7 @@ enum PlaceAPI {
         let encodedQuery = query.replacingOccurrences(of: "*", with: "")
         let likePattern = "*\(encodedQuery)*"
 
-        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,confidence,serves_alcohol,source,apple_place_id,note"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,apple_place_id,note"
 
         let queryItems = [
             URLQueryItem(name: "select", value: selectColumns),
@@ -577,7 +577,7 @@ enum PlaceAPI {
                 break
             }
 
-            switch (lhs.confidence, rhs.confidence) {
+            switch (lhs.rating_count, rhs.rating_count) {
             case let (l?, r?) where l != r:
                 return l > r
             case (nil, .some):

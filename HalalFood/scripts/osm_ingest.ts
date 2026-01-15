@@ -192,7 +192,6 @@ type UpsertRow = {
   halal_status?: string|null;
   rating?: number|null;
   rating_count?: number|null;
-  confidence?: number|null;
   serves_alcohol?: boolean|null;
   source_raw?: unknown;
   status?: string;
@@ -262,7 +261,6 @@ async function main() {
           halal_status: halal,
           rating: null,
           rating_count: null,
-          confidence: category === 'restaurant' ? 0.9 : null,
           source_raw: sourceRaw,
           status: 'published',
         };

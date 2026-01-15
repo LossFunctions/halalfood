@@ -1,0 +1,100 @@
+id,name_file,name_db,existing_halal_status,new_cc_halal_status,differs_from_existing,cc_halal_likelihood,cc_halal_type,cc_halal_confidence,cc_is_zabiha,cc_certifier_org,cc_note
+fd0800df-43f0-4912-a380-19cc10e5b83e,Istanblue Kebab House,Istanblue Kebab House,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+9581cfff-16d7-4895-8899-6424653ac9dc,Istanblue Kebab House,Istanblue Kebab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Official info indicates halal.
+2a020933-7834-4628-9925-ab6e38025051,Istanbul Bay,Istanbul Bay,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+8baa0634-f15d-47d0-b563-f471efeef1ce,Istanbul Bay,Istanbul Bay,yes,only,true,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+2318c7b8-e434-4499-ad34-5f43ba571f02,Istanbul Bay,Istanbul Bay,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+ce2a5f85-9173-430f-843a-e943bcd61a4c,Istanbul Bay,Istanbul Bay,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+6d44b57d-be17-4fc0-a7fe-d765f321491c,Istanbul Cafe,Istanbul Cafe,yes,only,true,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+e5bf1840-2423-4e03-b4d3-ecc3e2e5b46d,Istanbul Clinton Hill Mediterranean Gyro & Grill,Istanbul Clinton Hill Mediterranean Gyro & Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+1e2f67b6-93bc-4faf-b8fa-4114cff77790,Istanbul Kebab House,Istanbul Kebab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+6e3be1f3-8bb4-4c80-a1e4-41989c94948a,Ittadi Garden & Grill,Ittadi Garden & Grill,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,true,,Halal: Fully. Listed on Zabiha.
+91a0347b-0669-47e7-a5d4-c2e438c99872,Jaipore Royal Indian Cuisine,Jaipore Royal Indian Cuisine,only,yes,true,LIKELY_HALAL,HALAL_OPTIONS_ONLY,55,,,Halal: Options. Official info indicates halal.
+10919377-13a5-47af-8c44-e5a2b85ed5e9,Jalapeno Shack,Jalapeño Shack,yes,only,true,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+9143d557-5d7e-4171-ba86-acb2996f0154,Jalapeno Shack - Bethpage,Jalapeno Shack - Bethpage,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Reviews mention halal.
+d1de53ee-6b15-485d-aea2-21cb40dd80d0,Jalsa,Jalsa,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+f783d0a3-a294-4002-bdda-1bcd311d2166,Jannat Aden Restaurant,Jannat Aden Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Reviews mention halal.
+b8bc9055-4651-4226-91fe-bcb5cb1ac2fc,Java Indonesian Restaurant,Java Indonesian Restaurant,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+06a0d512-43de-4d7f-8554-6024f3fdfc3a,Jay's Quick Bites,Jay's Quick Bites,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Official info indicates halal.
+2b3bb5de-38e5-4aba-bebd-7b04a8902d42,Jazeera Indian Hyderabadi Restaurant,Jazeera Indian Hyderabadi Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,HMS,Halal: Fully. Certified by HMS. Listed on Zabiha.
+13069266-4556-4135-928b-018a406c0d4f,Jerry's Pizza,Jerry's Pizza,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,60,,,Halal: Options. Official info indicates halal.
+8d16d8bc-138b-491b-861a-8e629083fb91,Jerusalem Falafel House,Jerusalem Falafel House,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+b0c7a306-fdd6-4812-a5c8-8c24cf8a1014,Jerusalem Guys,Jerusalem Guys,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Reviews mention halal.
+ac99180b-96d2-47b8-8df9-5705c0fc28c3,Jiang's Kitchen,Jiang's Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Official info indicates halal.
+c1bc3009-38a9-48d4-a2a9-4ab0a3cf129c,Jiang's Kitchen,Jiang's Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully.
+b2a20add-3dfc-45d4-8d5a-6ee890a965b5,JJ Pizza & Restaurant,JJ Pizza & Restaurant,yes,unclear,true,UNCLEAR,UNKNOWN,35,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+19bf423e-3da1-4f9e-bb1c-218db4d207eb,Joe's Campus Heroes,Joe's Campus Heroes,yes,only,true,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Official info indicates halal.
+1a2422e9-ca18-417d-a27f-878581e6fc1c,Joloff,Joloff,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+7299f11f-30ab-456b-ae86-643e304c1757,Jongro BBQ,Jongro BBQ,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,25,,,Halal: Unclear. Evidence suggests not halal.
+8b804603-6d60-4f3c-96d7-d91a7bdfa797,Juicy Bites,Juicy Bites,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+9c9183ff-7939-4847-9b5a-c902896c9f89,Just Halal,Just Halal,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,HFSAA,Halal: Fully. Certified by HFSAA. Listed on Zabiha.
+0c958561-e9f9-4a69-bef1-94f5f42d17ad,K2 Delights,K2 Delights,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+8fc05325-6885-44b7-8b27-49659abd6956,Kabab and Gyro Grill,Kabab and Gyro Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+c435e37a-c0e1-4115-940a-3643a6c6a022,Kabab King,Kabab King,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+3e0d1159-f625-4703-9d9b-ed4473db7fcd,Kabab Platter & Burger,Kabab Platter & Burger,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+6971f86c-14b5-4a4c-a9ae-da878db4088e,Kabab Time,Kabab Time,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+6a3f807c-2e85-4dd0-8f82-ef7e71931598,Kababish,Kababish,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+3548dddc-4f53-4e7b-a72e-c958d37eb655,Kababjees,Kababjees,only,only,false,LIKELY_HALAL,FULLY_HALAL,98,true,SBNY,Halal: Fully. Certified by SBNY. Listed on Zabiha.
+4d40acb8-8e56-4103-9946-48451f949ade,Kabob Shack,Kabob Shack,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+e3c5e897-6eae-45db-b89e-46230cda9f63,Kabul Grill,Kabul Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+8b49331c-0080-4185-947c-8475c3505437,Kabul Halal Grill,Kabul Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+b9e74a8c-a7c6-454c-8d9e-2f781bba8393,Kabul Halal Grill,Kabul Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+5ff10393-75a5-49f7-9bc4-243ee3ab5b09,Kabul Kabab House,Kabul Kabab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+6d3614e4-a288-4a95-92e8-8a01d06b1a52,Kabul Kabab House,Kabul Kabab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+692899aa-4b70-4d69-9175-33a36cb7d7fe,Kabul Restaurant Afghan Cuisine,Kabul Restaurant Afghan Cuisine,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Reviews mention halal.
+bebe10d4-12cb-48e6-8b83-31ce7ac3b058,Kalam's Bazaar,Kalam’s Bazaar,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+33a75b8f-af06-4949-9b12-39547d8383e8,Kamala Kitchen,Kamala Kitchen,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+1122c460-855f-426f-a8d5-ec5414e8e9d4,Kandahar Grill,Kandahar Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Certified halal.
+a2b14b0c-4a90-4aa2-aac1-4e2e2b08dd5a,Kanoon,Kanoon,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+4149e779-a717-4580-a20d-abc1260a62d9,Kansas Chicken and Burger,Kansas Chicken and Burger,yes,only,true,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+69d33be0-a660-4121-890e-8cc2c041501b,Karachi Kabab Boiz,Karachi Kabab Boiz,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+9bb80bb9-3839-4e28-a2e4-55a5b147c690,Karahi Adda,Karahi Adda,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Official info indicates halal. Listed on Zabiha.
+2a3cf544-82ad-4c9b-8ce9-24096cacd70a,Karahi House,Karahi House,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+e15f6a49-6a5e-47be-acf5-3f34a20b8965,Karam Restaurant,Karam Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+ba6519d9-8c76-4f97-8475-142bf858ee10,Karavan,Karavan,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+c42379ca-02e8-4047-b861-c97255c2819a,Karavan,Karavan,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+4bc712ba-bd3e-40a6-bf93-fd5239b8cf23,Kashmir 9 - Cuisine of Pakistan,Kashmir 9 - Cuisine of Pakistan,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Reviews mention halal.
+a917645c-8947-49ca-9faf-d2f072853741,Kebab Express,Kebab Express,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+10ef63f5-c8a0-48fe-9082-bd1c00cba493,Kebab Express Halal Grill,Kebab Express Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+80e4a7bb-16dd-4c58-b7de-eb512556e2b1,Kebab Express Halal Grill,Kebab Express Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Reviews mention halal.
+1b0266c5-2195-4470-81c5-806e8f5fbed3,Kebab House,Kebab House,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+cda8f1d6-c828-4a03-a1f9-c5d190f07d80,Kebab House,Kebab House,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Official info indicates halal.
+bbe55fa0-3367-4624-8b5a-e45832395b63,Kebabishq,Kebabishq,only,only,false,LIKELY_HALAL,FULLY_HALAL,95,,,Halal: Fully. Certified halal.
+de231d13-3c8e-4622-9d4b-8f82d6263b56,Kemo's Hot Kitchen Bites,Kemo's Hot Kitchen Bites,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+4c7501a4-f4a4-4bcb-88f4-cbb0209322b6,Kennedy Chicken,Kennedy Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Certified halal.
+7e524ff8-0a71-41ab-b46a-c35cbb352222,Kennedy Chicken & Gyro,Kennedy Chicken & Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+29aeb699-cfe8-4b73-8fd9-7f7a9c5a5f72,Kennedy Chicken & Halal Grill,Kennedy Chicken & Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+c1d763f8-97e5-441c-bab0-036824d0d875,Kennedy Chicken Grill Kabab & Gyro,Kennedy Chicken Grill Kabab & Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Reviews mention halal.
+30445601-5e91-4016-a655-c56d41a4e719,Kennedy Fried Chicken,Kennedy Fried Chicken,yes,yes,false,LIKELY_HALAL,HALAL_OPTIONS_ONLY,65,true,,Halal: Options. Listed on Zabiha.
+34e761d6-ce85-49cb-9c20-886584292347,Kennedy Fried Chicken,Kennedy Fried Chicken,only,unclear,true,UNCLEAR,UNKNOWN,50,,,Halal: Unclear. Official info indicates halal. No official menu/certification found.
+7e52a4b6-02cb-40a2-9ea1-82c5b7575fbc,Kennedy Fried Chicken,Kennedy Fried Chicken,only,yes,true,LIKELY_HALAL,HALAL_OPTIONS_ONLY,70,,,Halal: Options. Official info indicates halal.
+a53c38a5-9333-46e1-8250-6421952b7167,Kennedy Fried Chicken,Kennedy Fried Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+d9bae7c9-f798-42f6-b189-911fd402d55f,Kero's Halal Food Cart,Kero's Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+a1bbe6d4-24ad-4027-a806-53b735358b8e,Kestane Kebab,Kestane Kebab,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+42cbe92b-79af-418f-9892-037866b94983,Khalifa Grill,Khalifa Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully.
+d405fb5c-21bd-4c90-95ea-461a1762504f,Khalil Biryani House,Khalil Biryani House,yes,only,true,LIKELY_HALAL,FULLY_HALAL,92,true,,Halal: Fully. Certified halal. Listed on Zabiha.
+90f9452c-073e-4b3f-93b9-f91c80a573f7,Khalil Biryani House,Khalil Biryani House,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Certified halal.
+932097e5-ae67-45fd-aaf9-5cb3e20ce92e,Khalil Biryani House,Khalil Biryani House,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Certified halal.
+c6af36ef-0015-4804-a3b0-baacdef830bd,Khalil Biryani House,Khalil Biryani House,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Certified halal.
+02e281cb-5678-4be5-a759-3806fd543cee,Khalil Halal Chinese,Khalil Halal Chinese,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+666e2f1f-e964-4cd8-aa72-68188f92b9b6,Khalil Halal Chinese,Khalil Halal Chinese,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+21cbc347-e2a1-498f-a0dc-87777cd0ebb3,Khalils Food,Khalils Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+f45e59ce-4733-4a45-a894-1c5e49f3f72f,Khan's Halal Food Cart,Khan's Halal Food Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Official info indicates halal.
+b00b681b-f1b9-4c1d-8c40-9676f0add6d3,Khans Halal Grill,Khans Halal Grill,only,only,false,LIKELY_HALAL,FULLY_HALAL,80,,,Halal: Fully. Official info indicates halal.
+5e5eb104-5f95-4ca8-8c17-fda35410afb5,Khao Halal Chinese,Khao Halal Chinese,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Certified halal.
+679bd86c-1b18-4f56-8304-23db84f9b702,Khorasan Kabab & Gyro,Khorasan Kabab & Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully.
+3518a22b-abdc-49c0-9c9d-a6afdcb46edc,Khyber Grill & Gyro,Khyber Grill & Gyro,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Certified halal.
+d78fa017-ff70-4a91-8f09-7c163bab4568,Khyber Halal Cart,Khyber Halal Cart,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+d30b1f79-6964-4b46-817f-7e9e1a330e66,Kimchi Grill,Kimchi Grill,yes,no,true,LIKELY_NOT_HALAL,UNKNOWN,25,,,Halal: Unclear. Serves alcohol.
+f87274bb-f488-424d-87b9-b361c11dd2d9,Kimo's,Kimo's,yes,only,true,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+843491b5-fcb6-42d0-84fb-cf3d0a7e6eb6,King Cab Halal Food,King Cab Halal Food,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Official info indicates halal.
+7b66e623-5f97-4ee6-bdb6-9a41ae1bfad8,King Halal,King Halal,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+3030d58d-bd2f-413d-a2ce-cdf92c3effca,King Kabab,King Kabab,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Listed in a halal directory.
+a10f6145-90e0-4459-b874-9aca1766909b,King Kabab Restaurant,King Kabab Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,85,,,Halal: Fully. Reviews mention halal.
+42793a7c-0eb5-4fc7-8974-86358e0d20e6,King of Falafel & Shawarma - Restaurant,King of Falafel & Shawarma - Restaurant,only,only,false,LIKELY_HALAL,FULLY_HALAL,92,,,Halal: Fully. Reviews mention halal.
+09688658-44ff-43cb-8813-38da03316a8e,King of Tandoor,King of Tandoor,yes,only,true,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully. Listed in a halal directory.
+9c0a28f1-cc38-4cbe-bec3-ea24060c781b,King of Tandoor,King of Tandoor,only,only,false,LIKELY_HALAL,FULLY_HALAL,88,,,Halal: Fully.
+291d07ef-0c64-4c58-b500-e602056ed0d7,Kings Fried Chicken,Kings Fried Chicken,only,only,false,LIKELY_HALAL,FULLY_HALAL,75,,,Halal: Fully. Certified halal.
+339569d0-c29f-4a13-8250-86fdc9183b5a,Kings Halal,Kings Halal,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Listed in a halal directory.
+2e55a1aa-0954-40b6-9c5e-9a622f9ffdec,Kitchen Cuisine,Kitchen Cuisine,only,only,false,LIKELY_HALAL,FULLY_HALAL,90,,,Halal: Fully. Official info indicates halal.
+3e3d678e-6b93-4329-bf2e-3833713dd1be,Kitchen Grill,Kitchen Grill,yes,unclear,true,UNCLEAR,UNKNOWN,50,,,Halal: Unclear. Reviews mention halal. No official menu/certification found.

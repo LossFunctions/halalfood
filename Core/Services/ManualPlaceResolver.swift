@@ -8,7 +8,6 @@ private struct ManualPlaceDefinition {
     let halalStatus: Place.HalalStatus
     let rating: Double?
     let ratingCount: Int?
-    let confidence: Double?
     let fallbackAddress: String?
     let searchQuery: String
     let searchSpan: MKCoordinateSpan
@@ -20,7 +19,6 @@ private struct ManualPlaceDefinition {
          halalStatus: Place.HalalStatus,
          rating: Double?,
          ratingCount: Int?,
-         confidence: Double?,
          fallbackAddress: String?,
          searchQuery: String? = nil,
          searchSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18),
@@ -31,7 +29,6 @@ private struct ManualPlaceDefinition {
         self.halalStatus = halalStatus
         self.rating = rating
         self.ratingCount = ratingCount
-        self.confidence = confidence
         self.fallbackAddress = fallbackAddress
         self.searchQuery = searchQuery ?? name
         self.searchSpan = searchSpan
@@ -109,7 +106,6 @@ actor ManualPlaceResolver {
             let halalStatus = Place.HalalStatus(rawValue: statusString) ?? .yes
             let rating = entry["rating"] as? Double
             let ratingCount = entry["rating_count"] as? Int
-            let confidence = entry["confidence"] as? Double
             let searchQuery = (entry["search_query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let spanLat = (entry["search_span_lat"] as? Double) ?? 0.18
             let spanLon = (entry["search_span_lon"] as? Double) ?? 0.18
@@ -122,7 +118,6 @@ actor ManualPlaceResolver {
                 halalStatus: halalStatus,
                 rating: rating,
                 ratingCount: ratingCount,
-                confidence: confidence,
                 fallbackAddress: address,
                 searchQuery: searchQuery,
                 searchSpan: MKCoordinateSpan(latitudeDelta: spanLat, longitudeDelta: spanLon),
@@ -212,7 +207,7 @@ actor ManualPlaceResolver {
     private func fetchPlace(for definition: ManualPlaceDefinition) async -> Place? {
         if let mapItem = await searchMapItem(for: definition) {
             // Opportunistically persist the outlier into Supabase via the Apple upsert RPC
-            if let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: definition.halalStatus, confidence: definition.confidence) {
+            if let payload = ApplePlaceUpsertPayload(mapItem: mapItem, halalStatus: definition.halalStatus) {
                 Task.detached(priority: .utility) {
                     do { _ = try await PlaceAPI.upsertApplePlace(payload) } catch { /* best-effort */ }
                 }
@@ -299,7 +294,6 @@ actor ManualPlaceResolver {
             halalStatus: definition.halalStatus,
             rating: definition.rating,
             ratingCount: definition.ratingCount,
-            confidence: definition.confidence,
             source: "manual",
             applePlaceID: mapItem.identifier?.rawValue
         )
@@ -316,7 +310,6 @@ actor ManualPlaceResolver {
             halalStatus: definition.halalStatus,
             rating: definition.rating,
             ratingCount: definition.ratingCount,
-            confidence: definition.confidence,
             source: "manual",
             applePlaceID: nil
         )

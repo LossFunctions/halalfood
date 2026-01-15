@@ -20,7 +20,14 @@ export type Database = {
           address_normalized: string | null
           apple_place_id: string | null
           category: string
-          confidence: number | null
+          cc_certifier_org: string | null
+          cc_halal_confidence: number | null
+          cc_halal_likelihood: string | null
+          cc_halal_status: string | null
+          cc_halal_type: string | null
+          cc_is_zabiha: boolean | null
+          cc_note: string | null
+          cc_reasoning_raw: string | null
           created_at: string | null
           display_location: string | null
           external_id: string
@@ -50,7 +57,14 @@ export type Database = {
           address_normalized?: string | null
           apple_place_id?: string | null
           category: string
-          confidence?: number | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
           created_at?: string | null
           display_location?: string | null
           external_id: string
@@ -80,7 +94,14 @@ export type Database = {
           address_normalized?: string | null
           apple_place_id?: string | null
           category?: string
-          confidence?: number | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
           created_at?: string | null
           display_location?: string | null
           external_id?: string
@@ -223,7 +244,6 @@ export type Database = {
           address: string | null
           apple_place_id: string | null
           category: string | null
-          confidence: number | null
           display_location: string | null
           halal_status: Database["public"]["Enums"]["halal_status"] | null
           id: string | null
@@ -628,7 +648,6 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
-          confidence: number
           display_location: string
           halal_status: string
           id: string
@@ -651,7 +670,6 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
-          confidence: number
           display_location: string
           halal_status: string
           id: string
@@ -672,7 +690,6 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
-          confidence: number
           display_location: string
           halal_status: string
           id: string
@@ -699,7 +716,6 @@ export type Database = {
         Returns: {
           address: string
           category: string
-          confidence: number
           display_location: string
           halal_status: string
           id: string
@@ -781,7 +797,6 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
-          confidence: number
           halal_status: string
           id: string
           lat: number
@@ -800,7 +815,6 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
-          confidence: number
           display_location: string
           halal_status: string
           id: string
@@ -1409,63 +1423,33 @@ export type Database = {
         }
         Returns: string
       }
-      upsert_apple_place:
-        | {
-            Args: {
-              p_address?: string
-              p_apple_place_id: string
-              p_confidence?: number
-              p_display_location?: string
-              p_halal_status?: string
-              p_lat: number
-              p_lon: number
-              p_name: string
-              p_rating?: number
-              p_rating_count?: number
-            }
-            Returns: {
-              address: string
-              apple_place_id: string
-              category: string
-              confidence: number
-              display_location: string
-              halal_status: string
-              id: string
-              lat: number
-              lon: number
-              name: string
-              rating: number
-              rating_count: number
-              source: string
-            }[]
-          }
-        | {
-            Args: {
-              p_address?: string
-              p_apple_place_id: string
-              p_confidence?: number
-              p_halal_status?: string
-              p_lat: number
-              p_lon: number
-              p_name: string
-              p_rating?: number
-              p_rating_count?: number
-            }
-            Returns: {
-              address: string
-              apple_place_id: string
-              category: string
-              confidence: number
-              halal_status: string
-              id: string
-              lat: number
-              lon: number
-              name: string
-              rating: number
-              rating_count: number
-              source: string
-            }[]
-          }
+      upsert_apple_place: {
+        Args: {
+          p_address?: string
+          p_apple_place_id: string
+          p_display_location?: string
+          p_halal_status?: string
+          p_lat: number
+          p_lon: number
+          p_name: string
+          p_rating?: number
+          p_rating_count?: number
+        }
+        Returns: {
+          address: string
+          apple_place_id: string
+          category: string
+          display_location: string
+          halal_status: string
+          id: string
+          lat: number
+          lon: number
+          name: string
+          rating: number
+          rating_count: number
+          source: string
+        }[]
+      }
     }
     Enums: {
       halal_status: "unknown" | "yes" | "only" | "no"

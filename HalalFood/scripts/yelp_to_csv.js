@@ -19,7 +19,7 @@ const json = JSON.parse(fs.readFileSync(inPath, 'utf8'));
 const items = Array.isArray(json.items) ? json.items : [];
 
 const headers = [
-  'id','name','lat','lon','address','rating','rating_count','confidence','url','match','city','state','country','zip_code'
+  'id','name','lat','lon','address','rating','rating_count','url','match','city','state','country','zip_code'
 ];
 
 const lines = [headers.join(',')];
@@ -32,7 +32,6 @@ for (const it of items) {
     it.address || '',
     it.rating != null ? it.rating : '',
     it.review_count != null ? it.review_count : '',
-    it.confidence != null ? it.confidence : '',
     it.url || '',
     it.match || '',
     it.city || '',
@@ -45,4 +44,3 @@ for (const it of items) {
 
 fs.writeFileSync(outPath, lines.join('\n'));
 console.log('Wrote CSV', outPath, 'rows:', items.length);
-

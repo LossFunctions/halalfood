@@ -46,7 +46,6 @@ struct Place: Identifiable, Hashable, Sendable {
     let halalStatus: HalalStatus
     let rating: Double?
     let ratingCount: Int?
-    let confidence: Double?
     let servesAlcohol: Bool?
     let source: String?
     let applePlaceID: String?
@@ -76,7 +75,6 @@ struct Place: Identifiable, Hashable, Sendable {
         halalStatus = HalalStatus(rawValue: dto.halal_status)
         rating = dto.rating
         ratingCount = dto.rating_count
-        confidence = dto.confidence
         servesAlcohol = dto.serves_alcohol
         source = dto.source
         applePlaceID = dto.apple_place_id
@@ -112,7 +110,6 @@ extension Place {
          halalStatus: HalalStatus = .unknown,
          rating: Double? = nil,
          ratingCount: Int? = nil,
-         confidence: Double? = nil,
          servesAlcohol: Bool? = nil,
          source: String? = "manual",
          applePlaceID: String? = nil,
@@ -129,7 +126,6 @@ extension Place {
         self.halalStatus = halalStatus
         self.rating = rating
         self.ratingCount = ratingCount
-        self.confidence = confidence
         self.servesAlcohol = servesAlcohol
         self.source = source
         self.applePlaceID = applePlaceID
@@ -146,7 +142,6 @@ extension Place {
          halalStatus: HalalStatus,
          rating: Double?,
          ratingCount: Int?,
-         confidence: Double?,
          servesAlcohol: Bool?,
          source: String?,
          applePlaceID: String?,
@@ -163,7 +158,6 @@ extension Place {
         self.halalStatus = halalStatus
         self.rating = rating
         self.ratingCount = ratingCount
-        self.confidence = confidence
         self.servesAlcohol = servesAlcohol
         self.source = source
         self.applePlaceID = applePlaceID
@@ -186,7 +180,6 @@ extension Place: Codable {
         case halalStatus
         case rating
         case ratingCount
-        case confidence
         case servesAlcohol
         case source
         case applePlaceID
@@ -206,7 +199,6 @@ extension Place: Codable {
         let halalStatus = try container.decode(Place.HalalStatus.self, forKey: .halalStatus)
         let rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         let ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
-        let confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
         let servesAlcohol = try container.decodeIfPresent(Bool.self, forKey: .servesAlcohol)
         let source = try container.decodeIfPresent(String.self, forKey: .source)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
@@ -227,7 +219,6 @@ extension Place: Codable {
             halalStatus: halalStatus,
             rating: rating,
             ratingCount: ratingCount,
-            confidence: confidence,
             servesAlcohol: servesAlcohol,
             source: source,
             applePlaceID: applePlaceID,
@@ -251,7 +242,6 @@ extension Place: Codable {
         try container.encode(halalStatus, forKey: .halalStatus)
         try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(ratingCount, forKey: .ratingCount)
-        try container.encodeIfPresent(confidence, forKey: .confidence)
         try container.encodeIfPresent(servesAlcohol, forKey: .servesAlcohol)
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
@@ -563,7 +553,6 @@ enum PlaceOverrides {
 
     private static func duplicatePriorityScore(for place: Place) -> Double {
         let priority = Double(sourcePriority(for: place.source))
-        let confidence = (place.confidence ?? 0) * 100
         let rating = (place.rating ?? 0) * 10
         let ratingCountBonus = sqrt(Double(place.ratingCount ?? 0))
         let halalBonus: Double
@@ -577,7 +566,7 @@ enum PlaceOverrides {
         case .no:
             halalBonus = -20_000
         }
-        return priority * 10_000 + halalBonus + confidence + rating + ratingCountBonus
+        return priority * 10_000 + halalBonus + rating + ratingCountBonus
     }
 
     private static func sourcePriority(for source: String?) -> Int {
@@ -683,7 +672,7 @@ enum PlaceOverrides {
             break
         }
 
-        switch (lhs.confidence, rhs.confidence) {
+        switch (lhs.ratingCount, rhs.ratingCount) {
         case let (l?, r?) where l != r:
             return l > r
         case (nil, .some):

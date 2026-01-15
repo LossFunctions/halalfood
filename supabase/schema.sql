@@ -26,9 +26,9 @@ returns table (
     halal_status text,
     rating double precision,
     rating_count integer,
-    confidence double precision,
     serves_alcohol boolean,
-    source text
+    source text,
+    note text
 ) as $$
 declare
     v_limit integer := least(coalesce(max_count, 300), 300);
@@ -45,12 +45,13 @@ begin
         pl.halal_status::text,
         pl.rating::double precision,
         pl.rating_count::integer,
-        pl.confidence::double precision,
         pl.serves_alcohol,
-        pl.source
+        pl.source,
+        pl.note
     from public.place pl
     where pl.lat between south and north
       and pl.lon between west and east
+      and pl.status = 'published'
       and (cat = 'all' or pl.category = cat)
     order by
         coalesce(pl.rating, 0) desc,
@@ -153,7 +154,6 @@ with base as (
         pl.halal_status,
         pl.rating,
         pl.rating_count,
-        pl.confidence,
         pl.source,
         pl.apple_place_id,
         pl.note,
@@ -187,7 +187,6 @@ with base as (
         base.halal_status,
         base.rating,
         base.rating_count,
-        base.confidence,
         base.source,
         base.apple_place_id,
         base.note,
@@ -217,7 +216,6 @@ with base as (
         base.halal_status,
         base.rating,
         base.rating_count,
-        base.confidence,
         base.source,
         base.apple_place_id,
         base.note,
@@ -245,7 +243,6 @@ select
     ranked.halal_status,
     ranked.rating,
     ranked.rating_count,
-    ranked.confidence,
     ranked.source,
     ranked.apple_place_id,
     ranked.note,
@@ -287,7 +284,6 @@ returns table (
     halal_status text,
     rating double precision,
     rating_count integer,
-    confidence double precision,
     source text,
     apple_place_id text,
     note text,
@@ -308,7 +304,6 @@ as $$
         ctr.halal_status::text,
         ctr.rating::double precision,
         ctr.rating_count::integer,
-        ctr.confidence::double precision,
         ctr.source,
         ctr.apple_place_id,
         ctr.note,

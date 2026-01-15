@@ -989,7 +989,6 @@ struct ContentView: View {
             halalStatus: override,
             rating: place.rating,
             ratingCount: place.ratingCount,
-            confidence: place.confidence,
             servesAlcohol: place.servesAlcohol,
             source: place.source,
             applePlaceID: place.applePlaceID,
@@ -2722,17 +2721,17 @@ private struct InitialPinsLoadingView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            Color(red: 0.976, green: 0.969, blue: 0.957)
                 .ignoresSafeArea()
 
-            VStack(spacing: 18) {
+            VStack(spacing: 16) {
                 logoView
 
                 Text("Get ready for the latest and greatest halal spots")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.373, green: 0.369, blue: 0.365))
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .frame(width: 260)
 
                 if let errorMessage, !isRefreshing {
                     Text("We couldn't load the map yet. \(errorMessage)")
@@ -2758,15 +2757,13 @@ private struct InitialPinsLoadingView: View {
     }
 
     private var logoView: some View {
-        Group {
-            Image("FinalAppLogo_Real")
-                .renderingMode(.original)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel("HalalFood logo")
-        }
-        .frame(width: 96, height: 96)
-        .background(Color.primary.opacity(0.06), in: Circle())
+        Image("FinalAppLogo_Real")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .accessibilityLabel("Rawa logo")
+            .frame(width: 160, height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 }
 
@@ -6797,7 +6794,6 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             hasher.combine(place.halalStatus.rawValue)
             hasher.combine(place.rating ?? -1)
             hasher.combine(place.ratingCount ?? -1)
-            hasher.combine(place.confidence ?? -1)
             hasher.combine(place.address ?? "")
             hasher.combine(place.source ?? "")
         }
@@ -7424,8 +7420,7 @@ private static let nonHalalChainBlocklist: Set<String> = {
     }
 
     func makePlace(from mapItem: MKMapItem,
-                   halalStatus: Place.HalalStatus,
-                   confidence: Double?) -> Place? {
+                   halalStatus: Place.HalalStatus) -> Place? {
         let coordinate = mapItem.halalCoordinate
         guard coordinate.latitude != 0 || coordinate.longitude != 0 else { return nil }
 
@@ -7441,7 +7436,6 @@ private static let nonHalalChainBlocklist: Set<String> = {
             halalStatus: halalStatus,
             rating: nil,
             ratingCount: nil,
-            confidence: confidence,
             source: "apple",
             applePlaceID: mapItem.identifier?.rawValue
         )

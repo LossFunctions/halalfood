@@ -16,11 +16,11 @@
                         <subviews>
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="STACK-BOOT">
                                 <subviews>
-                                    <imageView contentMode="scaleAspectFit" image="FinalAppLogo_Real" translatesAutoresizingMaskIntoConstraints="NO" id="IMG-LOGO">
-                                        <rect key="frame" x="147" y="329" width="96" height="96"/>
+                                    <imageView contentMode="scaleAspectFit" image="FinalAppLogo_Real" clipsSubviews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="IMG-LOGO">
+                                        <rect key="frame" x="115" y="297" width="160" height="160"/>
                                         <constraints>
-                                            <constraint firstAttribute="width" constant="96" id="IMG-WIDTH"/>
-                                            <constraint firstAttribute="height" constant="96" id="IMG-HEIGHT"/>
+                                            <constraint firstAttribute="width" constant="160" id="IMG-WIDTH"/>
+                                            <constraint firstAttribute="height" constant="160" id="IMG-HEIGHT"/>
                                         </constraints>
                                     </imageView>
                                     <label opaque="NO" text="Get ready for the latest and greatest halal spots" textAlignment="center" lineBreakMode="wordWrap" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="LABEL-SUBTITLE">
