@@ -6,7 +6,7 @@ struct ApplePlaceDetails {
     let mapItem: MKMapItem
 
     var applePlaceID: String? {
-        mapItem.identifier?.rawValue
+        mapItem.halalPersistentIdentifier
     }
 
     var displayName: String {
@@ -14,13 +14,11 @@ struct ApplePlaceDetails {
     }
 
     var fullAddress: String? {
-        mapItem.address?.fullAddress
-        ?? mapItem.addressRepresentations?.fullAddress(includingRegion: true, singleLine: false)
+        mapItem.halalFullAddress
     }
 
     var shortAddress: String? {
-        mapItem.address?.shortAddress
-        ?? mapItem.addressRepresentations?.cityWithContext(.automatic)
+        mapItem.halalShortAddress
     }
 
     var phoneNumber: String? {
@@ -32,7 +30,7 @@ struct ApplePlaceDetails {
     }
 
     var coordinate: CLLocationCoordinate2D {
-        mapItem.location.coordinate
+        mapItem.halalCoordinate
     }
 
     var pointOfInterestCategory: MKPointOfInterestCategory? {
@@ -106,7 +104,8 @@ final class ApplePlaceDetailService {
     }
 
     private func fetchDetails(for place: Place) async throws -> ApplePlaceDetails {
-        if let appleID = place.applePlaceID,
+        if #available(iOS 18.0, *),
+           let appleID = place.applePlaceID,
            let identifier = MKMapItem.Identifier(rawValue: appleID) {
             do {
                 let request = MKMapItemRequest(mapItemIdentifier: identifier)
@@ -167,7 +166,7 @@ final class ApplePlaceDetailService {
         }
 
         let scored = candidates.compactMap { item -> CandidateScore? in
-            let coordinate = item.location.coordinate
+            let coordinate = item.halalCoordinate
             let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             let distance = targetLocation.distance(from: location)
             guard distance <= maxMatchDistance else { return nil }

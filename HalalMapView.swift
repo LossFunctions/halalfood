@@ -45,12 +45,7 @@ final class AppleMapItemAnnotation: NSObject, MKAnnotation {
 
     init(mapItem: MKMapItem) {
         self.mapItem = mapItem
-        if let id = mapItem.identifier?.rawValue {
-            self.identifier = id
-        } else {
-            let coord = mapItem.halalCoordinate
-            self.identifier = "\(mapItem.name ?? "place")-\(coord.latitude)-\(coord.longitude)"
-        }
+        self.identifier = mapItem.halalPersistentIdentifier
         self.coordinate = mapItem.halalCoordinate
         super.init()
     }

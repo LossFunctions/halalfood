@@ -4,6 +4,7 @@ import CoreLocation
 import MapKit
 import SwiftUI
 import UIKit
+import ImageIO
 
 enum MapFilter: CaseIterable, Identifiable {
     case all
@@ -114,6 +115,38 @@ private extension CategoryFilterOption {
         case .highEnd, .new:
             return []
         }
+    }
+}
+
+private struct CategoryDropdownItem: Identifiable, CustomStringConvertible {
+    let id: String
+    let title: String
+    let option: CategoryFilterOption?
+    let isEnabled: Bool
+    let statusText: String?
+
+    var description: String { title }
+}
+
+private extension CategoryDropdownItem {
+    static func active(_ option: CategoryFilterOption) -> CategoryDropdownItem {
+        CategoryDropdownItem(
+            id: option.rawValue,
+            title: option.rawValue,
+            option: option,
+            isEnabled: true,
+            statusText: nil
+        )
+    }
+
+    static func disabled(_ option: CategoryFilterOption, statusText: String? = nil) -> CategoryDropdownItem {
+        CategoryDropdownItem(
+            id: option.rawValue,
+            title: option.rawValue,
+            option: option,
+            isEnabled: false,
+            statusText: statusText
+        )
     }
 }
 
@@ -1853,7 +1886,23 @@ struct ContentView: View {
     }
 
     private var filterBarItems: [MapFilterBarItem] {
-        [.filter(.all), .filter(.fullyHalal), .filter(.partialHalal), .category, .cuisine]
+        [.filter(.all), .filter(.fullyHalal), .filter(.partialHalal), .category]
+    }
+
+    private var categoryDropdownItems: [CategoryDropdownItem] {
+        var items: [CategoryDropdownItem] = [
+            .active(.foodTruck),
+            .active(.highEnd),
+            .active(.new)
+        ]
+#if DEBUG
+        items.append(contentsOf: [
+            .disabled(.cafe, statusText: "Coming soon"),
+            .disabled(.dessert, statusText: "Coming soon"),
+            .disabled(.grocery, statusText: "Coming soon")
+        ])
+#endif
+        return items
     }
 
     private var mapFilterBar: some View {
@@ -2295,8 +2344,8 @@ private extension ContentView {
                 Text("Categories")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
-                dropdownButtons(
-                    options: CategoryFilterOption.allCases,
+                categoryDropdownButtons(
+                    options: categoryDropdownItems,
                     selected: selectedCategoryOption,
                     onSelect: { selectCategory($0) },
                     onClear: { selectCategory(nil) }
@@ -2344,9 +2393,38 @@ private extension ContentView {
         }
     }
 
+    private func categoryDropdownButtons(
+        options: [CategoryDropdownItem],
+        selected: CategoryFilterOption?,
+        onSelect: @escaping (CategoryFilterOption) -> Void,
+        onClear: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            dropdownOptionButton(
+                title: "Select All",
+                isSelected: selected == nil,
+                action: onClear
+            )
+            ForEach(options) { option in
+                let isSelected = option.option == selected
+                dropdownOptionButton(
+                    title: option.title,
+                    isSelected: isSelected,
+                    isEnabled: option.isEnabled,
+                    trailingText: option.statusText
+                ) {
+                    guard option.isEnabled, let category = option.option else { return }
+                    onSelect(category)
+                }
+            }
+        }
+    }
+
     private func dropdownOptionButton(
         title: String,
         isSelected: Bool,
+        isEnabled: Bool = true,
+        trailingText: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -2354,12 +2432,22 @@ private extension ContentView {
                 Text(title)
                     .font(.callout)
                 Spacer()
+                if let trailingText {
+                    Text(trailingText)
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(Color.primary.opacity(0.55))
+                }
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 16, weight: .semibold))
                 }
             }
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary.opacity(0.9))
+            .foregroundStyle(
+                isSelected
+                    ? Color.accentColor
+                    : Color.primary.opacity(isEnabled ? 0.9 : 0.45)
+            )
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(
@@ -2367,11 +2455,12 @@ private extension ContentView {
                     .fill(
                         isSelected
                             ? Color.accentColor.opacity(0.12)
-                            : Color.primary.opacity(0.04)
+                            : Color.primary.opacity(isEnabled ? 0.04 : 0.02)
                     )
             )
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 
     func focus(on place: Place) {
@@ -4446,7 +4535,7 @@ private struct ZoomableScrollView<Content: View>: UIViewRepresentable {
 
 final class ImageCache {
     static let shared = ImageCache()
-    private let memory = NSCache<NSURL, UIImage>()
+    private let memory = NSCache<NSString, UIImage>()
     private let ioQueue = DispatchQueue(label: "ImageCache.IO")
     private let folderURL: URL
 
@@ -4459,18 +4548,28 @@ final class ImageCache {
     }
 
     func image(for url: URL) -> UIImage? {
-        if let img = memory.object(forKey: url as NSURL) { return img }
-        let path = folderURL.appendingPathComponent(String(url.absoluteString.hashValue))
+        image(forKey: url.absoluteString)
+    }
+
+    func store(_ image: UIImage, for url: URL) {
+        store(image, forKey: url.absoluteString)
+    }
+
+    func image(forKey key: String) -> UIImage? {
+        let nsKey = key as NSString
+        if let img = memory.object(forKey: nsKey) { return img }
+        let path = folderURL.appendingPathComponent(String(key.hashValue))
         if let data = try? Data(contentsOf: path), let img = UIImage(data: data) {
-            memory.setObject(img, forKey: url as NSURL)
+            memory.setObject(img, forKey: nsKey)
             return img
         }
         return nil
     }
 
-    func store(_ image: UIImage, for url: URL) {
-        memory.setObject(image, forKey: url as NSURL)
-        let path = folderURL.appendingPathComponent(String(url.absoluteString.hashValue))
+    func store(_ image: UIImage, forKey key: String) {
+        let nsKey = key as NSString
+        memory.setObject(image, forKey: nsKey)
+        let path = folderURL.appendingPathComponent(String(key.hashValue))
         ioQueue.async {
             if let data = image.jpegData(compressionQuality: 0.92) ?? image.pngData() {
                 try? data.write(to: path, options: .atomic)
@@ -4481,10 +4580,24 @@ final class ImageCache {
 
 struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
     let url: URL?
+    let cacheKey: String?
+    let maxPixelSize: CGFloat?
     @ViewBuilder let placeholder: () -> Placeholder
     @ViewBuilder let failure: () -> Failure
 
     @State private var image: UIImage?
+
+    init(url: URL?,
+         cacheKey: String? = nil,
+         maxPixelSize: CGFloat? = nil,
+         @ViewBuilder placeholder: @escaping () -> Placeholder,
+         @ViewBuilder failure: @escaping () -> Failure) {
+        self.url = url
+        self.cacheKey = cacheKey
+        self.maxPixelSize = maxPixelSize
+        self.placeholder = placeholder
+        self.failure = failure
+    }
 
     var body: some View {
         Group {
@@ -4514,7 +4627,8 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
         }
 #endif
         guard let url else { return }
-        if let cached = ImageCache.shared.image(for: url) {
+        let resolvedCacheKey = cacheKey ?? url.absoluteString
+        if let cached = ImageCache.shared.image(forKey: resolvedCacheKey) {
             image = cached
 #if DEBUG
             loadSource = "cache"
@@ -4523,8 +4637,8 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
         }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            if let img = UIImage(data: data) {
-                ImageCache.shared.store(img, for: url)
+            if let img = decodeImage(from: data) {
+                ImageCache.shared.store(img, forKey: resolvedCacheKey)
                 image = img
 #if DEBUG
                 loadSource = "network"
@@ -4540,6 +4654,21 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
 #endif
             // ignore
         }
+    }
+
+    private func decodeImage(from data: Data) -> UIImage? {
+        guard let maxPixelSize else { return UIImage(data: data) }
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, options) else { return nil }
+        let maxPixel = max(1, Int(maxPixelSize))
+        let downsampleOptions: CFDictionary = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ] as CFDictionary
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 }
 
@@ -5811,12 +5940,69 @@ private struct FullscreenPhotoView: View {
     }
 }
 
+private enum PlacePhotoURLBuilder {
+    private static let supabaseObjectPrefix = "/storage/v1/object/public/"
+    private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
+    private static let thumbnailWidth = 1600
+    private static let thumbnailQuality = "85"
+
+    static func thumbnailURL(from original: URL) -> URL {
+        if let supabase = supabaseThumbnailURL(from: original,
+                                               width: thumbnailWidth,
+                                               quality: thumbnailQuality) {
+            return supabase
+        }
+        return original
+    }
+
+    private static func supabaseThumbnailURL(from original: URL,
+                                             width: Int,
+                                             quality: String) -> URL? {
+        guard let baseURL = Env.optionalURL(),
+              let baseHost = baseURL.host,
+              original.host == baseHost else { return nil }
+
+        var components = URLComponents(url: original, resolvingAgainstBaseURL: false)
+        components?.scheme = baseURL.scheme
+        components?.host = baseHost
+        if let path = components?.path {
+            if path.contains(supabaseObjectPrefix) {
+                components?.path = path.replacingOccurrences(of: supabaseObjectPrefix,
+                                                            with: supabaseRenderPrefix)
+            } else if !path.contains(supabaseRenderPrefix) {
+                return nil
+            }
+        }
+        var items = components?.queryItems ?? []
+        items.removeAll { $0.name == "width" || $0.name == "quality" }
+        items.append(URLQueryItem(name: "width", value: "\(width)"))
+        items.append(URLQueryItem(name: "quality", value: quality))
+        components?.queryItems = items
+        return components?.url
+    }
+}
+
+private actor PhotoPrefetcher {
+    static let shared = PhotoPrefetcher()
+    private var warmed: Set<URL> = []
+
+    func prefetch(_ url: URL) async {
+        if warmed.contains(url) { return }
+        warmed.insert(url)
+        _ = try? await URLSession.shared.data(from: url)
+    }
+}
 
 private struct PhotoCarouselView: View {
     let photos: [PlacePhoto]
     let onPhotoSelected: (Int, PlacePhoto) -> Void
 
     @State private var selectedIndex = 0
+    private var thumbnailMaxPixelSize: CGFloat {
+        let screenWidth = UIScreen.main.bounds.width
+        let base = max(screenWidth, 220)
+        return base * UIScreen.main.scale
+    }
 
     var body: some View {
         TabView(selection: $selectedIndex) {
@@ -5825,7 +6011,11 @@ private struct PhotoCarouselView: View {
                 let photo = pair.element
                 ZStack {
                     if let url = URL(string: photo.imageUrl) {
-                        CachedAsyncImage(url: url) {
+                        let thumbnailURL = PlacePhotoURLBuilder.thumbnailURL(from: url)
+                        let cacheKey = "thumb:\(thumbnailURL.absoluteString)"
+                        CachedAsyncImage(url: thumbnailURL,
+                                         cacheKey: cacheKey,
+                                         maxPixelSize: thumbnailMaxPixelSize) {
                             ZStack { Color.secondary.opacity(0.1); ProgressView() }
                         } failure: {
                             Color.secondary.opacity(0.1)
@@ -5864,6 +6054,18 @@ private struct PhotoCarouselView: View {
                 selectedIndex = 0
             }
         }
+        .task(id: selectedIndex) {
+            await prefetchSelectedFullSize()
+        }
+        .task(id: photos.count) {
+            await prefetchSelectedFullSize()
+        }
+    }
+
+    private func prefetchSelectedFullSize() async {
+        guard photos.indices.contains(selectedIndex),
+              let url = URL(string: photos[selectedIndex].imageUrl) else { return }
+        await PhotoPrefetcher.shared.prefetch(url)
     }
 }
 
@@ -7437,7 +7639,7 @@ private static let nonHalalChainBlocklist: Set<String> = {
             rating: nil,
             ratingCount: nil,
             source: "apple",
-            applePlaceID: mapItem.identifier?.rawValue
+            applePlaceID: mapItem.halalPersistentIdentifier
         )
     }
 }

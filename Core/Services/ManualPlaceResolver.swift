@@ -295,7 +295,7 @@ actor ManualPlaceResolver {
             rating: definition.rating,
             ratingCount: definition.ratingCount,
             source: "manual",
-            applePlaceID: mapItem.identifier?.rawValue
+            applePlaceID: mapItem.halalPersistentIdentifier
         )
     }
 

@@ -15,6 +15,7 @@
 		C1D2E3F405162738495A6B7D /* PlacePinsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F405162738495A6B7C /* PlacePinsStore.swift */; };
 		C1F0B2C62F123457008D2917 /* places_seed.json in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2C42F123456008D2917 /* places_seed.json */; };
 		C1F0B2D12F123458008D2917 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */; };
+		C1F0B2D32F123459008D2917 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C1F0B2D22F123459008D2917 /* PrivacyInfo.xcprivacy */; };
 		B5A1B2C62F999999008D2917 /* FinalAppLogo_Real.png in Resources */ = {isa = PBXBuildFile; fileRef = B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */; };
 		A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */; };
 		B505B9DA2E7CC7FA008D2917 /* HalalFoodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505B9D92E7CC7FA008D2917 /* HalalFoodApp.swift */; };
@@ -65,6 +66,7 @@
 		C1D2E3F405162738495A6B7C /* PlacePinsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePinsStore.swift; sourceTree = "<group>"; };
 		C1F0B2C42F123456008D2917 /* places_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = places_seed.json; sourceTree = "<group>"; };
 		C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = HalalFood/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C1F0B2D22F123459008D2917 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist; name = PrivacyInfo.xcprivacy; path = HalalFood/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HalalFood/FinalAppLogo_Real.png; sourceTree = "<group>"; };
 		9988BFEC1625586AFE2688F9 /* MKMapItem+Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MKMapItem+Compat.swift"; sourceTree = "<group>"; };
 		C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YelpRatingRow.swift; sourceTree = "<group>"; };
@@ -155,11 +157,12 @@
 		};
 		B505B9CD2E7CC7FA008D2917 = {
 			isa = PBXGroup;
-			children = (
-				C1F0B2C52F123457008D2917 /* data */,
-				B505BA252E7CE741008D2917 /* Info.plist */,
-				C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */,
-				B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */,
+				children = (
+					C1F0B2C52F123457008D2917 /* data */,
+					B505BA252E7CE741008D2917 /* Info.plist */,
+					C1F0B2D22F123459008D2917 /* PrivacyInfo.xcprivacy */,
+					C1F0B2D02F123458008D2917 /* LaunchScreen.storyboard */,
+					B5A1B2C52F999999008D2917 /* FinalAppLogo_Real.png */,
 				B505BA1B2E7CE233008D2917 /* Core */,
 				B505B9E62E7CC7FC008D2917 /* HalalFoodTests */,
 				B505B9F02E7CC7FC008D2917 /* HalalFoodUITests */,
@@ -372,9 +375,10 @@
 		B505B9D42E7CC7FA008D2917 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				C1F0B2D12F123458008D2917 /* LaunchScreen.storyboard in Resources */,
-				B5A1B2C62F999999008D2917 /* FinalAppLogo_Real.png in Resources */,
+				files = (
+					C1F0B2D12F123458008D2917 /* LaunchScreen.storyboard in Resources */,
+					C1F0B2D32F123459008D2917 /* PrivacyInfo.xcprivacy in Resources */,
+					B5A1B2C62F999999008D2917 /* FinalAppLogo_Real.png in Resources */,
 				C1F0B2C62F123457008D2917 /* places_seed.json in Resources */,
 				B505B9DE2E7CC7FC008D2917 /* Assets.xcassets in Resources */,
 			);
@@ -512,7 +516,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -570,7 +574,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -618,7 +622,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Debug;
 		};
@@ -627,7 +631,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 583C6A358V;
@@ -659,7 +663,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Release;
 		};
@@ -671,7 +675,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 583C6A358V;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalFoodTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -680,7 +684,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HalalFood.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HalalFood";
 			};
 			name = Debug;
@@ -693,7 +697,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 583C6A358V;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.umiapps.HalalFoodTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -702,7 +706,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HalalFood.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HalalFood";
 			};
 			name = Release;
@@ -722,7 +726,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 				TEST_TARGET_NAME = HalalFood;
 			};
 			name = Debug;
@@ -742,7 +746,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+					TARGETED_DEVICE_FAMILY = "1";
 				TEST_TARGET_NAME = HalalFood;
 			};
 			name = Release;

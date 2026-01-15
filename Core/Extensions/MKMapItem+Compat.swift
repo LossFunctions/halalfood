@@ -10,6 +10,27 @@ extension MKMapItem {
         return legacyPlacemarkCoordinateFallback()
     }
 
+    /// Full address string with graceful fallbacks on older iOS versions.
+    var halalFullAddress: String? {
+        if #available(iOS 26.0, *) {
+            if let full = address?.fullAddress, !full.isEmpty {
+                return full
+            }
+            if let full = addressRepresentations?.fullAddress(includingRegion: true, singleLine: false),
+               !full.isEmpty {
+                return full
+            }
+            if let short = address?.shortAddress, !short.isEmpty {
+                return short
+            }
+            if let single = addressRepresentations?.fullAddress(includingRegion: true, singleLine: true),
+               !single.isEmpty {
+                return single
+            }
+        }
+        return legacyPlacemarkTitleFallback()
+    }
+
     /// Short address string that falls back gracefully on older iOS versions.
     var halalShortAddress: String? {
         if #available(iOS 26.0, *) {
@@ -23,8 +44,10 @@ extension MKMapItem {
 
     /// Identifier that remains stable even when MapKit does not expose an official identifier.
     var halalPersistentIdentifier: String {
-        if let raw = identifier?.rawValue, !raw.isEmpty {
-            return raw
+        if #available(iOS 18.0, *) {
+            if let raw = identifier?.rawValue, !raw.isEmpty {
+                return raw
+            }
         }
 
         let coordinate = halalCoordinate
