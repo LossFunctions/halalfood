@@ -241,7 +241,7 @@ private enum TopRatedSortOption: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .yelp: return "Yelp Ratings"
+        case .yelp: return "Top Rated"
         case .community: return "Community Ratings"
         }
     }
@@ -389,10 +389,15 @@ final class CommunityInstrumentation: ObservableObject {
 }
 #endif
 
+private enum NewSpotImage: Equatable {
+    case remote(URL)
+    case asset(String)
+}
+
 private struct NewSpotConfig: Identifiable {
     let id = UUID()
     let placeID: UUID
-    let imageURL: URL
+    let image: NewSpotImage
     let photoDescription: String?
     let displayLocation: String
     let cuisine: String
@@ -404,7 +409,7 @@ private struct NewSpotConfig: Identifiable {
 
     init(
         placeID: UUID,
-        imageURL: URL,
+        image: NewSpotImage,
         photoDescription: String? = nil,
         displayLocation: String,
         cuisine: String,
@@ -415,7 +420,7 @@ private struct NewSpotConfig: Identifiable {
         spotlightDetails: String? = nil
     ) {
         self.placeID = placeID
-        self.imageURL = imageURL
+        self.image = image
         self.photoDescription = photoDescription
         self.displayLocation = displayLocation
         self.cuisine = cuisine
@@ -430,7 +435,7 @@ private struct NewSpotConfig: Identifiable {
 private struct NewSpotEntry: Identifiable {
     var id: UUID { place.id }
     let place: Place
-    let imageURL: URL
+    let image: NewSpotImage
     let photoDescription: String?
     let displayLocation: String
     let cuisine: String
@@ -442,7 +447,7 @@ private struct NewSpotEntry: Identifiable {
 
     init(
         place: Place,
-        imageURL: URL,
+        image: NewSpotImage,
         photoDescription: String? = nil,
         displayLocation: String,
         cuisine: String,
@@ -453,7 +458,7 @@ private struct NewSpotEntry: Identifiable {
         spotlightDetails: String? = nil
     ) {
         self.place = place
-        self.imageURL = imageURL
+        self.image = image
         self.photoDescription = photoDescription
         self.displayLocation = displayLocation
         self.cuisine = cuisine
@@ -786,7 +791,7 @@ struct ContentView: View {
     private let newSpotConfigs: [NewSpotConfig] = [
         NewSpotConfig(
             placeID: UUID(uuidString: "95e9a6fd-6400-4e5b-934c-6443af9e118d")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/2eypUi3XiE64y4zQnWwKRA/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "Jericho, Long Island",
             cuisine: "Burgers",
             halalStatusOverride: .only,
@@ -794,7 +799,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "04c36c10-efd7-4a9e-9ae5-e1871bbe6a13")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/Y7i89KPniQU4iFI5WvYWhg/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "Bethpage, Long Island",
             cuisine: "Chicken",
             halalStatusOverride: .only,
@@ -802,7 +807,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "71b2cf39-07d2-4e13-8b58-daf9952f3947")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/OLNxK2vbOusTEXsl4JrLiw/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "Hicksville, Long Island",
             cuisine: "Cafe",
             halalStatusOverride: .only,
@@ -810,7 +815,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "e35cfaee-b627-435a-9b38-3d3fc5d5fefa")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/w_FSVa3k-RYm-7vvBo1sdQ/o.jpg")!,
+            image: .asset("FinalAppImage"),
             photoDescription: "MOTW Coffee signature latte",
             displayLocation: "Hicksville, Long Island",
             cuisine: "Coffee",
@@ -820,7 +825,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "4cdda0c5-f0dd-4556-874f-628fa019d81b")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/1sECdztwsrcCt7Pq4JKE5g/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "Ronkonkoma, Long Island",
             cuisine: "Mexican",
             halalStatusOverride: .only,
@@ -828,7 +833,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "0384029a-69f2-4857-a289-36f44596cf36")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/cgpfmYM7TAJB3fekoQAiEA/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "Tribeca, Manhattan",
             cuisine: "Indian",
             halalStatusOverride: .yes,
@@ -839,7 +844,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "dcafd5ae-b276-4852-9779-f45bcb2def9e")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/dOPbu4vYyB728kwYCDolWg/o.jpg")!,
+            image: .asset("FinalAppImage"),
             photoDescription: "Prime No. 7 signature spread",
             displayLocation: "Astoria, Queens",
             cuisine: "Korean BBQ",
@@ -848,7 +853,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "06a506f7-e6e6-45f8-b5ed-00ffca921652")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/yRpkO3i-nWBM_Q4A32wzzQ/o.jpg")!,
+            image: .asset("FinalAppImage"),
             photoDescription: "Sma.sha signature double smash",
             displayLocation: "Long Island City, Queens",
             cuisine: "Burgers",
@@ -859,7 +864,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "f2e7df0e-d0e9-4f21-b398-f8768639503c")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/YyDMa0TsyUENpJ5kY0AQPw/o.jpg")!,
+            image: .asset("FinalAppImage"),
             photoDescription: "Flippin Buns smash classics",
             displayLocation: "Hicksville, Long Island",
             cuisine: "Burgers",
@@ -868,7 +873,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "5765d9f5-527d-400a-b13d-6a63fbe6d707")!,
-            imageURL: URL(string: "https://static-content.owner.com/funnel/images/5e65b52e-ece7-4a91-9e0a-d45a5913d7bf?v=2034024929&w=1600&q=80&auto=format")!,
+            image: .remote(URL(string: "https://static-content.owner.com/funnel/images/5e65b52e-ece7-4a91-9e0a-d45a5913d7bf?v=2034024929&w=1600&q=80&auto=format")!),
             photoDescription: "Steiny B’s halal smashburger spread",
             displayLocation: "Flatbush, Brooklyn",
             cuisine: "Burgers",
@@ -877,10 +882,9 @@ struct ContentView: View {
             spotlightSummary: "Flatbush smash shop named after the cheeseburger’s inventor, serving halal beef patties and Nashville hot chicken.",
             spotlightDetails: "Halal beef confirmed; small counter-service spot perfect for takeout."
         ),
-        // KebabishQ — fully halal; Yelp photos imported
         NewSpotConfig(
             placeID: UUID(uuidString: "bbe55fa0-3367-4624-8b5a-e45832395b63")!,
-            imageURL: URL(string: "https://s3-media0.fl.yelpcdn.com/bphoto/Zt67Wjw3J7BKIR9jHyGxoA/o.jpg")!,
+            image: .asset("FinalAppImage"),
             displayLocation: "East Village, Manhattan",
             cuisine: "Pakistani",
             halalStatusOverride: .only,
@@ -905,7 +909,7 @@ struct ContentView: View {
             guard let place = viewModel.place(with: config.placeID) else { return nil }
             return NewSpotEntry(
                 place: applyingOverrides(to: place),
-                imageURL: config.imageURL,
+                image: config.image,
                 photoDescription: config.photoDescription,
                 displayLocation: config.displayLocation,
                 cuisine: config.cuisine,
@@ -1024,6 +1028,8 @@ struct ContentView: View {
             ratingCount: place.ratingCount,
             servesAlcohol: place.servesAlcohol,
             source: place.source,
+            sourceID: place.sourceID,
+            externalID: place.externalID,
             applePlaceID: place.applePlaceID,
             note: place.note,
             displayLocation: place.displayLocation,
@@ -1164,7 +1170,7 @@ struct ContentView: View {
             }
         case .rating:
             return base.sorted { lhs, rhs in
-                switch (lhs.rating, rhs.rating) {
+                switch (lhs.displayRating, rhs.displayRating) {
                 case let (l?, r?) where l != r:
                     return l > r
                 case (.some, nil):
@@ -1172,8 +1178,8 @@ struct ContentView: View {
                 case (nil, .some):
                     return false
                 default:
-                    let lhsCount = lhs.ratingCount ?? 0
-                    let rhsCount = rhs.ratingCount ?? 0
+                    let lhsCount = lhs.displayRatingCount ?? 0
+                    let rhsCount = rhs.displayRatingCount ?? 0
                     if lhsCount != rhsCount { return lhsCount > rhsCount }
                     return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
                 }
@@ -1184,8 +1190,7 @@ struct ContentView: View {
     private var topRatedDisplay: [Place] {
         switch topRatedSort {
         case .yelp:
-            let base = viewModel.topRatedPlaces(limit: 50, minimumReviews: 10)
-            return base.filter { CommunityRegionClassifier.matches($0, region: topRatedRegion) }
+            return viewModel.yelpCandidatePlaces(limit: 60, region: topRatedRegion)
         case .community:
             return communityTopRated(for: topRatedRegion)
         }
@@ -3073,8 +3078,8 @@ private struct PlaceRow: View {
                 Text(place.halalStatus.label.localizedCapitalized)
                     .font(.caption)
                     .foregroundStyle(detailColor)
-                if let rating = place.rating {
-                    let count = place.ratingCount ?? 0
+                if let rating = place.displayRating {
+                    let count = place.displayRatingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
                     HStack(spacing: 4) {
                         Text(String(format: "%.1f", rating))
@@ -3168,16 +3173,18 @@ private struct TopRatedScreen: View {
 
     private let detailColor = Color.primary.opacity(0.65)
     @State private var communityVisibleLimit: Int = 20
+    @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let communityPageSize: Int = 20
 
     var body: some View {
+        let effectivePlaces = displayPlaces
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Top Rated")
                         .font(.title3.weight(.semibold))
-                    if !places.isEmpty {
-                        Text("\(places.count) places")
+                    if !effectivePlaces.isEmpty {
+                        Text("\(effectivePlaces.count) places")
                             .font(.caption)
                             .foregroundStyle(detailColor)
                     }
@@ -3216,7 +3223,7 @@ private struct TopRatedScreen: View {
                 Spacer(minLength: 0)
             }
 
-            if places.isEmpty {
+            if effectivePlaces.isEmpty {
                 if sortOption == .community && isCommunityLoading {
                     VStack(spacing: 12) {
                         ProgressView()
@@ -3233,7 +3240,7 @@ private struct TopRatedScreen: View {
                 }
             } else {
                 let displayPairs: [(offset: Int, element: Place)] = {
-                    let enumerated = Array(places.enumerated())
+                    let enumerated = Array(effectivePlaces.enumerated())
                     if sortOption == .community {
                         return Array(enumerated.prefix(communityVisibleLimit))
                     }
@@ -3253,6 +3260,7 @@ private struct TopRatedScreen: View {
                                 Button { onSelect(place) } label: {
                                     TopRatedRow(
                                         place: place,
+                                        yelpData: yelpData[place.id],
                                         rank: (sortOption == .community ? index + 1 : nil),
                                         showYelpRating: sortOption != .community
                                     )
@@ -3263,8 +3271,8 @@ private struct TopRatedScreen: View {
                                     guard sortOption == .community,
                                           let lastDisplayedOffset,
                                           index == lastDisplayedOffset,
-                                          communityVisibleLimit < places.count else { return }
-                                    communityVisibleLimit = min(communityVisibleLimit + communityPageSize, places.count)
+                                          communityVisibleLimit < effectivePlaces.count else { return }
+                                    communityVisibleLimit = min(communityVisibleLimit + communityPageSize, effectivePlaces.count)
                                 }
                             }
                         }
@@ -3272,9 +3280,9 @@ private struct TopRatedScreen: View {
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
 
-                        if sortOption == .community, communityVisibleLimit < places.count {
+                        if sortOption == .community, communityVisibleLimit < effectivePlaces.count {
                             Button {
-                                communityVisibleLimit = min(communityVisibleLimit + communityPageSize, places.count)
+                                communityVisibleLimit = min(communityVisibleLimit + communityPageSize, effectivePlaces.count)
                             } label: {
                                 HStack(spacing: 8) {
                                     ProgressView()
@@ -3294,6 +3302,7 @@ private struct TopRatedScreen: View {
                 }
                 .task(id: displayPairs.map { $0.element.id }) {
                     // Warm prefetch a small number of thumbnails for instant display
+                    guard sortOption == .community else { return }
                     for id in displayPairs.prefix(communityPageSize).map({ $0.element.id }) {
                         TopRatedPhotoThumb.prefetch(for: id)
                     }
@@ -3318,6 +3327,9 @@ private struct TopRatedScreen: View {
                 communityVisibleLimit = min(communityVisibleLimit, max(places.count, communityPageSize))
             }
         }
+        .task(id: yelpTaskKey) {
+            await loadYelpData(for: yelpLoadPlaces)
+        }
     }
 
     private func sortButton(for option: TopRatedSortOption) -> some View {
@@ -3337,10 +3349,73 @@ private struct TopRatedScreen: View {
         }
         .buttonStyle(.plain)
     }
+
+    private var displayPlaces: [Place] {
+        switch sortOption {
+        case .community:
+            return places
+        case .yelp:
+            return yelpSortedPlaces
+        }
+    }
+
+    private var yelpSortedPlaces: [Place] {
+        let candidates = places.filter { $0.isYelpBacked }
+        guard !candidates.isEmpty else { return [] }
+        if yelpData.isEmpty { return candidates }
+        return candidates.sorted { lhs, rhs in
+            let lhsData = yelpData[lhs.id]
+            let rhsData = yelpData[rhs.id]
+            let lhsRating = lhsData?.rating ?? -1
+            let rhsRating = rhsData?.rating ?? -1
+            if lhsRating != rhsRating { return lhsRating > rhsRating }
+            let lhsCount = lhsData?.reviewCount ?? 0
+            let rhsCount = rhsData?.reviewCount ?? 0
+            if lhsCount != rhsCount { return lhsCount > rhsCount }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private var yelpTaskKey: [UUID] {
+        yelpLoadPlaces.map(\.id)
+    }
+
+    private var yelpLoadPlaces: [Place] {
+        switch sortOption {
+        case .community:
+            return Array(displayPlaces.prefix(communityVisibleLimit))
+        case .yelp:
+            return displayPlaces
+        }
+    }
+
+    private func loadYelpData(for places: [Place]) async {
+        let candidates = places.filter { $0.isYelpBacked }
+        guard !candidates.isEmpty else { return }
+        for place in candidates {
+            if Task.isCancelled { return }
+            if yelpData[place.id] != nil { continue }
+            if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
+                await MainActor.run {
+                    yelpData[place.id] = cached
+                }
+                continue
+            }
+            do {
+                let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
+                await MainActor.run {
+                    yelpData[place.id] = data
+                }
+            } catch {
+                // ignore list failures
+            }
+        }
+    }
 }
 
 private struct TopRatedRow: View {
     let place: Place
+    let yelpData: YelpBusinessData?
     let rank: Int?
     let showYelpRating: Bool
 
@@ -3350,7 +3425,7 @@ private struct TopRatedRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            TopRatedPhotoThumb(placeID: place.id)
+            TopRatedThumbnail(place: place, yelpPhotoURL: yelpPhotoURL)
                 .frame(width: 64, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -3394,24 +3469,36 @@ private struct TopRatedRow: View {
         }
     }
 
+    @ViewBuilder
     private func ratingView() -> some View {
-        let hasReviews = (place.ratingCount ?? 0) > 0
-        return HStack(spacing: 4) {
-            Image(systemName: hasReviews ? "star.fill" : "star")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
-            if hasReviews, let rating = place.rating {
-                Text(String(format: "%.1f", rating))
-                    .font(.subheadline)
-                    .foregroundStyle(Color.primary)
-                Text("(\(reviewLabel(for: place.ratingCount)))")
-                    .font(.footnote)
-                    .foregroundStyle(Color.secondary)
+        if place.isYelpBacked {
+            if let data = yelpData, let rating = data.rating, rating > 0 {
+                YelpInlineRatingView(rating: rating, reviewCount: data.reviewCount)
             } else {
-                Text("No reviews yet")
+                Text("Loading Yelp rating…")
                     .font(.footnote)
                     .foregroundStyle(Color.secondary)
-                    .italic()
+            }
+        } else {
+            let count = place.displayRatingCount ?? 0
+            let hasReviews = count > 0
+            HStack(spacing: 4) {
+                Image(systemName: hasReviews ? "star.fill" : "star")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
+                if hasReviews, let rating = place.displayRating {
+                    Text(String(format: "%.1f", rating))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.primary)
+                    Text("(\(reviewLabel(for: count)))")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondary)
+                } else {
+                    Text("No reviews yet")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondary)
+                        .italic()
+                }
             }
         }
     }
@@ -3421,6 +3508,12 @@ private struct TopRatedRow: View {
         if count == 1 { return "1 review" }
         if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
         return "\(count) reviews"
+    }
+
+    private var yelpPhotoURL: URL? {
+        guard let urlString = yelpData?.photos.first?.url else { return nil }
+        guard let url = URL(string: urlString) else { return nil }
+        return TopRatedPhotoThumb.optimizedURL(from: url)
     }
 
     private func categoryLine() -> String {
@@ -3484,6 +3577,67 @@ private struct TopRatedRow: View {
         return DisplayLocationResolver.display(for: place)
     }
 
+}
+
+private struct TopRatedThumbnail: View {
+    let place: Place
+    let yelpPhotoURL: URL?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if place.isYelpBacked {
+                if let url = yelpPhotoURL {
+                    CachedAsyncImage(url: url) {
+                        placeholder
+                    } failure: {
+                        placeholder
+                    }
+                    .scaledToFill()
+                } else {
+                    placeholder
+                }
+            } else {
+                TopRatedPhotoThumb(placeID: place.id)
+            }
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color.gray.opacity(0.25)
+            Text("🍔🥤")
+                .font(.system(size: 24))
+                .opacity(0.9)
+        }
+    }
+}
+
+private struct YelpInlineRatingView: View {
+    let rating: Double
+    let reviewCount: Int?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(sourceLabel)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.secondary)
+            YelpReviewRibbon(rating: rating, style: .inline)
+                .accessibilityHidden(true)
+            Text(String(format: "%.1f", rating))
+                .font(.subheadline)
+                .foregroundStyle(Color.primary)
+        }
+    }
+
+    private var sourceLabel: String {
+        guard let reviewCount, reviewCount > 0 else { return "Yelp" }
+        return "Yelp (\(shortReviewCount(reviewCount)))"
+    }
+
+    private func shortReviewCount(_ count: Int) -> String {
+        if count >= 1000 { return String(format: "%.1fk", Double(count) / 1000.0) }
+        return "\(count)"
+    }
 }
 
 private struct CommunityRankBadge: View {
@@ -4401,7 +4555,46 @@ private struct TopRatedPhotoThumb: View {
     }
 
     private static func warmCache(for url: URL) async {
-        _ = try? await URLSession.shared.data(from: url)
+        await YelpImagePolicy.warm(url)
+    }
+}
+
+private enum YelpImagePolicy {
+    private static let yelpHost = "yelpcdn.com"
+    private static let yelpSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        return URLSession(configuration: config)
+    }()
+
+    static func isYelpURL(_ url: URL) -> Bool {
+        url.host?.contains(yelpHost) == true
+    }
+
+    static func fetchData(from url: URL) async throws -> Data {
+        if isYelpURL(url) {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, _) = try await yelpSession.data(for: request)
+            return data
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return data
+    }
+
+    static func warm(_ url: URL) async {
+        do {
+            if isYelpURL(url) {
+                var request = URLRequest(url: url)
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                _ = try await yelpSession.data(for: request)
+            } else {
+                _ = try await URLSession.shared.data(from: url)
+            }
+        } catch {
+            // ignore
+        }
     }
 }
 
@@ -4445,7 +4638,7 @@ private struct ZoomableCachedImage<Placeholder: View, Failure: View>: View {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let data = try await YelpImagePolicy.fetchData(from: url)
             if let image = UIImage(data: data) {
                 ImageCache.shared.store(image, for: url)
                 uiImage = image
@@ -4540,9 +4733,14 @@ final class ImageCache {
     private let folderURL: URL
 
     private init() {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        folderURL = caches.appendingPathComponent("hf-image-cache", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let fileManager = FileManager.default
+        let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let legacyURL = caches.appendingPathComponent("hf-image-cache", isDirectory: true)
+        folderURL = caches.appendingPathComponent("hf-image-cache-v2", isDirectory: true)
+        if fileManager.fileExists(atPath: legacyURL.path) {
+            try? fileManager.removeItem(at: legacyURL)
+        }
+        try? fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
         memory.countLimit = 512
         memory.totalCostLimit = 64 * 1024 * 1024
     }
@@ -4558,6 +4756,7 @@ final class ImageCache {
     func image(forKey key: String) -> UIImage? {
         let nsKey = key as NSString
         if let img = memory.object(forKey: nsKey) { return img }
+        if isYelpKey(key) { return nil }
         let path = folderURL.appendingPathComponent(String(key.hashValue))
         if let data = try? Data(contentsOf: path), let img = UIImage(data: data) {
             memory.setObject(img, forKey: nsKey)
@@ -4569,12 +4768,17 @@ final class ImageCache {
     func store(_ image: UIImage, forKey key: String) {
         let nsKey = key as NSString
         memory.setObject(image, forKey: nsKey)
+        if isYelpKey(key) { return }
         let path = folderURL.appendingPathComponent(String(key.hashValue))
         ioQueue.async {
             if let data = image.jpegData(compressionQuality: 0.92) ?? image.pngData() {
                 try? data.write(to: path, options: .atomic)
             }
         }
+    }
+
+    private func isYelpKey(_ key: String) -> Bool {
+        key.lowercased().contains("yelpcdn.com")
     }
 }
 
@@ -4636,7 +4840,7 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let data = try await YelpImagePolicy.fetchData(from: url)
             if let img = decodeImage(from: data) {
                 ImageCache.shared.store(img, forKey: resolvedCacheKey)
                 image = img
@@ -4677,6 +4881,82 @@ actor PlacePhotoCache {
     private var map: [UUID: [PlacePhoto]] = [:]
     func get(_ id: UUID) -> [PlacePhoto]? { map[id] }
     func set(_ id: UUID, photos: [PlacePhoto]) { map[id] = photos }
+}
+
+private enum YelpBusinessCacheError: Error {
+    case notYelpBacked
+    case missingYelpID
+}
+
+private actor YelpBusinessCache {
+    static let shared = YelpBusinessCache()
+
+    private var cache: [String: YelpBusinessData] = [:]
+    private var inflight: [String: Task<YelpBusinessData, Error>] = [:]
+    private var yelpIDByPlaceID: [UUID: String] = [:]
+    private var idInflight: [UUID: Task<String?, Never>] = [:]
+
+    func cachedData(for place: Place) -> YelpBusinessData? {
+        if let yelpID = place.yelpID { return cache[yelpID] }
+        if let yelpID = yelpIDByPlaceID[place.id] { return cache[yelpID] }
+        return nil
+    }
+
+    func fetchBusiness(for place: Place) async throws -> YelpBusinessData {
+        guard place.isYelpBacked else { throw YelpBusinessCacheError.notYelpBacked }
+        guard let yelpID = await resolveYelpID(for: place) else {
+            throw YelpBusinessCacheError.missingYelpID
+        }
+        return try await fetchBusiness(yelpID: yelpID, placeID: place.id)
+    }
+
+    func fetchBusiness(yelpID: String, placeID: UUID? = nil) async throws -> YelpBusinessData {
+        if let cached = cache[yelpID] {
+            if let placeID { yelpIDByPlaceID[placeID] = yelpID }
+            return cached
+        }
+        if let task = inflight[yelpID] {
+            let data = try await task.value
+            if let placeID { yelpIDByPlaceID[placeID] = yelpID }
+            return data
+        }
+
+        let task = Task { try await YelpAPI.fetchBusiness(yelpID: yelpID) }
+        inflight[yelpID] = task
+        defer { inflight[yelpID] = nil }
+
+        let data = try await task.value
+        cache[yelpID] = data
+        if let placeID { yelpIDByPlaceID[placeID] = yelpID }
+        return data
+    }
+
+    private func resolveYelpID(for place: Place) async -> String? {
+        if let yelpID = place.yelpID {
+            yelpIDByPlaceID[place.id] = yelpID
+            return yelpID
+        }
+        if let cached = yelpIDByPlaceID[place.id] { return cached }
+        if let task = idInflight[place.id] {
+            return await task.value
+        }
+
+        let task = Task { () -> String? in
+            guard let dto = try? await PlaceAPI.fetchPlaceDetails(placeID: place.id),
+                  let resolved = Place(dto: dto) else {
+                return nil
+            }
+            return resolved.yelpID
+        }
+        idInflight[place.id] = task
+
+        let id = await task.value
+        idInflight[place.id] = nil
+        if let id {
+            yelpIDByPlaceID[place.id] = id
+        }
+        return id
+    }
 }
 
 private struct FavoritesPanel: View {
@@ -4861,8 +5141,8 @@ private struct FavoriteRow: View {
                     .font(.caption)
                     .foregroundStyle(detailColor)
 
-                if let rating = snapshot.rating {
-                    let count = snapshot.ratingCount ?? 0
+                if let rating = snapshot.displayRating {
+                    let count = snapshot.displayRatingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
                     HStack(spacing: 4) {
                         Text(String(format: "%.1f", rating))
@@ -4908,6 +5188,7 @@ private struct NewSpotsScreen: View {
     let topInset: CGFloat
     let onSelect: (Place) -> Void
     @State private var isPreviouslyTrendingExpanded = false
+    @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let primarySpotLimit = 6
 
     var body: some View {
@@ -4928,12 +5209,14 @@ private struct NewSpotsScreen: View {
                         NewSpotsCard(
                             title: "New Trending Spots",
                             spots: primaryEntries,
+                            yelpData: yelpData,
                             onSelect: onSelect
                         )
                     }
                     if !previousEntries.isEmpty {
                         PreviouslyTrendingCard(
                             spots: previousEntries,
+                            yelpData: yelpData,
                             isExpanded: $isPreviouslyTrendingExpanded,
                             onSelect: onSelect
                         )
@@ -4947,7 +5230,7 @@ private struct NewSpotsScreen: View {
                             }
                             .foregroundStyle(Color.primary)
 
-                            NewSpotHero(entry: hero, onSelect: onSelect)
+                            NewSpotHero(entry: hero, yelpData: yelpData[hero.id], onSelect: onSelect)
                             SpotlightSummary(entry: hero)
                         }
                     }
@@ -4958,11 +5241,42 @@ private struct NewSpotsScreen: View {
             .padding(.horizontal, 16)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .task(id: yelpTaskKey) {
+            await loadYelpData(for: spots)
+        }
+    }
+
+    private var yelpTaskKey: [UUID] {
+        spots.map(\.id)
+    }
+
+    private func loadYelpData(for entries: [NewSpotEntry]) async {
+        let candidates = entries.map(\.place).filter { $0.isYelpBacked }
+        guard !candidates.isEmpty else { return }
+        for place in candidates {
+            if Task.isCancelled { return }
+            if yelpData[place.id] != nil { continue }
+            if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
+                await MainActor.run {
+                    yelpData[place.id] = cached
+                }
+                continue
+            }
+            do {
+                let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
+                await MainActor.run {
+                    yelpData[place.id] = data
+                }
+            } catch {
+                // ignore list failures
+            }
+        }
     }
 
     private struct NewSpotsCard: View {
         let title: String
         let spots: [NewSpotEntry]
+        let yelpData: [UUID: YelpBusinessData]
         let onSelect: (Place) -> Void
 
         var body: some View {
@@ -4976,7 +5290,7 @@ private struct NewSpotsScreen: View {
                 }
                 .foregroundStyle(Color.primary)
 
-                NewSpotList(spots: spots, onSelect: onSelect)
+                NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
             }
             .padding(18)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -4986,13 +5300,14 @@ private struct NewSpotsScreen: View {
 
     private struct PreviouslyTrendingCard: View {
         let spots: [NewSpotEntry]
+        let yelpData: [UUID: YelpBusinessData]
         @Binding var isExpanded: Bool
         let onSelect: (Place) -> Void
 
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
                 DisclosureGroup(isExpanded: $isExpanded) {
-                    NewSpotList(spots: spots, onSelect: onSelect)
+                    NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
                         .padding(.top, 8)
                 } label: {
                     HStack(spacing: 8) {
@@ -5017,6 +5332,7 @@ private struct NewSpotsScreen: View {
 
     private struct NewSpotList: View {
         let spots: [NewSpotEntry]
+        let yelpData: [UUID: YelpBusinessData]
         let onSelect: (Place) -> Void
 
         var body: some View {
@@ -5026,8 +5342,47 @@ private struct NewSpotsScreen: View {
                         Divider()
                             .background(Color.black.opacity(0.06))
                     }
-                    NewSpotRow(entry: spot, onSelect: onSelect)
+                    NewSpotRow(entry: spot, yelpData: yelpData[spot.id], onSelect: onSelect)
                 }
+            }
+        }
+    }
+
+    private struct NewSpotImageView: View {
+        let image: NewSpotImage
+        let overrideURL: URL?
+
+        var body: some View {
+            if let overrideURL {
+                CachedAsyncImage(url: overrideURL) {
+                    fallbackImage
+                } failure: {
+                    fallbackImage
+                }
+                .scaledToFill()
+            } else {
+                fallbackImage
+            }
+        }
+
+        private var placeholder: some View {
+            Color.gray.opacity(0.3)
+        }
+
+        @ViewBuilder
+        private var fallbackImage: some View {
+            switch image {
+            case .remote(let url):
+                CachedAsyncImage(url: url) {
+                    placeholder
+                } failure: {
+                    placeholder
+                }
+                .scaledToFill()
+            case .asset(let name):
+                Image(name)
+                    .resizable()
+                    .scaledToFill()
             }
         }
     }
@@ -5035,6 +5390,7 @@ private struct NewSpotsScreen: View {
     private struct NewSpotRow: View {
         @EnvironmentObject private var favoritesStore: FavoritesStore
         let entry: NewSpotEntry
+        let yelpData: YelpBusinessData?
         let onSelect: (Place) -> Void
 
         private var place: Place { entry.place }
@@ -5045,12 +5401,7 @@ private struct NewSpotsScreen: View {
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     HStack(alignment: .top, spacing: 12) {
-                        CachedAsyncImage(url: entry.imageURL) {
-                            Color.gray.opacity(0.3)
-                        } failure: {
-                            Color.gray.opacity(0.3)
-                        }
-                        .scaledToFill()
+                        NewSpotImageView(image: entry.image, overrideURL: yelpPhotoURL)
                         .frame(width: 64, height: 64)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
@@ -5064,7 +5415,11 @@ private struct NewSpotsScreen: View {
                                 .foregroundStyle(Color.primary)
                                 .lineLimit(1)
 
-                            ratingView(for: place)
+                            if place.isYelpBacked, let data = yelpData, let rating = data.rating, rating > 0 {
+                                YelpInlineRatingView(rating: rating, reviewCount: data.reviewCount)
+                            } else if place.displayRating != nil {
+                                ratingView(for: place)
+                            }
 
                             Text(categoryLine())
                                 .font(.subheadline)
@@ -5093,16 +5448,17 @@ private struct NewSpotsScreen: View {
         }
 
         private func ratingView(for place: Place) -> some View {
-            let hasReviews = (place.ratingCount ?? 0) > 0
+            let count = place.displayRatingCount ?? 0
+            let hasReviews = count > 0
             return HStack(spacing: 4) {
                 Image(systemName: hasReviews ? "star.fill" : "star")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
-                if hasReviews, let rating = place.rating {
+                if hasReviews, let rating = place.displayRating {
                     Text(String(format: "%.1f", rating))
                         .font(.subheadline)
                         .foregroundStyle(Color.primary)
-                    Text("(\(reviewLabel(for: place.ratingCount)))")
+                    Text("(\(reviewLabel(for: count)))")
                         .font(.footnote)
                         .foregroundStyle(Color.secondary)
                 } else {
@@ -5119,6 +5475,12 @@ private struct NewSpotsScreen: View {
             if count == 1 { return "1 review" }
             if count >= 1000 { return String(format: "%.1fk reviews", Double(count) / 1000.0) }
             return "\(count) reviews"
+        }
+
+        private var yelpPhotoURL: URL? {
+            guard let urlString = yelpData?.photos.first?.url else { return nil }
+            guard let url = URL(string: urlString) else { return nil }
+            return TopRatedPhotoThumb.optimizedURL(from: url)
         }
 
         private func categoryLine() -> String {
@@ -5144,9 +5506,11 @@ private struct NewSpotsScreen: View {
                     for: place,
                     name: place.name,
                     address: place.address,
-                    rating: place.rating,
-                    ratingCount: place.ratingCount,
+                    rating: place.displayRating,
+                    ratingCount: place.displayRatingCount,
                     source: place.source,
+                    sourceID: place.sourceID,
+                    externalID: place.externalID,
                     applePlaceID: place.applePlaceID
                 )
             } label: {
@@ -5162,6 +5526,7 @@ private struct NewSpotsScreen: View {
 
     private struct NewSpotHero: View {
         let entry: NewSpotEntry
+        let yelpData: YelpBusinessData?
         let onSelect: (Place) -> Void
 
         var body: some View {
@@ -5169,12 +5534,7 @@ private struct NewSpotsScreen: View {
                 onSelect(entry.place)
             } label: {
                 ZStack(alignment: .bottomLeading) {
-                    CachedAsyncImage(url: entry.imageURL) {
-                        Color.gray.opacity(0.3)
-                    } failure: {
-                        Color.gray.opacity(0.3)
-                    }
-                    .scaledToFill()
+                    NewSpotImageView(image: entry.image, overrideURL: yelpPhotoURL)
                     .frame(maxWidth: .infinity)
                     .frame(height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -5207,6 +5567,12 @@ private struct NewSpotsScreen: View {
                 }
             }
             .buttonStyle(.plain)
+        }
+
+        private var yelpPhotoURL: URL? {
+            guard let urlString = yelpData?.photos.first?.url else { return nil }
+            guard let url = URL(string: urlString) else { return nil }
+            return TopRatedPhotoThumb.optimizedURL(from: url)
         }
     }
 
@@ -5335,7 +5701,10 @@ struct PlaceDetailView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
                         if !viewModel.photos.isEmpty {
-                            PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                            PhotoCarouselView(
+                                photos: viewModel.photos,
+                                yelpAttributionURL: yelpAttributionURL
+                            ) { index, _ in
                                 expandedPhotoSelection = PhotoSelection(index: index)
                             }
                         }
@@ -5362,7 +5731,8 @@ struct PlaceDetailView: View {
         .fullScreenCover(item: $expandedPhotoSelection) { selection in
             FullscreenPhotoView(
                 photos: viewModel.photos,
-                initialIndex: selection.index
+                initialIndex: selection.index,
+                yelpURL: yelpAttributionURL
             ) {
                 expandedPhotoSelection = nil
             }
@@ -5404,16 +5774,19 @@ struct PlaceDetailView: View {
 
     private func toggleFavorite() {
         let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
+        let currentPlace = viewModel.resolvedPlace ?? place
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             let currentlyFavorite = isFavorite
             Haptics.favoriteToggled(isNowFavorite: !currentlyFavorite)
             favoritesStore.toggleFavorite(
-                for: place,
+                for: currentPlace,
                 name: displayName,
                 address: displayAddress,
-                rating: place.rating,
-                ratingCount: place.ratingCount,
-                source: place.source,
+                rating: currentPlace.displayRating,
+                ratingCount: currentPlace.displayRatingCount,
+                source: currentPlace.source,
+                sourceID: currentPlace.sourceID,
+                externalID: currentPlace.externalID,
                 applePlaceID: appleID
             )
         }
@@ -5422,13 +5795,16 @@ struct PlaceDetailView: View {
     private func refreshFavoriteSnapshot() {
         guard favoritesStore.contains(id: place.id) else { return }
         let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
+        let currentPlace = viewModel.resolvedPlace ?? place
         favoritesStore.updateFavoriteIfNeeded(
-            for: place,
+            for: currentPlace,
             name: displayName,
             address: displayAddress,
-            rating: place.rating,
-            ratingCount: place.ratingCount,
-            source: place.source,
+            rating: currentPlace.displayRating,
+            ratingCount: currentPlace.displayRatingCount,
+            source: currentPlace.source,
+            sourceID: currentPlace.sourceID,
+            externalID: currentPlace.externalID,
             applePlaceID: appleID
         )
     }
@@ -5616,7 +5992,10 @@ struct PlaceDetailView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 16) {
                 if !viewModel.photos.isEmpty {
-                    PhotoCarouselView(photos: viewModel.photos) { index, _ in
+                    PhotoCarouselView(
+                        photos: viewModel.photos,
+                        yelpAttributionURL: yelpAttributionURL
+                    ) { index, _ in
                         expandedPhotoSelection = PhotoSelection(index: index)
                     }
                 }
@@ -5649,17 +6028,53 @@ struct PlaceDetailView: View {
         return place.name
     }
 
+    private var yelpAttributionURL: URL? {
+        if let urlString = viewModel.yelpData?.yelpURL,
+           let url = URL(string: urlString) {
+            return url
+        }
+        if let yelpID = viewModel.yelpData?.yelpID,
+           let encoded = yelpID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let url = URL(string: "https://www.yelp.com/biz/\(encoded)") {
+            return url
+        }
+        let currentPlace = viewModel.resolvedPlace ?? place
+        if let yelpID = currentPlace.yelpID,
+           let encoded = yelpID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let url = URL(string: "https://www.yelp.com/biz/\(encoded)") {
+            return url
+        }
+        return nil
+    }
+
     private var ratingSourceLabel: String? {
-        guard let raw = place.source?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return "Yelp" }
+        let currentPlace = viewModel.resolvedPlace ?? place
+        if currentPlace.isYelpBacked { return "Yelp" }
+        guard let raw = currentPlace.source?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
         return readableSource(raw)
     }
 
     private var ratingModel: RatingDisplayModel? {
-        guard let rating = place.rating, rating > 0 else { return nil }
+        let currentPlace = viewModel.resolvedPlace ?? place
+        if currentPlace.isYelpBacked {
+            guard let yelpData = viewModel.yelpData,
+                  let rating = yelpData.rating,
+                  rating > 0 else { return nil }
+            return RatingDisplayModel(
+                rating: rating,
+                reviewCount: yelpData.reviewCount,
+                source: "Yelp",
+                sourceURL: yelpData.yelpURL.flatMap(URL.init(string:))
+            )
+        }
+
+        guard let rating = currentPlace.rating, rating > 0 else { return nil }
         return RatingDisplayModel(
             rating: rating,
-            reviewCount: place.ratingCount,
-            source: ratingSourceLabel
+            reviewCount: currentPlace.ratingCount,
+            source: ratingSourceLabel,
+            sourceURL: nil
         )
     }
 
@@ -5802,15 +6217,33 @@ private struct PhotoSelection: Identifiable, Equatable {
     let index: Int
 }
 
+private struct YelpPhotoAttributionOverlay: View {
+    let url: URL?
+
+    var body: some View {
+        let mark = YelpLogoMark(style: .overlay)
+        if let url {
+            Link(destination: url) { mark }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Yelp")
+        } else {
+            mark
+                .accessibilityLabel("Yelp")
+        }
+    }
+}
+
 private struct FullscreenPhotoView: View {
     let photos: [PlacePhoto]
+    let yelpURL: URL?
     let onDismiss: () -> Void
 
     @State private var currentIndex: Int
     @State private var dragOffset: CGFloat = 0
 
-    init(photos: [PlacePhoto], initialIndex: Int, onDismiss: @escaping () -> Void) {
+    init(photos: [PlacePhoto], initialIndex: Int, yelpURL: URL?, onDismiss: @escaping () -> Void) {
         self.photos = photos
+        self.yelpURL = yelpURL
         self.onDismiss = onDismiss
         let clamped = photos.indices.contains(initialIndex) ? initialIndex : 0
         _currentIndex = State(initialValue: clamped)
@@ -5864,12 +6297,9 @@ private struct FullscreenPhotoView: View {
             .offset(y: dragOffset)
         }
         .overlay(alignment: .bottomTrailing) {
-            if !photos.isEmpty {
-                Text("Photos: Yelp")
-                    .font(.caption2)
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding()
+            if shouldShowYelpAttribution {
+                YelpPhotoAttributionOverlay(url: yelpURL)
+                    .padding(16)
                     .offset(y: dragOffset)
             }
         }
@@ -5938,6 +6368,15 @@ private struct FullscreenPhotoView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
     }
+
+    private var currentPhotoIsYelp: Bool {
+        guard photos.indices.contains(currentIndex) else { return false }
+        return photos[currentIndex].isYelpPhoto
+    }
+
+    private var shouldShowYelpAttribution: Bool {
+        currentPhotoIsYelp || yelpURL != nil
+    }
 }
 
 private enum PlacePhotoURLBuilder {
@@ -5982,6 +6421,14 @@ private enum PlacePhotoURLBuilder {
     }
 }
 
+private extension PlacePhoto {
+    var isYelpPhoto: Bool {
+        src.lowercased().contains("yelp") ||
+        (attribution?.lowercased().contains("yelp") ?? false) ||
+        imageUrl.lowercased().contains("yelp")
+    }
+}
+
 private actor PhotoPrefetcher {
     static let shared = PhotoPrefetcher()
     private var warmed: Set<URL> = []
@@ -5989,12 +6436,13 @@ private actor PhotoPrefetcher {
     func prefetch(_ url: URL) async {
         if warmed.contains(url) { return }
         warmed.insert(url)
-        _ = try? await URLSession.shared.data(from: url)
+        await YelpImagePolicy.warm(url)
     }
 }
 
 private struct PhotoCarouselView: View {
     let photos: [PlacePhoto]
+    let yelpAttributionURL: URL?
     let onPhotoSelected: (Int, PlacePhoto) -> Void
 
     @State private var selectedIndex = 0
@@ -6009,7 +6457,7 @@ private struct PhotoCarouselView: View {
             ForEach(Array(photos.enumerated()), id: \.element.id) { pair in
                 let index = pair.offset
                 let photo = pair.element
-                ZStack {
+                ZStack(alignment: .bottomTrailing) {
                     if let url = URL(string: photo.imageUrl) {
                         let thumbnailURL = PlacePhotoURLBuilder.thumbnailURL(from: url)
                         let cacheKey = "thumb:\(thumbnailURL.absoluteString)"
@@ -6040,6 +6488,12 @@ private struct PhotoCarouselView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 220)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            if shouldShowYelpAttribution {
+                YelpPhotoAttributionOverlay(url: yelpAttributionURL)
+                    .padding(16)
+            }
+        }
         .onChange(of: photos) { newValue in
             if let lastIndex = newValue.indices.last {
                 selectedIndex = min(selectedIndex, lastIndex)
@@ -6066,6 +6520,10 @@ private struct PhotoCarouselView: View {
         guard photos.indices.contains(selectedIndex),
               let url = URL(string: photos[selectedIndex].imageUrl) else { return }
         await PhotoPrefetcher.shared.prefetch(url)
+    }
+
+    private var shouldShowYelpAttribution: Bool {
+        yelpAttributionURL != nil || photos.contains { $0.isYelpPhoto }
     }
 }
 
@@ -6223,6 +6681,9 @@ final class PlaceDetailViewModel: ObservableObject {
 
     @Published private(set) var loadingState: LoadingState = .idle
     @Published var photos: [PlacePhoto] = []
+    @Published private(set) var resolvedPlace: Place?
+    @Published private(set) var yelpData: YelpBusinessData?
+    @Published private(set) var yelpErrorMessage: String?
 
     private let service: ApplePlaceDetailService
     private var lastSuccessfulPlaceID: UUID?
@@ -6236,6 +6697,13 @@ final class PlaceDetailViewModel: ObservableObject {
     }
 
     func load(place: Place) async {
+        if resolvedPlace?.id != place.id {
+            resolvedPlace = place
+            photos = []
+            yelpData = nil
+            yelpErrorMessage = nil
+        }
+
         if case .loaded = loadingState,
            lastSuccessfulPlaceID == place.id {
             return
@@ -6278,8 +6746,55 @@ final class PlaceDetailViewModel: ObservableObject {
         }
     }
 
+    func loadYelpData(for place: Place) async {
+        guard place.isYelpBacked else {
+            yelpData = nil
+            return
+        }
+
+        if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
+            yelpData = cached
+            yelpErrorMessage = nil
+            return
+        }
+
+        do {
+            let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
+            yelpData = data
+            yelpErrorMessage = nil
+        } catch {
+            yelpData = nil
+            yelpErrorMessage = error.localizedDescription
+#if DEBUG
+            print("[YelpAPI] Failed to fetch Yelp data:", error)
+#endif
+        }
+    }
+
     func loadPhotos(for place: Place) async {
         do {
+            if place.isYelpBacked {
+                if let cached = await PlacePhotoCache.shared.get(place.id) {
+                    self.photos = cached
+                }
+                await loadYelpData(for: place)
+                if let yelpData {
+                    let yelpPhotos = yelpData.photos.map { photo in
+                        PlacePhoto(placeID: place.id,
+                                   position: photo.position,
+                                   url: photo.url,
+                                   attribution: photo.attribution)
+                    }
+                    self.photos = yelpPhotos
+                    await PlacePhotoCache.shared.set(place.id, photos: yelpPhotos)
+                } else if self.photos.isEmpty {
+                    self.photos = []
+                }
+                return
+            } else {
+                yelpData = nil
+            }
+
             if let cached = await PlacePhotoCache.shared.get(place.id) {
                 self.photos = cached
                 return
@@ -7097,7 +7612,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             allPlaces: allPlaces,
             globalPlaces: globalDataset,
             searchResults: searchResults,
-            yelpFallback: topRatedPlaces(limit: 80, minimumReviews: 5),
+            yelpFallback: yelpCandidatePlaces(limit: 80),
             hasTrustedData: hasTrustedCommunityDataset()
         )
     }
@@ -7183,12 +7698,12 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         }
 
         let candidates = source.filter { place in
-            guard let rating = place.rating, rating > 0 else { return false }
-            return (place.ratingCount ?? 0) >= minimumReviews
+            guard let rating = place.displayRating, rating > 0 else { return false }
+            return (place.displayRatingCount ?? 0) >= minimumReviews
         }
 
         let sorted = candidates.sorted { lhs, rhs in
-            switch (lhs.rating, rhs.rating) {
+            switch (lhs.displayRating, rhs.displayRating) {
             case let (l?, r?) where l != r:
                 return l > r
             case (.some, nil):
@@ -7196,8 +7711,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             case (nil, .some):
                 return false
             default:
-                let lhsCount = lhs.ratingCount ?? 0
-                let rhsCount = rhs.ratingCount ?? 0
+                let lhsCount = lhs.displayRatingCount ?? 0
+                let rhsCount = rhs.displayRatingCount ?? 0
                 if lhsCount != rhsCount { return lhsCount > rhsCount }
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
@@ -7205,6 +7720,27 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 
         if sorted.count <= limit { return sorted }
         return Array(sorted.prefix(limit))
+    }
+
+    fileprivate func yelpCandidatePlaces(limit: Int = 60, region: TopRatedRegion = .all) -> [Place] {
+        let source: [Place]
+        if !globalDataset.isEmpty {
+            source = globalDataset
+        } else {
+            source = allPlaces
+        }
+
+        let filtered = source.filter { place in
+            guard place.isYelpBacked else { return false }
+            if region != .all {
+                return CommunityRegionClassifier.matches(place, region: region)
+            }
+            return true
+        }
+
+        let deduped = PlaceOverrides.deduplicate(filtered)
+        if deduped.count <= limit { return deduped }
+        return Array(deduped.prefix(limit))
     }
 
     func curatedPlaces(matching tokens: Set<String>) -> [Place] {
