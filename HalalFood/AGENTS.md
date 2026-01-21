@@ -37,10 +37,10 @@ This document summarizes how to work on the HalalFood iOS app. Keep changes smal
 ## Agent‑Specific Notes
 - When adding files, follow directory scopes above so other agents can locate code quickly.
 - If you must deviate from these conventions, explain the rationale in the PR description.
-- New Yelp spots require two follow-up CLI steps (needs Supabase service key + `YELP_API_KEY`):
-  1. `node scripts/yelp_ingest.js --file=HalalFood/data/yelp_halal.json --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY`
-  2. `YELP_API_KEY=... node scripts/yelp_photos_ingest.js --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY --id=while-in-kathmandu-ridgewood`
-  Run additional `--id=` flags for any other places missing Yelp photos.
+- New Yelp spots require a follow-up CLI step (needs Supabase service key + `YELP_API_KEY`):
+  1. Generate `HalalFood/data/yelp_halal.json` locally (do not commit), then run:
+     `node scripts/yelp_ingest.js --file=HalalFood/data/yelp_halal.json --supabaseUrl=$SUPABASE_URL --serviceKey=$SUPABASE_SERVICE_ROLE_KEY`
+  Yelp photos now load via the edge proxy; do not run `yelp_photos_ingest.js`.
 
 ## Contributing / Working With Supabase (LLM-first)
 

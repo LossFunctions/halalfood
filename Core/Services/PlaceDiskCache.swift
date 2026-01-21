@@ -11,8 +11,9 @@ actor PlaceDiskCache {
 
     private enum Constants {
         static let directoryName = "PlaceCache"
-        static let filename = "places-v4.json"
-        static let version = 4
+        static let filename = "places-v5.json"
+        static let legacyFilename = "places-v4.json"
+        static let version = 5
     }
 
     private let fileURL: URL
@@ -31,6 +32,11 @@ actor PlaceDiskCache {
 
         if !fileManager.fileExists(atPath: directory.path) {
             try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        } else {
+            let legacyURL = directory.appendingPathComponent(Constants.legacyFilename)
+            if fileManager.fileExists(atPath: legacyURL.path) {
+                try? fileManager.removeItem(at: legacyURL)
+            }
         }
     }
 
@@ -39,7 +45,10 @@ actor PlaceDiskCache {
         do {
             let data = try Data(contentsOf: fileURL)
             let snapshot = try decoder.decode(Snapshot.self, from: data)
-            guard snapshot.version == Constants.version else { return nil }
+            guard snapshot.version == Constants.version else {
+                try? fileManager.removeItem(at: fileURL)
+                return nil
+            }
             return snapshot
         } catch {
 #if DEBUG

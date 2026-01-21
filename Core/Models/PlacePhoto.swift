@@ -11,3 +11,17 @@ struct PlacePhoto: Decodable, Identifiable, Hashable {
     let priority: Int?
     let attribution: String?
 }
+
+extension PlacePhoto {
+    init(placeID: UUID, position: Int, url: String, attribution: String?) {
+        self.id = UUID()
+        self.placeId = placeID
+        self.src = "yelp"
+        self.externalId = "yelp:\(position)"
+        self.imageUrl = url
+        self.width = nil
+        self.height = nil
+        self.priority = position
+        self.attribution = attribution
+    }
+}

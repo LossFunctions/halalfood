@@ -48,6 +48,8 @@ struct Place: Identifiable, Hashable, Sendable {
     let ratingCount: Int?
     let servesAlcohol: Bool?
     let source: String?
+    let sourceID: String?
+    let externalID: String?
     let applePlaceID: String?
     let note: String?
     let displayLocation: String?
@@ -73,10 +75,18 @@ struct Place: Identifiable, Hashable, Sendable {
         }
         address = dto.address
         halalStatus = HalalStatus(rawValue: dto.halal_status)
-        rating = dto.rating
-        ratingCount = dto.rating_count
+        let normalizedSource = dto.source?.lowercased() ?? ""
+        let normalizedExternal = dto.external_id?.lowercased() ?? ""
+        let normalizedSourceID = dto.source_id?.lowercased() ?? ""
+        let isYelpBacked = normalizedSource.contains("yelp") ||
+            normalizedExternal.hasPrefix("yelp:") ||
+            normalizedSourceID.contains("yelp")
+        rating = isYelpBacked ? nil : dto.rating
+        ratingCount = isYelpBacked ? nil : dto.rating_count
         servesAlcohol = dto.serves_alcohol
         source = dto.source
+        sourceID = dto.source_id
+        externalID = dto.external_id
         applePlaceID = dto.apple_place_id
         note = dto.note
         displayLocation = dto.display_location ?? dto.source_raw?.display_location
@@ -112,6 +122,8 @@ extension Place {
          ratingCount: Int? = nil,
          servesAlcohol: Bool? = nil,
          source: String? = "manual",
+         sourceID: String? = nil,
+         externalID: String? = nil,
          applePlaceID: String? = nil,
          note: String? = nil,
          displayLocation: String? = nil,
@@ -128,6 +140,8 @@ extension Place {
         self.ratingCount = ratingCount
         self.servesAlcohol = servesAlcohol
         self.source = source
+        self.sourceID = sourceID
+        self.externalID = externalID
         self.applePlaceID = applePlaceID
         self.note = note
         self.displayLocation = displayLocation
@@ -144,6 +158,8 @@ extension Place {
          ratingCount: Int?,
          servesAlcohol: Bool?,
          source: String?,
+         sourceID: String?,
+         externalID: String?,
          applePlaceID: String?,
          note: String?,
          displayLocation: String?,
@@ -160,6 +176,8 @@ extension Place {
         self.ratingCount = ratingCount
         self.servesAlcohol = servesAlcohol
         self.source = source
+        self.sourceID = sourceID
+        self.externalID = externalID
         self.applePlaceID = applePlaceID
         self.note = note
         self.displayLocation = displayLocation
@@ -182,6 +200,8 @@ extension Place: Codable {
         case ratingCount
         case servesAlcohol
         case source
+        case sourceID
+        case externalID
         case applePlaceID
         case note
     }
@@ -201,6 +221,8 @@ extension Place: Codable {
         let ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
         let servesAlcohol = try container.decodeIfPresent(Bool.self, forKey: .servesAlcohol)
         let source = try container.decodeIfPresent(String.self, forKey: .source)
+        let sourceID = try container.decodeIfPresent(String.self, forKey: .sourceID)
+        let externalID = try container.decodeIfPresent(String.self, forKey: .externalID)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         let note = try container.decodeIfPresent(String.self, forKey: .note)
         let categoriesRaw = try container.decodeIfPresent([String].self, forKey: .categories) ?? []
@@ -221,6 +243,8 @@ extension Place: Codable {
             ratingCount: ratingCount,
             servesAlcohol: servesAlcohol,
             source: source,
+            sourceID: sourceID,
+            externalID: externalID,
             applePlaceID: applePlaceID,
             note: note,
             displayLocation: displayLocation,
@@ -244,6 +268,8 @@ extension Place: Codable {
         try container.encodeIfPresent(ratingCount, forKey: .ratingCount)
         try container.encodeIfPresent(servesAlcohol, forKey: .servesAlcohol)
         try container.encodeIfPresent(source, forKey: .source)
+        try container.encodeIfPresent(sourceID, forKey: .sourceID)
+        try container.encodeIfPresent(externalID, forKey: .externalID)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
     }
@@ -261,6 +287,69 @@ extension Place {
             }
         }
         return false
+    }
+}
+
+extension Place {
+    var isYelpBacked: Bool {
+        if normalizedSourceKey == "yelp" { return true }
+        if let sourceID, sourceID.lowercased().contains("yelp") { return true }
+        if let externalID, externalID.lowercased().hasPrefix("yelp:") { return true }
+        if let externalID, externalID.lowercased().contains("yelp.com/biz/") { return true }
+        return false
+    }
+
+    var displayRating: Double? {
+        isYelpBacked ? nil : rating
+    }
+
+    var displayRatingCount: Int? {
+        isYelpBacked ? nil : ratingCount
+    }
+
+    var yelpID: String? {
+        if let id = normalizedYelpID(from: sourceID) { return id }
+        if let id = normalizedYelpID(from: externalID) { return id }
+        return nil
+    }
+
+    private var normalizedSourceKey: String? {
+        guard let raw = source?.lowercased() else { return nil }
+        if raw.contains("yelp") { return "yelp" }
+        if raw.contains("apple") { return "apple" }
+        if raw.contains("manual") { return "manual" }
+        if raw.contains("osm") { return "osm" }
+        return raw.isEmpty ? nil : raw
+    }
+
+    private func normalizedYelpID(from raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+
+        if value.lowercased().hasPrefix("yelp:") {
+            let index = value.index(value.startIndex, offsetBy: 5)
+            value = String(value[index...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if value.lowercased().hasPrefix("biz/") {
+            let index = value.index(value.startIndex, offsetBy: 4)
+            value = String(value[index...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if value.lowercased().contains("yelp.com") || value.lowercased().hasPrefix("http") {
+            let normalized = value.lowercased().hasPrefix("http") ? value : "https://\(value)"
+            if let url = URL(string: normalized) {
+                let parts = url.path.split(separator: "/")
+                if let bizIndex = parts.firstIndex(where: { $0.lowercased() == "biz" }),
+                   parts.indices.contains(bizIndex + 1) {
+                    value = String(parts[bizIndex + 1])
+                }
+            }
+        }
+
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
+        guard cleaned.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
+        return cleaned
     }
 }
 enum PlaceOverrides {

@@ -237,6 +237,68 @@ export type Database = {
         }
         Relationships: []
       }
+      yelp_business_cache: {
+        Row: {
+          expires_at: string
+          fetched_at: string
+          rating: number | null
+          review_count: number | null
+          yelp_id: string
+          yelp_url: string | null
+        }
+        Insert: {
+          expires_at: string
+          fetched_at: string
+          rating?: number | null
+          review_count?: number | null
+          yelp_id: string
+          yelp_url?: string | null
+        }
+        Update: {
+          expires_at?: string
+          fetched_at?: string
+          rating?: number | null
+          review_count?: number | null
+          yelp_id?: string
+          yelp_url?: string | null
+        }
+        Relationships: []
+      }
+      yelp_photo_cache: {
+        Row: {
+          attribution: string | null
+          expires_at: string
+          fetched_at: string
+          photo_url: string
+          position: number
+          yelp_id: string
+        }
+        Insert: {
+          attribution?: string | null
+          expires_at: string
+          fetched_at: string
+          photo_url: string
+          position: number
+          yelp_id: string
+        }
+        Update: {
+          attribution?: string | null
+          expires_at?: string
+          fetched_at?: string
+          photo_url?: string
+          position?: number
+          yelp_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yelp_photo_cache_yelp_id_fkey"
+            columns: ["yelp_id"]
+            isOneToOne: false
+            referencedRelation: "yelp_business_cache"
+            referencedColumns: ["yelp_id"]
+          },
+        ]
+      }
     }
     Views: {
       community_top_rated_v1: {
@@ -671,6 +733,7 @@ export type Database = {
           apple_place_id: string
           category: string
           display_location: string
+          external_id: string
           halal_status: string
           id: string
           lat: number
@@ -681,6 +744,7 @@ export type Database = {
           rating_count: number
           serves_alcohol: boolean
           source: string
+          source_id: string
           source_raw: Json
         }[]
       }
@@ -691,6 +755,7 @@ export type Database = {
           apple_place_id: string
           category: string
           display_location: string
+          external_id: string
           halal_status: string
           id: string
           lat: number
@@ -701,6 +766,7 @@ export type Database = {
           rating_count: number
           serves_alcohol: boolean
           source: string
+          source_id: string
           source_raw: Json
         }[]
       }
@@ -717,6 +783,7 @@ export type Database = {
           address: string
           category: string
           display_location: string
+          external_id: string
           halal_status: string
           id: string
           lat: number
@@ -727,6 +794,7 @@ export type Database = {
           rating_count: number
           serves_alcohol: boolean
           source: string
+          source_id: string
         }[]
       }
       gettransactionid: { Args: never; Returns: unknown }
@@ -773,6 +841,7 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      purge_expired_yelp_cache: { Args: never; Returns: undefined }
       refresh_community_top_rated_v1: { Args: never; Returns: undefined }
       resolve_place_state: {
         Args: {
@@ -797,6 +866,7 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
+          external_id: string
           halal_status: string
           id: string
           lat: number
@@ -807,6 +877,7 @@ export type Database = {
           rating_count: number
           serves_alcohol: boolean
           source: string
+          source_id: string
         }[]
       }
       search_places_v2: {
@@ -816,6 +887,7 @@ export type Database = {
           apple_place_id: string
           category: string
           display_location: string
+          external_id: string
           halal_status: string
           id: string
           lat: number
@@ -826,6 +898,7 @@ export type Database = {
           rating_count: number
           serves_alcohol: boolean
           source: string
+          source_id: string
         }[]
       }
       show_limit: { Args: never; Returns: number }

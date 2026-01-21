@@ -77,6 +77,8 @@ struct CommunityTopRatedRecord: Decodable {
             rating_count: ratingCount,
             serves_alcohol: servesAlcohol,
             source: source,
+            source_id: nil,
+            external_id: nil,
             apple_place_id: applePlaceID,
             note: note,
             source_raw: sourceRaw

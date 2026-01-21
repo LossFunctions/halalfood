@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 import CoreLocation
 import MapKit
@@ -3260,7 +3261,7 @@ private struct TopRatedScreen: View {
                                 Button { onSelect(place) } label: {
                                     TopRatedRow(
                                         place: place,
-                                        yelpData: yelpData[place.id],
+                                        yelpData: validYelpData(for: place.id),
                                         rank: (sortOption == .community ? index + 1 : nil),
                                         showYelpRating: sortOption != .community
                                     )
@@ -3364,8 +3365,8 @@ private struct TopRatedScreen: View {
         guard !candidates.isEmpty else { return [] }
         if yelpData.isEmpty { return candidates }
         return candidates.sorted { lhs, rhs in
-            let lhsData = yelpData[lhs.id]
-            let rhsData = yelpData[rhs.id]
+            let lhsData = validYelpData(for: lhs.id)
+            let rhsData = validYelpData(for: rhs.id)
             let lhsRating = lhsData?.rating ?? -1
             let rhsRating = rhsData?.rating ?? -1
             if lhsRating != rhsRating { return lhsRating > rhsRating }
@@ -3374,6 +3375,11 @@ private struct TopRatedScreen: View {
             if lhsCount != rhsCount { return lhsCount > rhsCount }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
+    }
+
+    private func validYelpData(for id: UUID) -> YelpBusinessData? {
+        guard let data = yelpData[id], !data.isExpired else { return nil }
+        return data
     }
 
     private var yelpTaskKey: [UUID] {
@@ -3392,12 +3398,35 @@ private struct TopRatedScreen: View {
     private func loadYelpData(for places: [Place]) async {
         let candidates = places.filter { $0.isYelpBacked }
         guard !candidates.isEmpty else { return }
+        func refresh(_ place: Place) {
+            Task {
+                if let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(for: place, forceRefresh: true) {
+                    await MainActor.run {
+                        yelpData[place.id] = refreshed
+                    }
+                }
+            }
+        }
         for place in candidates {
             if Task.isCancelled { return }
-            if yelpData[place.id] != nil { continue }
+            if let existing = yelpData[place.id] {
+                if existing.isExpired {
+                    await MainActor.run {
+                        yelpData[place.id] = nil
+                    }
+                } else {
+                    if existing.isNearExpiry {
+                        refresh(place)
+                    }
+                    continue
+                }
+            }
             if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
                 await MainActor.run {
                     yelpData[place.id] = cached
+                }
+                if cached.isNearExpiry {
+                    refresh(place)
                 }
                 continue
             }
@@ -4559,6 +4588,275 @@ private struct TopRatedPhotoThumb: View {
     }
 }
 
+actor YelpDiskCache {
+    static let shared = YelpDiskCache()
+
+    private enum Constants {
+        static let directoryName = "hf-yelp-cache-v1"
+        static let indexFilename = "index.json"
+        static let version = 1
+        static let maxSizeBytes = 150 * 1024 * 1024
+    }
+
+    private enum EntryKind: String, Codable {
+        case business
+        case image
+    }
+
+    private struct CacheEntry: Codable {
+        let filename: String
+        var sizeBytes: Int
+        var expiresAt: Date
+        var lastAccess: Date
+        let kind: EntryKind
+    }
+
+    private struct CacheIndex: Codable {
+        let version: Int
+        var entries: [String: CacheEntry]
+    }
+
+    private let fileManager: FileManager
+    private let directoryURL: URL
+    private let indexURL: URL
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private var entries: [String: CacheEntry] = [:]
+    private var didLoadIndex = false
+    private var didRunMaintenance = false
+
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        directoryURL = cachesDirectory.appendingPathComponent(Constants.directoryName, isDirectory: true)
+        indexURL = directoryURL.appendingPathComponent(Constants.indexFilename)
+
+        encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        if !fileManager.fileExists(atPath: directoryURL.path) {
+            try? fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        }
+    }
+
+    func runMaintenanceIfNeeded() {
+        loadIndexIfNeeded()
+        guard !didRunMaintenance else { return }
+        didRunMaintenance = true
+        purgeExpiredEntries(now: Date())
+        removeMissingFiles()
+        trimIfNeeded()
+        persistIndex()
+    }
+
+    func cachedBusiness(for yelpID: String) -> YelpBusinessData? {
+        loadIndexIfNeeded()
+        let key = businessKey(yelpID)
+        guard var entry = entries[key], entry.kind == .business else { return nil }
+        let now = Date()
+        if entry.expiresAt <= now {
+            removeEntry(forKey: key, entry: entry)
+            persistIndex()
+            return nil
+        }
+        let url = directoryURL.appendingPathComponent(entry.filename)
+        guard let data = try? Data(contentsOf: url),
+              let cached = try? decoder.decode(YelpBusinessData.self, from: data) else {
+            removeEntry(forKey: key, entry: entry)
+            persistIndex()
+            return nil
+        }
+        let effectiveExpiresAt = min(entry.expiresAt, cached.effectiveExpiresAt)
+        if effectiveExpiresAt <= now {
+            removeEntry(forKey: key, entry: entry)
+            persistIndex()
+            return nil
+        }
+        entry.expiresAt = effectiveExpiresAt
+        entry.lastAccess = now
+        entries[key] = entry
+        persistIndex()
+        return cached
+    }
+
+    func storeBusiness(_ data: YelpBusinessData) {
+        loadIndexIfNeeded()
+        let key = businessKey(data.yelpID)
+        let expiresAt = data.effectiveExpiresAt
+        let now = Date()
+        if expiresAt <= now {
+            if let entry = entries[key] {
+                removeEntry(forKey: key, entry: entry)
+                persistIndex()
+            }
+            return
+        }
+        let filename = filename(for: key, kind: .business)
+        let url = directoryURL.appendingPathComponent(filename)
+        do {
+            let encoded = try encoder.encode(data)
+            try encoded.write(to: url, options: [.atomic])
+            let entry = CacheEntry(
+                filename: filename,
+                sizeBytes: encoded.count,
+                expiresAt: expiresAt,
+                lastAccess: now,
+                kind: .business
+            )
+            entries[key] = entry
+            trimIfNeeded()
+            persistIndex()
+        } catch {
+            // ignore
+        }
+    }
+
+    func cachedImageData(for url: URL) -> Data? {
+        loadIndexIfNeeded()
+        let key = imageKey(url)
+        guard var entry = entries[key], entry.kind == .image else { return nil }
+        let now = Date()
+        if entry.expiresAt <= now {
+            removeEntry(forKey: key, entry: entry)
+            persistIndex()
+            return nil
+        }
+        let fileURL = directoryURL.appendingPathComponent(entry.filename)
+        guard let data = try? Data(contentsOf: fileURL) else {
+            removeEntry(forKey: key, entry: entry)
+            persistIndex()
+            return nil
+        }
+        entry.lastAccess = now
+        entries[key] = entry
+        persistIndex()
+        return data
+    }
+
+    func storeImageData(_ data: Data, for url: URL, expiresAt: Date) {
+        loadIndexIfNeeded()
+        let key = imageKey(url)
+        let now = Date()
+        let maxExpiresAt = now.addingTimeInterval(YelpBusinessData.maxCacheAge)
+        let effectiveExpiresAt = min(expiresAt, maxExpiresAt)
+        if effectiveExpiresAt <= now {
+            if let entry = entries[key] {
+                removeEntry(forKey: key, entry: entry)
+                persistIndex()
+            }
+            return
+        }
+        let filename = filename(for: key, kind: .image)
+        let fileURL = directoryURL.appendingPathComponent(filename)
+        do {
+            try data.write(to: fileURL, options: [.atomic])
+            let entry = CacheEntry(
+                filename: filename,
+                sizeBytes: data.count,
+                expiresAt: effectiveExpiresAt,
+                lastAccess: now,
+                kind: .image
+            )
+            entries[key] = entry
+            trimIfNeeded()
+            persistIndex()
+        } catch {
+            // ignore
+        }
+    }
+
+    private func businessKey(_ yelpID: String) -> String {
+        "business:\(yelpID)"
+    }
+
+    private func imageKey(_ url: URL) -> String {
+        "image:\(url.absoluteString)"
+    }
+
+    private func filename(for key: String, kind: EntryKind) -> String {
+        let ext = kind == .business ? "json" : "img"
+        return hashedFilename(for: key, fileExtension: ext)
+    }
+
+    private func loadIndexIfNeeded() {
+        guard !didLoadIndex else { return }
+        didLoadIndex = true
+        guard fileManager.fileExists(atPath: indexURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: indexURL)
+            let index = try decoder.decode(CacheIndex.self, from: data)
+            guard index.version == Constants.version else {
+                resetCache()
+                return
+            }
+            entries = index.entries
+        } catch {
+            entries = [:]
+        }
+    }
+
+    private func resetCache() {
+        entries = [:]
+        try? fileManager.removeItem(at: directoryURL)
+        try? fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    }
+
+    private func persistIndex() {
+        let index = CacheIndex(version: Constants.version, entries: entries)
+        do {
+            let data = try encoder.encode(index)
+            try data.write(to: indexURL, options: [.atomic])
+        } catch {
+            // ignore
+        }
+    }
+
+    private func purgeExpiredEntries(now: Date) {
+        let expiredKeys = entries.filter { $0.value.expiresAt <= now }.map(\.key)
+        for key in expiredKeys {
+            if let entry = entries[key] {
+                removeEntry(forKey: key, entry: entry)
+            }
+        }
+    }
+
+    private func removeMissingFiles() {
+        let missingKeys = entries.filter { entry in
+            let url = directoryURL.appendingPathComponent(entry.value.filename)
+            return !fileManager.fileExists(atPath: url.path)
+        }.map(\.key)
+        for key in missingKeys {
+            entries.removeValue(forKey: key)
+        }
+    }
+
+    private func trimIfNeeded() {
+        var totalBytes = entries.values.reduce(0) { $0 + $1.sizeBytes }
+        guard totalBytes > Constants.maxSizeBytes else { return }
+        let sorted = entries.sorted { $0.value.lastAccess < $1.value.lastAccess }
+        for (key, entry) in sorted {
+            removeEntry(forKey: key, entry: entry)
+            totalBytes -= entry.sizeBytes
+            if totalBytes <= Constants.maxSizeBytes { break }
+        }
+    }
+
+    private func removeEntry(forKey key: String, entry: CacheEntry) {
+        let url = directoryURL.appendingPathComponent(entry.filename)
+        try? fileManager.removeItem(at: url)
+        entries.removeValue(forKey: key)
+    }
+
+    private func hashedFilename(for key: String, fileExtension: String) -> String {
+        let digest = SHA256.hash(data: Data(key.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "\(hex).\(fileExtension)"
+    }
+}
+
 private enum YelpImagePolicy {
     private static let yelpHost = "yelpcdn.com"
     private static let yelpSession: URLSession = {
@@ -4574,9 +4872,14 @@ private enum YelpImagePolicy {
 
     static func fetchData(from url: URL) async throws -> Data {
         if isYelpURL(url) {
+            if let cached = await YelpDiskCache.shared.cachedImageData(for: url) {
+                return cached
+            }
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             let (data, _) = try await yelpSession.data(for: request)
+            let expiresAt = Date().addingTimeInterval(YelpBusinessData.maxCacheAge)
+            await YelpDiskCache.shared.storeImageData(data, for: url, expiresAt: expiresAt)
             return data
         }
         let (data, _) = try await URLSession.shared.data(from: url)
@@ -4585,13 +4888,7 @@ private enum YelpImagePolicy {
 
     static func warm(_ url: URL) async {
         do {
-            if isYelpURL(url) {
-                var request = URLRequest(url: url)
-                request.cachePolicy = .reloadIgnoringLocalCacheData
-                _ = try await yelpSession.data(for: request)
-            } else {
-                _ = try await URLSession.shared.data(from: url)
-            }
+            _ = try await fetchData(from: url)
         } catch {
             // ignore
         }
@@ -4878,9 +5175,25 @@ struct CachedAsyncImage<Placeholder: View, Failure: View>: View {
 
 actor PlacePhotoCache {
     static let shared = PlacePhotoCache()
-    private var map: [UUID: [PlacePhoto]] = [:]
-    func get(_ id: UUID) -> [PlacePhoto]? { map[id] }
-    func set(_ id: UUID, photos: [PlacePhoto]) { map[id] = photos }
+    private struct Entry {
+        let photos: [PlacePhoto]
+        let expiresAt: Date?
+    }
+
+    private var map: [UUID: Entry] = [:]
+
+    func get(_ id: UUID) -> [PlacePhoto]? {
+        guard let entry = map[id] else { return nil }
+        if let expiresAt = entry.expiresAt, expiresAt <= Date() {
+            map[id] = nil
+            return nil
+        }
+        return entry.photos
+    }
+
+    func set(_ id: UUID, photos: [PlacePhoto], expiresAt: Date? = nil) {
+        map[id] = Entry(photos: photos, expiresAt: expiresAt)
+    }
 }
 
 private enum YelpBusinessCacheError: Error {
@@ -4895,30 +5208,68 @@ private actor YelpBusinessCache {
     private var inflight: [String: Task<YelpBusinessData, Error>] = [:]
     private var yelpIDByPlaceID: [UUID: String] = [:]
     private var idInflight: [UUID: Task<String?, Never>] = [:]
+    private var lastRefreshAttempt: [String: Date] = [:]
+    private let refreshThrottle: TimeInterval = 60 * 10
 
-    func cachedData(for place: Place) -> YelpBusinessData? {
-        if let yelpID = place.yelpID { return cache[yelpID] }
-        if let yelpID = yelpIDByPlaceID[place.id] { return cache[yelpID] }
+    func cachedData(for place: Place) async -> YelpBusinessData? {
+        guard let yelpID = place.yelpID ?? yelpIDByPlaceID[place.id] else { return nil }
+        if let cached = cache[yelpID] {
+            if cached.isExpired {
+                cache[yelpID] = nil
+            } else {
+                yelpIDByPlaceID[place.id] = yelpID
+                return cached
+            }
+        }
+        if let cached = await YelpDiskCache.shared.cachedBusiness(for: yelpID) {
+            cache[yelpID] = cached
+            yelpIDByPlaceID[place.id] = yelpID
+            return cached
+        }
         return nil
     }
 
-    func fetchBusiness(for place: Place) async throws -> YelpBusinessData {
+    func fetchBusiness(for place: Place, forceRefresh: Bool = false) async throws -> YelpBusinessData {
         guard place.isYelpBacked else { throw YelpBusinessCacheError.notYelpBacked }
         guard let yelpID = await resolveYelpID(for: place) else {
             throw YelpBusinessCacheError.missingYelpID
         }
-        return try await fetchBusiness(yelpID: yelpID, placeID: place.id)
+        return try await fetchBusiness(yelpID: yelpID, placeID: place.id, forceRefresh: forceRefresh)
     }
 
-    func fetchBusiness(yelpID: String, placeID: UUID? = nil) async throws -> YelpBusinessData {
-        if let cached = cache[yelpID] {
-            if let placeID { yelpIDByPlaceID[placeID] = yelpID }
-            return cached
+    func fetchBusiness(
+        yelpID: String,
+        placeID: UUID? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> YelpBusinessData {
+        if let placeID { yelpIDByPlaceID[placeID] = yelpID }
+
+        if !forceRefresh {
+            if let cached = cache[yelpID], !cached.isExpired {
+                return cached
+            }
+            if let cached = await YelpDiskCache.shared.cachedBusiness(for: yelpID) {
+                cache[yelpID] = cached
+                return cached
+            }
         }
+
         if let task = inflight[yelpID] {
             let data = try await task.value
             if let placeID { yelpIDByPlaceID[placeID] = yelpID }
             return data
+        }
+
+        if forceRefresh {
+            var cached = cache[yelpID]
+            if cached == nil {
+                cached = await YelpDiskCache.shared.cachedBusiness(for: yelpID)
+            }
+            if let cached, !cached.isExpired, shouldThrottleRefresh(for: yelpID) {
+                cache[yelpID] = cached
+                return cached
+            }
+            markRefreshAttempt(for: yelpID)
         }
 
         let task = Task { try await YelpAPI.fetchBusiness(yelpID: yelpID) }
@@ -4926,7 +5277,12 @@ private actor YelpBusinessCache {
         defer { inflight[yelpID] = nil }
 
         let data = try await task.value
-        cache[yelpID] = data
+        if !data.isExpired {
+            cache[yelpID] = data
+            await YelpDiskCache.shared.storeBusiness(data)
+        } else {
+            cache[yelpID] = nil
+        }
         if let placeID { yelpIDByPlaceID[placeID] = yelpID }
         return data
     }
@@ -4956,6 +5312,18 @@ private actor YelpBusinessCache {
             yelpIDByPlaceID[place.id] = id
         }
         return id
+    }
+
+    private func shouldThrottleRefresh(for yelpID: String) -> Bool {
+        if let last = lastRefreshAttempt[yelpID],
+           Date().timeIntervalSince(last) < refreshThrottle {
+            return true
+        }
+        return false
+    }
+
+    private func markRefreshAttempt(for yelpID: String) {
+        lastRefreshAttempt[yelpID] = Date()
     }
 }
 
@@ -5191,12 +5559,17 @@ private struct NewSpotsScreen: View {
     @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let primarySpotLimit = 6
 
+    private var validYelpData: [UUID: YelpBusinessData] {
+        Dictionary(uniqueKeysWithValues: yelpData.filter { !$0.value.isExpired })
+    }
+
     var body: some View {
         let spotlightEntry = spotlight
         // Include the hero in the list as well, per request
         let listEntries: [NewSpotEntry] = spots
         let primaryEntries = Array(listEntries.prefix(primarySpotLimit))
         let previousEntries = Array(listEntries.dropFirst(primarySpotLimit))
+        let availableYelpData = validYelpData
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if listEntries.isEmpty {
@@ -5209,14 +5582,14 @@ private struct NewSpotsScreen: View {
                         NewSpotsCard(
                             title: "New Trending Spots",
                             spots: primaryEntries,
-                            yelpData: yelpData,
+                            yelpData: availableYelpData,
                             onSelect: onSelect
                         )
                     }
                     if !previousEntries.isEmpty {
                         PreviouslyTrendingCard(
                             spots: previousEntries,
-                            yelpData: yelpData,
+                            yelpData: availableYelpData,
                             isExpanded: $isPreviouslyTrendingExpanded,
                             onSelect: onSelect
                         )
@@ -5230,7 +5603,7 @@ private struct NewSpotsScreen: View {
                             }
                             .foregroundStyle(Color.primary)
 
-                            NewSpotHero(entry: hero, yelpData: yelpData[hero.id], onSelect: onSelect)
+                            NewSpotHero(entry: hero, yelpData: availableYelpData[hero.id], onSelect: onSelect)
                             SpotlightSummary(entry: hero)
                         }
                     }
@@ -5253,12 +5626,35 @@ private struct NewSpotsScreen: View {
     private func loadYelpData(for entries: [NewSpotEntry]) async {
         let candidates = entries.map(\.place).filter { $0.isYelpBacked }
         guard !candidates.isEmpty else { return }
+        func refresh(_ place: Place) {
+            Task {
+                if let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(for: place, forceRefresh: true) {
+                    await MainActor.run {
+                        yelpData[place.id] = refreshed
+                    }
+                }
+            }
+        }
         for place in candidates {
             if Task.isCancelled { return }
-            if yelpData[place.id] != nil { continue }
+            if let existing = yelpData[place.id] {
+                if existing.isExpired {
+                    await MainActor.run {
+                        yelpData[place.id] = nil
+                    }
+                } else {
+                    if existing.isNearExpiry {
+                        refresh(place)
+                    }
+                    continue
+                }
+            }
             if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
                 await MainActor.run {
                     yelpData[place.id] = cached
+                }
+                if cached.isNearExpiry {
+                    refresh(place)
                 }
                 continue
             }
@@ -6752,9 +7148,16 @@ final class PlaceDetailViewModel: ObservableObject {
             return
         }
 
+        if let current = yelpData, current.isExpired {
+            yelpData = nil
+        }
+
         if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
             yelpData = cached
             yelpErrorMessage = nil
+            if cached.isNearExpiry {
+                refreshYelpData(for: place)
+            }
             return
         }
 
@@ -6768,6 +7171,36 @@ final class PlaceDetailViewModel: ObservableObject {
 #if DEBUG
             print("[YelpAPI] Failed to fetch Yelp data:", error)
 #endif
+        }
+    }
+
+    private func refreshYelpData(for place: Place) {
+        let placeID = place.id
+        Task { [weak self] in
+            guard let self else { return }
+            guard let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(
+                for: place,
+                forceRefresh: true
+            ) else { return }
+            let yelpPhotos = refreshed.photos.map { photo in
+                PlacePhoto(
+                    placeID: placeID,
+                    position: photo.position,
+                    url: photo.url,
+                    attribution: photo.attribution
+                )
+            }
+            await MainActor.run {
+                guard self.resolvedPlace?.id == placeID else { return }
+                self.yelpData = refreshed
+                self.yelpErrorMessage = nil
+                self.photos = yelpPhotos
+            }
+            await PlacePhotoCache.shared.set(
+                placeID,
+                photos: yelpPhotos,
+                expiresAt: refreshed.effectiveExpiresAt
+            )
         }
     }
 
@@ -6786,7 +7219,11 @@ final class PlaceDetailViewModel: ObservableObject {
                                    attribution: photo.attribution)
                     }
                     self.photos = yelpPhotos
-                    await PlacePhotoCache.shared.set(place.id, photos: yelpPhotos)
+                    await PlacePhotoCache.shared.set(
+                        place.id,
+                        photos: yelpPhotos,
+                        expiresAt: yelpData.effectiveExpiresAt
+                    )
                 } else if self.photos.isEmpty {
                     self.photos = []
                 }

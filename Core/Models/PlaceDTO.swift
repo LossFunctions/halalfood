@@ -13,6 +13,8 @@ struct PlaceDTO: Decodable, Identifiable {
     let rating_count: Int?
     let serves_alcohol: Bool?
     let source: String?
+    let source_id: String?
+    let external_id: String?
     let apple_place_id: String?
     let note: String?
     let source_raw: SourceRaw?
@@ -35,6 +37,8 @@ struct PlaceDTO: Decodable, Identifiable {
         case rating_count
         case serves_alcohol
         case source
+        case source_id
+        case external_id
         case apple_place_id
         case note
         case source_raw

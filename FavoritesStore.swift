@@ -13,6 +13,8 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
     var rating: Double?
     var ratingCount: Int?
     var source: String?
+    var sourceID: String?
+    var externalID: String?
     var applePlaceID: String?
     var savedAt: Date
 
@@ -34,6 +36,8 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
                   rating: Double?,
                   ratingCount: Int?,
                   source: String?,
+                  sourceID: String?,
+                  externalID: String?,
                   applePlaceID: String?) -> FavoritePlaceSnapshot {
         FavoritePlaceSnapshot(
             id: id,
@@ -46,6 +50,8 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
             rating: rating,
             ratingCount: ratingCount,
             source: source,
+            sourceID: sourceID,
+            externalID: externalID,
             applePlaceID: applePlaceID ?? place.applePlaceID,
             savedAt: savedAt
         )
@@ -80,6 +86,8 @@ final class FavoritesStore: ObservableObject {
                         rating: Double?,
                         ratingCount: Int?,
                         source: String?,
+                        sourceID: String?,
+                        externalID: String?,
                         applePlaceID: String?) {
         if favoriteIDs.contains(place.id) {
             removeFavorite(withId: place.id)
@@ -90,6 +98,8 @@ final class FavoritesStore: ObservableObject {
                         rating: rating,
                         ratingCount: ratingCount,
                         source: source,
+                        sourceID: sourceID,
+                        externalID: externalID,
                         applePlaceID: applePlaceID)
         }
     }
@@ -100,6 +110,8 @@ final class FavoritesStore: ObservableObject {
                                 rating: Double?,
                                 ratingCount: Int?,
                                 source: String?,
+                                sourceID: String?,
+                                externalID: String?,
                                 applePlaceID: String?) {
         guard let index = favorites.firstIndex(where: { $0.id == place.id }) else { return }
         favorites[index] = favorites[index].updating(from: place,
@@ -108,6 +120,8 @@ final class FavoritesStore: ObservableObject {
                                                      rating: rating,
                                                      ratingCount: ratingCount,
                                                      source: source,
+                                                     sourceID: sourceID,
+                                                     externalID: externalID,
                                                      applePlaceID: applePlaceID)
         persist()
     }
@@ -124,6 +138,8 @@ final class FavoritesStore: ObservableObject {
                              rating: Double?,
                              ratingCount: Int?,
                              source: String?,
+                             sourceID: String?,
+                             externalID: String?,
                              applePlaceID: String?) {
         let snapshot = FavoritePlaceSnapshot(
             id: place.id,
@@ -136,6 +152,8 @@ final class FavoritesStore: ObservableObject {
             rating: rating,
             ratingCount: ratingCount,
             source: source,
+            sourceID: sourceID,
+            externalID: externalID,
             applePlaceID: applePlaceID ?? place.applePlaceID,
             savedAt: Date()
         )
@@ -162,7 +180,11 @@ final class FavoritesStore: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let decoded = try decoder.decode([FavoritePlaceSnapshot].self, from: data)
-            favorites = decoded.sorted(by: recencySort)
+            let sanitized = decoded.map { $0.removingYelpRatings() }
+            favorites = sanitized.sorted(by: recencySort)
+            if decoded != sanitized {
+                persist()
+            }
         } catch {
 #if DEBUG
             print("[FavoritesStore] Failed to decode favorites:", error)
@@ -199,7 +221,33 @@ extension FavoritePlaceSnapshot {
             rating: rating,
             ratingCount: ratingCount,
             source: source,
+            sourceID: sourceID,
+            externalID: externalID,
             applePlaceID: applePlaceID
         )
+    }
+}
+
+extension FavoritePlaceSnapshot {
+    var isYelpBacked: Bool {
+        if let source, source.lowercased().contains("yelp") { return true }
+        if let externalID, externalID.lowercased().hasPrefix("yelp:") { return true }
+        return false
+    }
+
+    func removingYelpRatings() -> FavoritePlaceSnapshot {
+        guard isYelpBacked else { return self }
+        var copy = self
+        copy.rating = nil
+        copy.ratingCount = nil
+        return copy
+    }
+
+    var displayRating: Double? {
+        isYelpBacked ? nil : rating
+    }
+
+    var displayRatingCount: Int? {
+        isYelpBacked ? nil : ratingCount
     }
 }

@@ -9,16 +9,17 @@ import SwiftUI
 
 @main
 struct HalalFoodApp: App {
-#if DEBUG
     init() {
+        Task {
+            await YelpDiskCache.shared.runMaintenanceIfNeeded()
+        }
+#if DEBUG
         AppPerformanceTracker.shared.begin(.appLaunch, metadata: "App init")
 #if canImport(MetricKit)
         PerformanceMetricObserver.shared.start()
 #endif
-    }
-#else
-    init() {}
 #endif
+    }
 
     var body: some Scene {
         WindowGroup {

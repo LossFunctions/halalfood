@@ -7,3 +7,6 @@ supabase/.temp/
 supabase/.branches/
 SupabaseKeys.plist
 HalalFood.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Yelp datasets (generated locally; do not commit)
+HalalFood/data/yelp_*
