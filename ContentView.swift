@@ -1483,10 +1483,14 @@ struct ContentView: View {
             startInitialPinsLoaderIfNeeded()
             DispatchQueue.main.async {
                 viewModel.initialLoad(region: mapRegion, filter: selectedFilter)
-                // Preload global dataset so New Spots can resolve specific place IDs immediately
-                viewModel.ensureGlobalDataset()
-                preloadNewSpotDetailsIfNeeded()
+                // Pins are the fastest "time to usefulness" on first launch.
                 pinsStore.refreshIfNeeded()
+                preloadNewSpotDetailsIfNeeded()
+                // Defer the full global dataset fetch so it doesn't compete with initial pins load.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    viewModel.ensureGlobalDataset()
+                }
                 locationManager.requestAuthorizationIfNeeded()
                 if let existingLocation = locationManager.lastKnownLocation {
                     centerMap(on: existingLocation, markCentered: false)
@@ -3398,6 +3402,11 @@ private struct TopRatedScreen: View {
     private func loadYelpData(for places: [Place]) async {
         let candidates = places.filter { $0.isYelpBacked }
         guard !candidates.isEmpty else { return }
+        let maxConcurrent = 4
+        let priorityCount = min(10, candidates.count)
+        let priority = Array(candidates.prefix(priorityCount))
+        let remaining = Array(candidates.dropFirst(priorityCount))
+
         func refresh(_ place: Place) {
             Task {
                 if let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(for: place, forceRefresh: true) {
@@ -3407,9 +3416,11 @@ private struct TopRatedScreen: View {
                 }
             }
         }
-        for place in candidates {
+
+        func resolve(_ place: Place) async {
             if Task.isCancelled { return }
-            if let existing = yelpData[place.id] {
+
+            if let existing = await MainActor.run(body: { yelpData[place.id] }) {
                 if existing.isExpired {
                     await MainActor.run {
                         yelpData[place.id] = nil
@@ -3418,9 +3429,10 @@ private struct TopRatedScreen: View {
                     if existing.isNearExpiry {
                         refresh(place)
                     }
-                    continue
+                    return
                 }
             }
+
             if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
                 await MainActor.run {
                     yelpData[place.id] = cached
@@ -3428,8 +3440,9 @@ private struct TopRatedScreen: View {
                 if cached.isNearExpiry {
                     refresh(place)
                 }
-                continue
+                return
             }
+
             do {
                 let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
                 await MainActor.run {
@@ -3437,6 +3450,27 @@ private struct TopRatedScreen: View {
                 }
             } catch {
                 // ignore list failures
+            }
+        }
+
+        for place in priority {
+            await resolve(place)
+        }
+
+        guard !remaining.isEmpty else { return }
+
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = remaining.makeIterator()
+            for _ in 0..<maxConcurrent {
+                guard let next = iterator.next() else { break }
+                group.addTask { await resolve(next) }
+            }
+
+            while await group.next() != nil {
+                if Task.isCancelled { break }
+                if let next = iterator.next() {
+                    group.addTask { await resolve(next) }
+                }
             }
         }
     }
@@ -5615,17 +5649,35 @@ private struct NewSpotsScreen: View {
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .task(id: yelpTaskKey) {
-            await loadYelpData(for: spots)
+            await loadYelpData(for: yelpLoadPlaces)
         }
     }
 
     private var yelpTaskKey: [UUID] {
-        spots.map(\.id)
+        yelpLoadPlaces.map(\.id)
     }
 
-    private func loadYelpData(for entries: [NewSpotEntry]) async {
-        let candidates = entries.map(\.place).filter { $0.isYelpBacked }
+    private var yelpLoadPlaces: [Place] {
+        var candidates = Array(spots.prefix(primarySpotLimit)).map(\.place)
+        if let spotlight {
+            candidates.append(spotlight.place)
+        }
+        if isPreviouslyTrendingExpanded {
+            candidates.append(contentsOf: spots.dropFirst(primarySpotLimit).map(\.place))
+        }
+        var seen = Set<UUID>()
+        return candidates.filter { seen.insert($0.id).inserted }
+    }
+
+    private func loadYelpData(for places: [Place]) async {
+        let candidates = places.filter { $0.isYelpBacked }
         guard !candidates.isEmpty else { return }
+
+        let maxConcurrent = 4
+        let priorityCount = min(6, candidates.count)
+        let priority = Array(candidates.prefix(priorityCount))
+        let remaining = Array(candidates.dropFirst(priorityCount))
+
         func refresh(_ place: Place) {
             Task {
                 if let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(for: place, forceRefresh: true) {
@@ -5635,9 +5687,11 @@ private struct NewSpotsScreen: View {
                 }
             }
         }
-        for place in candidates {
+
+        func resolve(_ place: Place) async {
             if Task.isCancelled { return }
-            if let existing = yelpData[place.id] {
+
+            if let existing = await MainActor.run(body: { yelpData[place.id] }) {
                 if existing.isExpired {
                     await MainActor.run {
                         yelpData[place.id] = nil
@@ -5646,9 +5700,10 @@ private struct NewSpotsScreen: View {
                     if existing.isNearExpiry {
                         refresh(place)
                     }
-                    continue
+                    return
                 }
             }
+
             if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
                 await MainActor.run {
                     yelpData[place.id] = cached
@@ -5656,8 +5711,9 @@ private struct NewSpotsScreen: View {
                 if cached.isNearExpiry {
                     refresh(place)
                 }
-                continue
+                return
             }
+
             do {
                 let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
                 await MainActor.run {
@@ -5665,6 +5721,27 @@ private struct NewSpotsScreen: View {
                 }
             } catch {
                 // ignore list failures
+            }
+        }
+
+        for place in priority {
+            await resolve(place)
+        }
+
+        guard !remaining.isEmpty else { return }
+
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = remaining.makeIterator()
+            for _ in 0..<maxConcurrent {
+                guard let next = iterator.next() else { break }
+                group.addTask { await resolve(next) }
+            }
+
+            while await group.next() != nil {
+                if Task.isCancelled { break }
+                if let next = iterator.next() {
+                    group.addTask { await resolve(next) }
+                }
             }
         }
     }

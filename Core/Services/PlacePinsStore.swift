@@ -34,7 +34,7 @@ final class PlacePinsStore: ObservableObject {
 
     func refresh() {
         refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
+        refreshTask = Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             isRefreshing = true
             lastError = nil
