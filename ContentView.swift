@@ -753,6 +753,8 @@ struct ContentView: View {
     @State private var refinedPlacesCacheVersion: Int = 0
     @State private var visiblePins: [PlacePin] = []
     @State private var viewportCache = ViewportCache()
+    @State private var topRatedYelpDataCache: [UUID: YelpBusinessData] = [:]
+    @State private var topRatedYelpOrderCache: [String: [UUID]] = [:]
     @State private var searchDebounceTask: DispatchWorkItem?
     @State private var pinSelectionTask: Task<Void, Never>?
     @State private var newSpotFetchTask: Task<Void, Never>?
@@ -787,6 +789,10 @@ struct ContentView: View {
         let shouldShowInitial = !didLoadOnce && !hasCachedPins
         _showInitialPinsLoader = State(initialValue: shouldShowInitial)
         _initialPinsProgress = State(initialValue: shouldShowInitial ? 0.05 : 1.0)
+    }
+
+    private var topRatedYelpOrderKey: String {
+        "yelp:\(topRatedRegion.rawValue)"
     }
 
     private let newSpotConfigs: [NewSpotConfig] = [
@@ -1867,6 +1873,9 @@ struct ContentView: View {
                         places: topRatedDisplay,
                         sortOption: topRatedSort,
                         region: topRatedRegion,
+                        yelpData: $topRatedYelpDataCache,
+                        cachedYelpOrder: topRatedYelpOrderCache[topRatedYelpOrderKey],
+                        onYelpOrderChange: { topRatedYelpOrderCache[topRatedYelpOrderKey] = $0 },
                         topInset: currentTopSafeAreaInset(),
                         bottomInset: currentBottomSafeAreaInset(),
                         isCommunityLoading: topRatedSort == .community
@@ -3169,6 +3178,9 @@ private struct TopRatedScreen: View {
     let places: [Place]
     let sortOption: TopRatedSortOption
     let region: TopRatedRegion
+    @Binding var yelpData: [UUID: YelpBusinessData]
+    let cachedYelpOrder: [UUID]?
+    let onYelpOrderChange: ([UUID]) -> Void
     let topInset: CGFloat
     let bottomInset: CGFloat
     let isCommunityLoading: Bool
@@ -3178,7 +3190,8 @@ private struct TopRatedScreen: View {
 
     private let detailColor = Color.primary.opacity(0.65)
     @State private var communityVisibleLimit: Int = 20
-    @State private var yelpData: [UUID: YelpBusinessData] = [:]
+    @State private var yelpOrderedIDs: [UUID] = []
+    @State private var didFinalizeYelpOrder = false
     private let communityPageSize: Int = 20
 
     var body: some View {
@@ -3324,6 +3337,10 @@ private struct TopRatedScreen: View {
                 communityVisibleLimit = communityPageSize
             }
         }
+        .onChange(of: yelpTaskKey) { _ in
+            didFinalizeYelpOrder = false
+            yelpOrderedIDs = resolvedInitialYelpOrder()
+        }
         .onChange(of: region) { _ in
             communityVisibleLimit = communityPageSize
         }
@@ -3333,6 +3350,8 @@ private struct TopRatedScreen: View {
             }
         }
         .task(id: yelpTaskKey) {
+            didFinalizeYelpOrder = false
+            yelpOrderedIDs = resolvedInitialYelpOrder()
             await loadYelpData(for: yelpLoadPlaces)
         }
     }
@@ -3367,16 +3386,13 @@ private struct TopRatedScreen: View {
     private var yelpSortedPlaces: [Place] {
         let candidates = places.filter { $0.isYelpBacked }
         guard !candidates.isEmpty else { return [] }
-        if yelpData.isEmpty { return candidates }
+        let order = resolvedYelpOrder(for: candidates)
+        guard !order.isEmpty else { return candidates }
+        let rank: [UUID: Int] = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
         return candidates.sorted { lhs, rhs in
-            let lhsData = validYelpData(for: lhs.id)
-            let rhsData = validYelpData(for: rhs.id)
-            let lhsRating = lhsData?.rating ?? -1
-            let rhsRating = rhsData?.rating ?? -1
-            if lhsRating != rhsRating { return lhsRating > rhsRating }
-            let lhsCount = lhsData?.reviewCount ?? 0
-            let rhsCount = rhsData?.reviewCount ?? 0
-            if lhsCount != rhsCount { return lhsCount > rhsCount }
+            let lhsRank = rank[lhs.id] ?? Int.max
+            let rhsRank = rank[rhs.id] ?? Int.max
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
@@ -3384,6 +3400,49 @@ private struct TopRatedScreen: View {
     private func validYelpData(for id: UUID) -> YelpBusinessData? {
         guard let data = yelpData[id], !data.isExpired else { return nil }
         return data
+    }
+
+    private func resolvedInitialYelpOrder() -> [UUID] {
+        let candidateIDs = Set(places.filter(\.isYelpBacked).map(\.id))
+        if let cachedYelpOrder {
+            let filtered = cachedYelpOrder.filter { candidateIDs.contains($0) }
+            if !filtered.isEmpty { return filtered }
+        }
+        return places.filter(\.isYelpBacked).map(\.id)
+    }
+
+    private func resolvedYelpOrder(for candidates: [Place]) -> [UUID] {
+        let candidateIDs = Set(candidates.map(\.id))
+        if !yelpOrderedIDs.isEmpty {
+            let filtered = yelpOrderedIDs.filter { candidateIDs.contains($0) }
+            if !filtered.isEmpty { return filtered }
+        }
+        return computeYelpSortOrder(for: candidates)
+    }
+
+    private func computeYelpSortOrder(for candidates: [Place]) -> [UUID] {
+        let scored: [(id: UUID, name: String, rating: Double, count: Int)] = candidates.map { place in
+            let data = validYelpData(for: place.id)
+            let rating = data?.rating ?? -1
+            let count = data?.reviewCount ?? 0
+            return (place.id, place.name, rating, count)
+        }
+        let sorted = scored.sorted { lhs, rhs in
+            if lhs.rating != rhs.rating { return lhs.rating > rhs.rating }
+            if lhs.count != rhs.count { return lhs.count > rhs.count }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        return sorted.map(\.id)
+    }
+
+    private func finalizeYelpOrderIfNeeded(for candidates: [Place]) {
+        guard sortOption == .yelp else { return }
+        guard !didFinalizeYelpOrder else { return }
+        let order = computeYelpSortOrder(for: candidates)
+        guard !order.isEmpty else { return }
+        didFinalizeYelpOrder = true
+        yelpOrderedIDs = order
+        onYelpOrderChange(order)
     }
 
     private var yelpTaskKey: [UUID] {
@@ -3457,6 +3516,9 @@ private struct TopRatedScreen: View {
 
         for place in priority {
             await resolve(place)
+        }
+        await MainActor.run {
+            finalizeYelpOrderIfNeeded(for: candidates)
         }
 
         guard !remaining.isEmpty else { return }
