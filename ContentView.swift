@@ -7467,6 +7467,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private let persistDebounceNanoseconds: UInt64 = 1_500_000_000
     private let diskSnapshotStalenessInterval: TimeInterval = 60 * 60 * 6
     private var globalDatasetETag: String?
+    private var yelpCandidateCacheSignature: Int?
+    private var yelpCandidatesAllCache: [Place] = []
 
     func place(with id: UUID) -> Place? {
         if let match = places.first(where: { $0.id == id }) { return match }
@@ -8301,24 +8303,33 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     }
 
     fileprivate func yelpCandidatePlaces(limit: Int = 60, region: TopRatedRegion = .all) -> [Place] {
-        let source: [Place]
-        if !globalDataset.isEmpty {
-            source = globalDataset
+        ensureYelpCandidateCacheIfNeeded()
+        let base = yelpCandidatesAllCache
+        let filtered: [Place]
+        if region == .all {
+            filtered = base
         } else {
-            source = allPlaces
+            filtered = base.filter { CommunityRegionClassifier.matches($0, region: region) }
         }
+        if filtered.count <= limit { return filtered }
+        return Array(filtered.prefix(limit))
+    }
 
-        let filtered = source.filter { place in
-            guard place.isYelpBacked else { return false }
-            if region != .all {
-                return CommunityRegionClassifier.matches(place, region: region)
-            }
-            return true
-        }
+    private func ensureYelpCandidateCacheIfNeeded() {
+        let signature = currentYelpCandidateCacheSignature()
+        guard yelpCandidateCacheSignature != signature else { return }
+        yelpCandidateCacheSignature = signature
 
-        let deduped = PlaceOverrides.deduplicate(filtered)
-        if deduped.count <= limit { return deduped }
-        return Array(deduped.prefix(limit))
+        let source = globalDataset.isEmpty ? allPlaces : globalDataset
+        let yelpBacked = source.filter { $0.isYelpBacked }
+        yelpCandidatesAllCache = PlaceOverrides.deduplicate(yelpBacked)
+    }
+
+    private func currentYelpCandidateCacheSignature() -> Int {
+        var value = globalDatasetVersion &+ filteredPlacesVersion
+        value = value &+ (globalDataset.count &* 31)
+        value = value &+ (allPlaces.count &* 17)
+        return value
     }
 
     func curatedPlaces(matching tokens: Set<String>) -> [Place] {
