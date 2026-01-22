@@ -3393,9 +3393,11 @@ private struct TopRatedScreen: View {
     private var yelpLoadPlaces: [Place] {
         switch sortOption {
         case .community:
-            return Array(displayPlaces.prefix(communityVisibleLimit))
+            return Array(places.prefix(communityVisibleLimit))
         case .yelp:
-            return displayPlaces
+            // Important: keep the task key stable. `displayPlaces` depends on `yelpData` (sorting),
+            // which would otherwise cause repeated reloads as `yelpData` updates.
+            return places
         }
     }
 
