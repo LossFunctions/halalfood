@@ -880,7 +880,7 @@ struct ContentView: View {
         ),
         NewSpotConfig(
             placeID: UUID(uuidString: "5765d9f5-527d-400a-b13d-6a63fbe6d707")!,
-            image: .remote(URL(string: "https://static-content.owner.com/funnel/images/5e65b52e-ece7-4a91-9e0a-d45a5913d7bf?v=2034024929&w=1600&q=80&auto=format")!),
+            image: .asset("FinalAppImage"),
             photoDescription: "Steiny B’s halal smashburger spread",
             displayLocation: "Flatbush, Brooklyn",
             cuisine: "Burgers",
@@ -1405,6 +1405,8 @@ struct ContentView: View {
             return applyingOverrides(to: favoritesDisplay.map { resolvedPlace(for: $0) })
         case .topRated:
             return applyingOverrides(to: topRatedDisplay)
+        case .more:
+            return []
         default:
             return applyingOverrides(to: visiblePlaces)
         }
@@ -1414,6 +1416,8 @@ struct ContentView: View {
         switch bottomTab {
         case .favorites, .topRated, .newSpots:
             return mapPlaces.map(PlacePin.init(place:))
+        case .more:
+            return []
         default:
             if isRefinedFilterActive {
                 if shouldFetchDetails(for: mapRegion) {
@@ -1429,9 +1433,17 @@ struct ContentView: View {
         switch bottomTab {
         case .favorites, .topRated:
             return []
+        case .more:
+            return []
         default:
             return appleOverlayItems
         }
+    }
+
+    private var isUserOutsideCoverage: Bool {
+        guard let location = locationManager.lastKnownLocation else { return false }
+        let coord = location.coordinate
+        return !RegionGate.allows(lat: coord.latitude, lon: coord.longitude)
     }
 
 
@@ -1745,6 +1757,10 @@ struct ContentView: View {
                     )
                 }
 #endif
+            case .more:
+                selectedApplePlace = nil
+                selectedPlace = nil
+                isSearchOverlayPresented = false
             default:
                 break
             }
@@ -1809,6 +1825,11 @@ struct ContentView: View {
                     }
                 )
                 .environmentObject(favoritesStore)
+            } else if bottomTab == .more {
+                MoreScreen(
+                    isUserOutsideCoverage: isUserOutsideCoverage,
+                    onSwitchToMap: { bottomTab = .places }
+                )
             } else {
                 MapTabContainer(
                     mapRegion: $mapRegion,
@@ -1867,6 +1888,14 @@ struct ContentView: View {
                 }
                 .padding(.top, 16)
                 .padding(.horizontal, 16)
+                .overlay(alignment: .top) {
+                    if isUserOutsideCoverage {
+                        CoverageBannerView(onLearnMore: { bottomTab = .more })
+                            .padding(.top, 64)
+                            .padding(.horizontal, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
 
                 if bottomTab == .topRated {
                     TopRatedScreen(
@@ -1893,7 +1922,7 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if bottomTab != .topRated && bottomTab != .newSpots {
+            if bottomTab == .places || bottomTab == .favorites {
                 locateMeButton
                     .padding(.top, locateButtonTopPadding)
                     .padding(.trailing, 16)
@@ -2057,6 +2086,7 @@ struct ContentView: View {
         case topRated
         case newSpots
         case favorites
+        case more
 
         var id: Self { self }
 
@@ -2066,6 +2096,7 @@ struct ContentView: View {
             case .topRated: return "Top Rated"
             case .newSpots: return "New Spots"
             case .favorites: return "Favorites"
+            case .more: return "More"
             }
         }
 
@@ -2075,6 +2106,300 @@ struct ContentView: View {
             case .topRated: return "star.fill"
             case .newSpots: return "mappin.and.ellipse" // distinct; suggests new pins/places
             case .favorites: return "heart.fill"
+            case .more: return "ellipsis.circle"
+            }
+        }
+
+        var contentOffsetX: CGFloat {
+            switch self {
+            case .topRated:
+                return -3
+            case .favorites:
+                return 3
+            case .places, .newSpots, .more:
+                return 0
+            }
+        }
+
+        // Optical offsets to center SF Symbols within a uniform icon box.
+        var iconOffset: CGSize {
+            let minorOffset = CGSize(width: 0.12, height: -0.12)
+            switch self {
+            case .places:
+                return CGSize(width: 0.3, height: 0.12)
+            case .topRated:
+                return minorOffset
+            case .newSpots:
+                return CGSize(width: 0.5, height: 0.88)
+            case .favorites:
+                return CGSize(width: 0.12, height: 0.25)
+            case .more:
+                return CGSize(width: 0.06, height: 0.06)
+            }
+        }
+    }
+
+    private struct CoverageBannerView: View {
+        let onLearnMore: () -> Void
+
+        var body: some View {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Currently available in NYC + Long Island")
+                        .font(.subheadline.weight(.semibold))
+                    Text("If you're outside NY, you can still explore NYC/LI on the map.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Button("More") { onLearnMore() }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.bordered)
+            }
+            .padding(12)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 6)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Currently available in NYC and Long Island. Tap More for details.")
+        }
+    }
+
+    private struct MoreScreen: View {
+        let isUserOutsideCoverage: Bool
+        let onSwitchToMap: () -> Void
+
+        @Environment(\.openURL) private var openURL
+        @State private var isShowingAbout = false
+
+        var body: some View {
+            NavigationStack {
+                List {
+                    Section("Coverage") {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "mappin.and.ellipse")
+                                .foregroundStyle(Color.accentColor)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("NYC + Long Island")
+                                    .font(.subheadline.weight(.semibold))
+                                Text(isUserOutsideCoverage
+                                     ? "You're currently outside the coverage area."
+                                     : "You're in the current coverage area.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Button("About this app") { isShowingAbout = true }
+                        Button("Go to Map") { onSwitchToMap() }
+                    }
+
+                    Section("Privacy") {
+                        if let privacyURL = privacyPolicyURL {
+                            Link("Privacy Policy", destination: privacyURL)
+                        } else {
+                            NavigationLink("Privacy Policy") {
+                                PrivacyPolicyView()
+                            }
+                        }
+                    }
+
+                    Section("Support & Feedback") {
+                        if let supportURL = supportURL {
+                            Link("Support", destination: supportURL)
+                        }
+
+                        NavigationLink("Submit feedback / suggest a place") {
+                            FeedbackFormView()
+                        }
+
+                        Button("Open iOS Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(url)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("More")
+                .sheet(isPresented: $isShowingAbout) {
+                    AboutSheetView()
+                }
+            }
+        }
+
+        private var privacyPolicyURL: URL? {
+            infoURL(for: "PRIVACY_POLICY_URL")
+        }
+
+        private var supportURL: URL? {
+            infoURL(for: "SUPPORT_URL")
+        }
+
+        private func infoURL(for key: String) -> URL? {
+            let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String
+            let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty else { return nil }
+            return URL(string: trimmed)
+        }
+    }
+
+    private struct AboutSheetView: View {
+        @Environment(\.dismiss) private var dismiss
+
+        var body: some View {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Coverage")
+                            .font(.headline)
+                        Text("This version is currently focused on NYC + Long Island.")
+                            .foregroundStyle(.secondary)
+
+                        Text("Data sources")
+                            .font(.headline)
+                        Text("Halal status comes from our curated dataset. Apple Maps details are loaded live at runtime; only identifiers may be cached.")
+                            .foregroundStyle(.secondary)
+
+                        Text("Disclaimer")
+                            .font(.headline)
+                        Text("Halal information is best-effort and can change. Please confirm with the restaurant if you have strict requirements.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(18)
+                }
+                .navigationTitle("About")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+            }
+        }
+    }
+
+    private struct PrivacyPolicyView: View {
+        var body: some View {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Privacy Policy")
+                        .font(.title3.weight(.semibold))
+
+                    Text("Last updated: 2026-01-23")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Group {
+                        Text("What we collect")
+                            .font(.headline)
+                        Text("• Location (optional): used to show nearby halal restaurants.\n• Search text: used to find matching places.\n• Favorites: stored on your device.")
+                            .foregroundStyle(.secondary)
+
+                        Text("How we use it")
+                            .font(.headline)
+                        Text("We use this data to power map search, nearby results, and app functionality.")
+                            .foregroundStyle(.secondary)
+
+                        Text("Sharing")
+                            .font(.headline)
+                        Text("Map/search requests are sent to our backend (Supabase) to fetch place data. Yelp details (ratings/photos) are fetched via our backend proxy.")
+                            .foregroundStyle(.secondary)
+
+                        Text("Tracking")
+                            .font(.headline)
+                        Text("We do not use data for cross-app tracking and do not request App Tracking Transparency permission.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.body)
+                }
+                .padding(18)
+            }
+            .navigationTitle("Privacy Policy")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private struct FeedbackFormView: View {
+        @Environment(\.openURL) private var openURL
+
+        @State private var placeName = ""
+        @State private var message = ""
+        @State private var includeContact = true
+        @State private var contact = ""
+        private let messagePlaceholder =
+            "Let us know if there's a restaurant we should add to our map, " +
+            "if something isn't halal, or any feedback!"
+
+        var body: some View {
+            Form {
+                Section("Restaurant (optional)") {
+                    TextField("Restaurant name", text: $placeName)
+                        .textInputAutocapitalization(.words)
+                }
+
+                Section("Message") {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $message)
+                            .frame(minHeight: 140)
+                        if message.isEmpty {
+                            Text(messagePlaceholder)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .padding(.trailing, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                }
+
+                Section("Your contact (optional)") {
+                    Toggle("Include my contact info", isOn: $includeContact)
+                    if includeContact {
+                        TextField("Email or @handle", text: $contact)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                    }
+                }
+
+                Button("Send") {
+                    sendEmailFallback()
+                }
+            }
+            .navigationTitle("Feedback")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+
+        private func sendEmailFallback() {
+            let to = (Bundle.main.object(forInfoDictionaryKey: "SUPPORT_EMAIL") as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedTo = (to?.isEmpty == false) ? to! : "support@example.com"
+
+            let subject = "HalalFood feedback"
+            var body = ""
+            if !placeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                body += "Restaurant: \(placeName)\n\n"
+            }
+            body += message.trimmingCharacters(in: .whitespacesAndNewlines)
+            if includeContact, !contact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                body += "\n\nContact: \(contact)"
+            }
+
+            let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
+            let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? body
+            if let url = URL(string: "mailto:\(resolvedTo)?subject=\(encodedSubject)&body=\(encodedBody)") {
+                openURL(url)
             }
         }
     }
@@ -2083,22 +2408,36 @@ struct ContentView: View {
         // Off‑white bar; keep original height but visually center content by nudging it down.
         let barHeight = max(52, currentScreenHeight() / 20)
         let safe = currentBottomSafeAreaInset()
-        let contentOffset = CGFloat(min(12, max(4, safe * 0.22)))
+        let contentOffset = CGFloat(min(14, max(6, safe * 0.28)))
+        let iconPointSize: CGFloat = 20
+        let iconBoxSize: CGFloat = 24
+        let horizontalInset: CGFloat = 12
+        let interTabSpacing: CGFloat = 6
         return VStack(spacing: 0) {
             Divider().background(Color.black.opacity(0.06))
-            HStack(spacing: 0) {
+            HStack(spacing: interTabSpacing) {
                 ForEach(BottomTab.allCases) { tab in
                     Button {
                         bottomTab = tab
                     } label: {
                         VStack(spacing: 6) {
                             Image(systemName: tab.systemImage)
-                                .font(.system(size: 20, weight: .semibold))
+                                .resizable()
+                                .scaledToFit()
+                                .font(.system(size: iconPointSize, weight: .semibold))
+                                .frame(width: iconBoxSize, height: iconBoxSize)
+                                .offset(x: tab.iconOffset.width, y: tab.iconOffset.height)
                             Text(tab.title)
                                 .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                                .allowsTightening(true)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .offset(y: contentOffset) // nudge content lower without changing bar height
+                        .offset(
+                            x: tab.contentOffsetX,
+                            y: contentOffset
+                        ) // nudge content without changing bar height
                         .foregroundStyle(bottomTab == tab ? Color.accentColor : Color.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -2106,7 +2445,7 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, horizontalInset)
             .frame(height: barHeight)
             .background(Color(.secondarySystemGroupedBackground))
         }

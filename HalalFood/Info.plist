@@ -58,7 +58,13 @@
 		</dict>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to show nearby halal restaurants and mosques.</string>
+	<string>We use your location to show nearby halal restaurants.</string>
+	<key>PRIVACY_POLICY_URL</key>
+	<string></string>
+	<key>SUPPORT_EMAIL</key>
+	<string>umayr.hussaini@gmail.com</string>
+	<key>SUPPORT_URL</key>
+	<string></string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>sb_publishable__rjCXa7al5-CojTFNkcauQ_r9rSVtl9</string>
 	<key>SUPABASE_URL</key>
