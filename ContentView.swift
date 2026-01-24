@@ -1929,8 +1929,14 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            bottomOverlay
+            if shouldShowBottomOverlay {
+                bottomOverlay
+            }
         }
+    }
+
+    private var shouldShowBottomOverlay: Bool {
+        !(bottomTab == .more && keyboardHeight > 0)
     }
 
     private var filterBarItems: [MapFilterBarItem] {
@@ -2336,7 +2342,6 @@ struct ContentView: View {
 
         @State private var placeName = ""
         @State private var message = ""
-        @State private var includeContact = true
         @State private var contact = ""
         private let messagePlaceholder =
             "Let us know if there's a restaurant we should add to our map, " +
@@ -2355,7 +2360,7 @@ struct ContentView: View {
                             .frame(minHeight: 140)
                         if message.isEmpty {
                             Text(messagePlaceholder)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color(UIColor.placeholderText))
                                 .padding(.top, 8)
                                 .padding(.leading, 5)
                                 .padding(.trailing, 5)
@@ -2365,12 +2370,9 @@ struct ContentView: View {
                 }
 
                 Section("Your contact (optional)") {
-                    Toggle("Include my contact info", isOn: $includeContact)
-                    if includeContact {
-                        TextField("Email or @handle", text: $contact)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.emailAddress)
-                    }
+                    TextField("Email or @handle", text: $contact)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
                 }
 
                 Button("Send") {
@@ -2392,7 +2394,7 @@ struct ContentView: View {
                 body += "Restaurant: \(placeName)\n\n"
             }
             body += message.trimmingCharacters(in: .whitespacesAndNewlines)
-            if includeContact, !contact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if !contact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 body += "\n\nContact: \(contact)"
             }
 
@@ -2496,6 +2498,7 @@ struct ContentView: View {
         .padding(.bottom, bottomOverlayPadding)
         .frame(maxWidth: .infinity)
         .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.easeInOut(duration: 0.2), value: bottomTab)
         .animation(.easeInOut(duration: 0.2), value: isFavoritesPanelCollapsed)
     }
