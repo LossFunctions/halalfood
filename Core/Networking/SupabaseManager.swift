@@ -27,6 +27,14 @@ enum Env {
         return resolved
     }
 
+    static var googleMapsAPIKey: String? {
+        if let cached = cachedGoogleMapsAPIKey { return cached }
+        let resolved = resolveStringValue(infoKey: "GOOGLE_MAPS_API_KEY", envKey: "google_maps_api_key")
+            ?? resolveStringValue(infoKey: "GOOGLE_MAPS_API_KEY", envKey: "GOOGLE_MAPS_API_KEY")
+        cachedGoogleMapsAPIKey = resolved
+        return resolved
+    }
+
     static func optionalURL() -> URL? {
         if let cached = cachedURL { return cached }
         guard let string = resolvedURLString(), let url = URL(string: string) else { return nil }
@@ -44,6 +52,7 @@ enum Env {
     private static var cachedURL: URL?
     private static var cachedAnonKey: String?
     private static var cachedDisplayLocationV2Enabled: Bool?
+    private static var cachedGoogleMapsAPIKey: String?
 
     private static func resolvedURLString() -> String? {
         let bundleValue = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
@@ -60,6 +69,18 @@ enum Env {
         if let envKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !envKey.isEmpty {
             return envKey
+        }
+        return nil
+    }
+
+    private static func resolveStringValue(infoKey: String, envKey: String) -> String? {
+        if let bundleValue = Bundle.main.object(forInfoDictionaryKey: infoKey) as? String {
+            let trimmed = bundleValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        if let envValue = ProcessInfo.processInfo.environment[envKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !envValue.isEmpty {
+            return envValue
         }
         return nil
     }

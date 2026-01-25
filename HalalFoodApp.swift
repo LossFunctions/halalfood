@@ -6,10 +6,18 @@
 //
 
 import SwiftUI
+import GoogleMaps
 
 @main
 struct HalalFoodApp: App {
     init() {
+        if let apiKey = Env.googleMapsAPIKey {
+            GMSServices.provideAPIKey(apiKey)
+        } else {
+#if DEBUG
+            print("[GoogleMaps] API key missing; map tiles may be restricted.")
+#endif
+        }
         Task {
             await YelpDiskCache.shared.runMaintenanceIfNeeded()
         }

@@ -29,6 +29,7 @@
 		B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */; };
 		B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA212E7CE283008D2917 /* HalalMapView.swift */; };
 		B505BA262E7CF000008D2917 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B505BA272E7CF000008D2917 /* Supabase */; };
+		B5F1A2B32FABCDE0008D2917 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = B5F1A2B22FABCDE0008D2917 /* GoogleMaps */; };
 		B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA2A2E7CF100008D2917 /* LocationProvider.swift */; };
 		B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */; };
 		B5D4E2022EA50ABC008D2917 /* PerformanceInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */; };
@@ -115,6 +116,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B505BA262E7CF000008D2917 /* Supabase in Frameworks */,
+				B5F1A2B32FABCDE0008D2917 /* GoogleMaps in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,6 +278,7 @@
 			name = HalalFood;
 			packageProductDependencies = (
 				B505BA272E7CF000008D2917 /* Supabase */,
+				B5F1A2B22FABCDE0008D2917 /* GoogleMaps */,
 			);
 			productName = HalalFood;
 			productReference = B505B9D62E7CC7FA008D2917 /* HalalFood.app */;
@@ -361,6 +364,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B505BA122E7CE19C008D2917 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				B5F1A2B12FABCDE0008D2917 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B505B9D72E7CC7FA008D2917 /* Products */;
@@ -805,6 +809,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		B5F1A2B12FABCDE0008D2917 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.7.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -812,6 +824,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B505BA122E7CE19C008D2917 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		B5F1A2B22FABCDE0008D2917 /* GoogleMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5F1A2B12FABCDE0008D2917 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
+			productName = GoogleMaps;
 		};
 /* End XCSwiftPackageProductDependency section */
 
