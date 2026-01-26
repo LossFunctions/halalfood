@@ -83,6 +83,13 @@
             ReferencedContainer = "container:HalalFood.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "google_maps_api_key"
+            value = "AIzaSyD6RymUSgNIaEzDmfilisnN4MeHGgn0vcs"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

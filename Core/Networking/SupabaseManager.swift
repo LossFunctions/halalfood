@@ -31,6 +31,7 @@ enum Env {
         if let cached = cachedGoogleMapsAPIKey { return cached }
         let resolved = resolveStringValue(infoKey: "GOOGLE_MAPS_API_KEY", envKey: "google_maps_api_key")
             ?? resolveStringValue(infoKey: "GOOGLE_MAPS_API_KEY", envKey: "GOOGLE_MAPS_API_KEY")
+            ?? resolveStringValue(infoKey: "GOOGLE_MAPS_API_KEY", envKey: "GOOGLE_MAPS_IOS_KEY")
         cachedGoogleMapsAPIKey = resolved
         return resolved
     }

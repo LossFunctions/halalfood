@@ -2,8 +2,6 @@ import Foundation
 import MapKit
 import CoreLocation
 
-extension CLLocationCoordinate2D: @unchecked Sendable {}
-
 enum PlaceCategory: String, Identifiable, Codable {
     case restaurant
     case other

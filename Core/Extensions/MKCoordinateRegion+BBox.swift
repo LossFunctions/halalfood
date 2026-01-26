@@ -1,9 +1,5 @@
 import MapKit
 
-extension MKCoordinateSpan: @unchecked Sendable {}
-
-extension MKCoordinateRegion: @unchecked Sendable {}
-
 extension MKCoordinateRegion {
     var bbox: BBox {
         let halfLat = span.latitudeDelta / 2.0

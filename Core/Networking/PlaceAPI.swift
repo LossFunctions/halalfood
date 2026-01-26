@@ -51,7 +51,7 @@ enum PlaceAPI {
     private static let minimumRequestedLimit = 100
     private static var displayLocationV2Enabled: Bool { Env.displayLocationV2Enabled }
 
-    static func getPlaces(bbox: BBox, category: String = "all", limit: Int = mapFetchDefaultLimit) async throws -> [PlaceDTO] {
+    static func getPlaces(bbox: BBox, category: String = "all", limit: Int = 220) async throws -> [PlaceDTO] {
         let sanitizedLimit = sanitize(limit)
 #if DEBUG
         let metadata = String(

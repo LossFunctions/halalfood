@@ -759,6 +759,7 @@ struct ContentView: View {
     @State private var pinSelectionTask: Task<Void, Never>?
     @State private var newSpotFetchTask: Task<Void, Never>?
     @State private var favoritesPanelTask: Task<Void, Never>?
+    @State private var thumbnailPrefetchTask: Task<Void, Never>?
     @State private var filterSelectionVersion: Int = 0
     @State private var showInitialPinsLoader = false
     @State private var initialPinsProgress = 0.0
@@ -1821,6 +1822,7 @@ struct ContentView: View {
                 NewSpotsScreen(
                     spots: featuredNewSpots,
                     spotlight: spotlightEntry,
+                    userLocation: locationManager.lastKnownLocation,
                     topInset: currentTopSafeAreaInset(),
                     onSelect: { place in
                         selectedPlace = place
@@ -1904,6 +1906,7 @@ struct ContentView: View {
                         places: topRatedDisplay,
                         sortOption: topRatedSort,
                         region: topRatedRegion,
+                        userLocation: locationManager.lastKnownLocation,
                         yelpData: $topRatedYelpDataCache,
                         cachedYelpOrder: topRatedYelpOrderCache[topRatedYelpOrderKey],
                         onYelpOrderChange: { topRatedYelpOrderCache[topRatedYelpOrderKey] = $0 },
@@ -2924,6 +2927,7 @@ private extension ContentView {
             let next = viewportCache.slice(for: mapRegion, version: cacheVersion, source: refinedPlacesCache)
             if next != visiblePlaces {
                 visiblePlaces = next
+                scheduleThumbnailPrefetch(for: next)
             }
             return
         }
@@ -2934,6 +2938,41 @@ private extension ContentView {
         let next = viewportCache.slice(for: mapRegion, version: version, source: base)
         if next != visiblePlaces {
             visiblePlaces = next
+            scheduleThumbnailPrefetch(for: next)
+        }
+    }
+
+    private func scheduleThumbnailPrefetch(for places: [Place]) {
+        thumbnailPrefetchTask?.cancel()
+        let candidates = places.filter { $0.hasGooglePlaceID }
+        guard !candidates.isEmpty else { return }
+
+        let prioritized = prioritizeThumbnailPlaces(candidates)
+        let firstBatch = Array(prioritized.prefix(6))
+        let remaining = Array(prioritized.dropFirst(6))
+
+        for place in firstBatch {
+            GooglePlaceThumb.prefetch(for: place)
+        }
+
+        guard !remaining.isEmpty else { return }
+        thumbnailPrefetchTask = Task.detached {
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            for place in remaining.prefix(24) {
+                if Task.isCancelled { break }
+                GooglePlaceThumb.prefetch(for: place)
+            }
+        }
+    }
+
+    private func prioritizeThumbnailPlaces(_ places: [Place]) -> [Place] {
+        guard let userLocation = locationManager.lastKnownLocation else { return places }
+        return places.sorted { lhs, rhs in
+            let lhsDist = CLLocation(latitude: lhs.coordinate.latitude, longitude: lhs.coordinate.longitude)
+                .distance(from: userLocation)
+            let rhsDist = CLLocation(latitude: rhs.coordinate.latitude, longitude: rhs.coordinate.longitude)
+                .distance(from: userLocation)
+            return lhsDist < rhsDist
         }
     }
 
@@ -3526,6 +3565,7 @@ private struct TopRatedScreen: View {
     let places: [Place]
     let sortOption: TopRatedSortOption
     let region: TopRatedRegion
+    let userLocation: CLLocation?
     @Binding var yelpData: [UUID: YelpBusinessData]
     let cachedYelpOrder: [UUID]?
     let onYelpOrderChange: ([UUID]) -> Void
@@ -3668,9 +3708,13 @@ private struct TopRatedScreen: View {
                 }
                 .task(id: displayPairs.map { $0.element.id }) {
                     // Warm prefetch a small number of thumbnails for instant display
-                    guard sortOption == .community else { return }
-                    for id in displayPairs.prefix(communityPageSize).map({ $0.element.id }) {
-                        TopRatedPhotoThumb.prefetch(for: id)
+                    let prioritized = prioritizePlacesByDistance(displayPairs.map { $0.element })
+                    for place in prioritized.prefix(communityPageSize) {
+                        if place.isYelpBacked {
+                            TopRatedPhotoThumb.prefetch(for: place.id)
+                        } else {
+                            GooglePlaceThumb.prefetch(for: place)
+                        }
                     }
                 }
             }
@@ -3809,7 +3853,7 @@ private struct TopRatedScreen: View {
     }
 
     private func loadYelpData(for places: [Place]) async {
-        let candidates = places.filter { $0.isYelpBacked }
+        let candidates = prioritizePlacesByDistance(places.filter { $0.isYelpBacked })
         guard !candidates.isEmpty else { return }
         let maxConcurrent = 4
         let priorityCount = min(10, candidates.count)
@@ -3884,6 +3928,19 @@ private struct TopRatedScreen: View {
                     group.addTask { await resolve(next) }
                 }
             }
+        }
+    }
+
+    private func prioritizePlacesByDistance(_ places: [Place]) -> [Place] {
+        guard let userLocation else { return places }
+        return places.sorted { lhs, rhs in
+            let lhsDist = CLLocation(latitude: lhs.coordinate.latitude,
+                                     longitude: lhs.coordinate.longitude)
+                .distance(from: userLocation)
+            let rhsDist = CLLocation(latitude: rhs.coordinate.latitude,
+                                     longitude: rhs.coordinate.longitude)
+                .distance(from: userLocation)
+            return lhsDist < rhsDist
         }
     }
 }
@@ -4072,7 +4129,7 @@ private struct TopRatedThumbnail: View {
                     placeholder
                 }
             } else {
-                TopRatedPhotoThumb(placeID: place.id)
+                GooglePlaceThumb(place: place)
             }
         }
     }
@@ -4866,6 +4923,7 @@ private extension String {
 // Thumbnail loader for Top Rated rows
 private struct TopRatedPhotoThumb: View {
     let placeID: UUID
+    let showsPlaceholder: Bool
     @State private var imageURL: URL?
     @State private var attempted = false
     private static var urlCache: [UUID: URL] = [:]
@@ -4873,6 +4931,11 @@ private struct TopRatedPhotoThumb: View {
     private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
     private static let preferredWidth = "320"
     private static let preferredQuality = "75"
+
+    init(placeID: UUID, showsPlaceholder: Bool = true) {
+        self.placeID = placeID
+        self.showsPlaceholder = showsPlaceholder
+    }
 
     var body: some View {
         if let local = TopRatedPhotoThumb.localThumb(for: placeID) {
@@ -4901,12 +4964,17 @@ private struct TopRatedPhotoThumb: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        ZStack {
-            Color.gray.opacity(0.25)
-            Text("🍔🥤")
-                .font(.system(size: 24))
-                .opacity(0.9)
+        if showsPlaceholder {
+            ZStack {
+                Color.gray.opacity(0.25)
+                Text("🍔🥤")
+                    .font(.system(size: 24))
+                    .opacity(0.9)
+            }
+        } else {
+            Color.clear
         }
     }
 
@@ -5031,6 +5099,183 @@ private struct TopRatedPhotoThumb: View {
 
     private static func warmCache(for url: URL) async {
         await YelpImagePolicy.warm(url)
+    }
+}
+
+private enum GoogleThumbURLBuilder {
+    private static let preferredWidth = "640"
+
+    static func thumbnailURL(from original: URL) -> URL {
+        guard var components = URLComponents(url: original, resolvingAgainstBaseURL: false) else {
+            return original
+        }
+        var items = components.queryItems ?? []
+        items.removeAll { $0.name == "maxwidth" || $0.name == "maxWidthPx" }
+        items.append(URLQueryItem(name: "maxwidth", value: preferredWidth))
+        components.queryItems = items
+        return components.url ?? original
+    }
+}
+
+private enum GooglePhotoURLBuilder {
+    private static let thumbnailWidth = "1200"
+    private static let fullWidth = "1600"
+
+    static func thumbnailURL(from original: URL) -> URL {
+        applyWidth(thumbnailWidth, to: original)
+    }
+
+    static func fullSizeURL(from original: URL) -> URL {
+        applyWidth(fullWidth, to: original)
+    }
+
+    private static func applyWidth(_ width: String, to original: URL) -> URL {
+        guard var components = URLComponents(url: original, resolvingAgainstBaseURL: false) else {
+            return original
+        }
+        guard components.path.contains("google_places_proxy/photo") else {
+            return original
+        }
+        var items = components.queryItems ?? []
+        items.removeAll { $0.name == "maxwidth" || $0.name == "maxWidthPx" }
+        items.append(URLQueryItem(name: "maxwidth", value: width))
+        components.queryItems = items
+        return components.url ?? original
+    }
+}
+
+private actor GoogleThumbCache {
+    static let shared = GoogleThumbCache()
+    private var urlCache: [UUID: URL] = [:]
+    private var inflight: [UUID: Task<URL?, Never>] = [:]
+
+    func cachedURL(for placeID: UUID) -> URL? {
+        urlCache[placeID]
+    }
+
+    func fetchURL(for place: Place) async -> URL? {
+        if let cached = urlCache[place.id] { return cached }
+        if let task = inflight[place.id] { return await task.value }
+        let task = Task<URL?, Never> {
+            if let cachedPhotos = await PlacePhotoCache.shared.get(place.id),
+               let first = cachedPhotos.first(where: { $0.isGooglePhoto }),
+               let url = URL(string: first.imageUrl) {
+                return GoogleThumbURLBuilder.thumbnailURL(from: url)
+            }
+            guard let data = try? await GooglePlaceCache.shared.fetchPlace(for: place),
+                  let first = data.photos.first,
+                  let url = URL(string: first.url) else {
+                return nil
+            }
+            return GoogleThumbURLBuilder.thumbnailURL(from: url)
+        }
+        inflight[place.id] = task
+        let url = await task.value
+        inflight[place.id] = nil
+        if let url { urlCache[place.id] = url }
+        return url
+    }
+
+    func prefetch(_ place: Place) {
+        if urlCache[place.id] != nil { return }
+        if inflight[place.id] != nil { return }
+        Task {
+            _ = await fetchURL(for: place)
+        }
+    }
+}
+
+private struct GooglePlaceThumb: View {
+    let place: Place
+    @State private var imageURL: URL?
+
+    var body: some View {
+        let resolvedURL = imageURL
+        Group {
+            if let url = resolvedURL {
+                CachedAsyncImage(url: url) {
+                    placeholder
+                } failure: {
+                    placeholder
+                }
+                .scaledToFill()
+            } else {
+                placeholder
+            }
+        }
+        .task(id: loadKey) {
+            await loadImage()
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color.gray.opacity(0.25)
+            Text("🍔🥤")
+                .font(.system(size: 24))
+                .opacity(0.9)
+        }
+    }
+
+    static func prefetch(for place: Place) {
+        GoogleThumbCache.shared.prefetch(place)
+    }
+
+    private var loadKey: String {
+        let trimmed = place.googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? place.id.uuidString : "\(place.id.uuidString)-\(trimmed)"
+    }
+
+    private func loadImage() async {
+        if imageURL != nil { return }
+        if let url = await GoogleThumbCache.shared.fetchURL(for: place) {
+            imageURL = url
+            return
+        }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        if imageURL == nil, let url = await GoogleThumbCache.shared.fetchURL(for: place) {
+            imageURL = url
+        }
+    }
+}
+
+private struct GooglePlaceThumbWithFallback: View {
+    let place: Place
+    let fallback: AnyView
+    @State private var imageURL: URL?
+
+    var body: some View {
+        ZStack {
+            fallback
+            if let url = imageURL {
+                CachedAsyncImage(url: url) {
+                    EmptyView()
+                } failure: {
+                    EmptyView()
+                }
+                .scaledToFill()
+            }
+        }
+        .task(id: loadKey) {
+            await loadImage()
+        }
+    }
+
+    private var loadKey: String {
+        let trimmed = place.googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? place.id.uuidString : "\(place.id.uuidString)-\(trimmed)"
+    }
+
+    private func loadImage() async {
+        if imageURL != nil { return }
+        if let url = await GoogleThumbCache.shared.fetchURL(for: place) {
+            imageURL = url
+            return
+        }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        if imageURL == nil, let url = await GoogleThumbCache.shared.fetchURL(for: place) {
+            imageURL = url
+        }
     }
 }
 
@@ -6114,6 +6359,7 @@ private struct NewSpotsScreen: View {
     @EnvironmentObject private var favoritesStore: FavoritesStore
     let spots: [NewSpotEntry]
     let spotlight: NewSpotEntry?
+    let userLocation: CLLocation?
     let topInset: CGFloat
     let onSelect: (Place) -> Void
     @State private var isPreviouslyTrendingExpanded = false
@@ -6178,6 +6424,9 @@ private struct NewSpotsScreen: View {
         .task(id: yelpTaskKey) {
             await loadYelpData(for: yelpLoadPlaces)
         }
+        .task(id: googleTaskKey) {
+            await prefetchGoogleThumbs(for: googleLoadPlaces)
+        }
     }
 
     private var yelpTaskKey: [UUID] {
@@ -6196,8 +6445,16 @@ private struct NewSpotsScreen: View {
         return candidates.filter { seen.insert($0.id).inserted }
     }
 
+    private var googleTaskKey: [UUID] {
+        googleLoadPlaces.map(\.id)
+    }
+
+    private var googleLoadPlaces: [Place] {
+        yelpLoadPlaces.filter { !$0.isYelpBacked }
+    }
+
     private func loadYelpData(for places: [Place]) async {
-        let candidates = places.filter { $0.isYelpBacked }
+        let candidates = prioritizePlacesByDistance(places.filter { $0.isYelpBacked })
         guard !candidates.isEmpty else { return }
 
         let maxConcurrent = 4
@@ -6270,6 +6527,37 @@ private struct NewSpotsScreen: View {
                     group.addTask { await resolve(next) }
                 }
             }
+        }
+    }
+
+    private func prefetchGoogleThumbs(for places: [Place]) async {
+        let candidates = prioritizePlacesByDistance(places.filter { !$0.isYelpBacked })
+        guard !candidates.isEmpty else { return }
+
+        let priorityCount = min(6, candidates.count)
+        for place in candidates.prefix(priorityCount) {
+            GooglePlaceThumb.prefetch(for: place)
+        }
+
+        let remaining = candidates.dropFirst(priorityCount)
+        guard !remaining.isEmpty else { return }
+
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        for place in remaining.prefix(24) {
+            GooglePlaceThumb.prefetch(for: place)
+        }
+    }
+
+    private func prioritizePlacesByDistance(_ places: [Place]) -> [Place] {
+        guard let userLocation else { return places }
+        return places.sorted { lhs, rhs in
+            let lhsDist = CLLocation(latitude: lhs.coordinate.latitude,
+                                     longitude: lhs.coordinate.longitude)
+                .distance(from: userLocation)
+            let rhsDist = CLLocation(latitude: rhs.coordinate.latitude,
+                                     longitude: rhs.coordinate.longitude)
+                .distance(from: userLocation)
+            return lhsDist < rhsDist
         }
     }
 
@@ -6348,22 +6636,29 @@ private struct NewSpotsScreen: View {
         }
     }
 
-    private struct NewSpotImageView: View {
-        let image: NewSpotImage
-        let overrideURL: URL?
+private struct NewSpotImageView: View {
+    let image: NewSpotImage
+    let place: Place?
+    let overrideURL: URL?
 
-        var body: some View {
-            if let overrideURL {
-                CachedAsyncImage(url: overrideURL) {
-                    fallbackImage
-                } failure: {
-                    fallbackImage
-                }
-                .scaledToFill()
-            } else {
+    var body: some View {
+        if let overrideURL {
+            CachedAsyncImage(url: overrideURL) {
+                fallbackImage
+            } failure: {
                 fallbackImage
             }
+            .scaledToFill()
+        } else if let place, !place.isYelpBacked {
+            ZStack {
+                fallbackImage
+                TopRatedPhotoThumb(placeID: place.id, showsPlaceholder: false)
+                GooglePlaceThumbWithFallback(place: place, fallback: AnyView(Color.clear))
+            }
+        } else {
+            fallbackImage
         }
+    }
 
         private var placeholder: some View {
             Color.gray.opacity(0.3)
@@ -6401,7 +6696,7 @@ private struct NewSpotsScreen: View {
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     HStack(alignment: .top, spacing: 12) {
-                        NewSpotImageView(image: entry.image, overrideURL: yelpPhotoURL)
+                        NewSpotImageView(image: entry.image, place: place, overrideURL: yelpPhotoURL)
                         .frame(width: 64, height: 64)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
@@ -6534,7 +6829,7 @@ private struct NewSpotsScreen: View {
                 onSelect(entry.place)
             } label: {
                 ZStack(alignment: .bottomLeading) {
-                    NewSpotImageView(image: entry.image, overrideURL: yelpPhotoURL)
+                    NewSpotImageView(image: entry.image, place: entry.place, overrideURL: yelpPhotoURL)
                     .frame(maxWidth: .infinity)
                     .frame(height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -7295,7 +7590,10 @@ private struct FullscreenPhotoView: View {
                             let photo = pair.element
                             Group {
                                 if let url = URL(string: photo.imageUrl) {
-                                    ZoomableCachedImage(url: url, resetID: photo.id) {
+                                    let displayURL = photo.isGooglePhoto
+                                        ? GooglePhotoURLBuilder.fullSizeURL(from: url)
+                                        : url
+                                    ZoomableCachedImage(url: displayURL, resetID: photo.id) {
                                         ProgressView()
                                             .progressViewStyle(.circular)
                                             .tint(.white)
@@ -7403,7 +7701,7 @@ private struct FullscreenPhotoView: View {
         guard photos.indices.contains(currentIndex) else { return nil }
         let photo = photos[currentIndex]
         if photo.isYelpPhoto { return .yelp(yelpURL) }
-        if let label = photo.attributionLabel { return .text(label) }
+        if let label = photo.attributionLabel { return .text("Photo credit: \(label)") }
         return nil
     }
 }
@@ -7460,6 +7758,7 @@ private extension PlacePhoto {
     var isGooglePhoto: Bool {
         src.lowercased().contains("google") ||
         (attribution?.lowercased().contains("google") ?? false) ||
+        (externalId?.lowercased().hasPrefix("google:") ?? false) ||
         imageUrl.lowercased().contains("google")
     }
 
@@ -7470,6 +7769,11 @@ private extension PlacePhoto {
         }
         if isGooglePhoto { return "Google" }
         return nil
+    }
+
+    var compactAttributionLabel: String? {
+        if isGooglePhoto { return "© Google" }
+        return attributionLabel
     }
 }
 
@@ -7503,7 +7807,9 @@ private struct PhotoCarouselView: View {
                 let photo = pair.element
                 ZStack(alignment: .bottomTrailing) {
                     if let url = URL(string: photo.imageUrl) {
-                        let thumbnailURL = PlacePhotoURLBuilder.thumbnailURL(from: url)
+                        let thumbnailURL = photo.isGooglePhoto
+                            ? GooglePhotoURLBuilder.thumbnailURL(from: url)
+                            : PlacePhotoURLBuilder.thumbnailURL(from: url)
                         let cacheKey = "thumb:\(thumbnailURL.absoluteString)"
                         CachedAsyncImage(url: thumbnailURL,
                                          cacheKey: cacheKey,
@@ -7561,16 +7867,23 @@ private struct PhotoCarouselView: View {
     }
 
     private func prefetchSelectedFullSize() async {
-        guard photos.indices.contains(selectedIndex),
-              let url = URL(string: photos[selectedIndex].imageUrl) else { return }
-        await PhotoPrefetcher.shared.prefetch(url)
+        guard photos.indices.contains(selectedIndex) else { return }
+        let indices = [selectedIndex, selectedIndex + 1]
+            .filter { photos.indices.contains($0) }
+        for index in indices {
+            guard let url = URL(string: photos[index].imageUrl) else { continue }
+            let fullURL = photos[index].isGooglePhoto
+                ? GooglePhotoURLBuilder.fullSizeURL(from: url)
+                : url
+            await PhotoPrefetcher.shared.prefetch(fullURL)
+        }
     }
 
     private var currentAttribution: PhotoAttribution? {
         guard photos.indices.contains(selectedIndex) else { return nil }
         let photo = photos[selectedIndex]
         if photo.isYelpPhoto { return .yelp(yelpAttributionURL) }
-        if let label = photo.attributionLabel { return .text(label) }
+        if let label = photo.compactAttributionLabel { return .text(label) }
         return nil
     }
 }
