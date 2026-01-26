@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      google_photo_cache: {
+        Row: {
+          attribution: string | null
+          expires_at: string
+          fetched_at: string
+          google_place_id: string
+          height: number | null
+          photo_reference: string
+          position: number
+          width: number | null
+        }
+        Insert: {
+          attribution?: string | null
+          expires_at: string
+          fetched_at: string
+          google_place_id: string
+          height?: number | null
+          photo_reference: string
+          position: number
+          width?: number | null
+        }
+        Update: {
+          attribution?: string | null
+          expires_at?: string
+          fetched_at?: string
+          google_place_id?: string
+          height?: number | null
+          photo_reference?: string
+          position?: number
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_photo_cache_google_place_id_fkey"
+            columns: ["google_place_id"]
+            isOneToOne: false
+            referencedRelation: "google_place_cache"
+            referencedColumns: ["google_place_id"]
+          },
+        ]
+      }
+      google_place_cache: {
+        Row: {
+          business_status: string | null
+          expires_at: string
+          fetched_at: string
+          google_place_id: string
+          maps_url: string | null
+          rating: number | null
+          review_count: number | null
+        }
+        Insert: {
+          business_status?: string | null
+          expires_at: string
+          fetched_at: string
+          google_place_id: string
+          maps_url?: string | null
+          rating?: number | null
+          review_count?: number | null
+        }
+        Update: {
+          business_status?: string | null
+          expires_at?: string
+          fetched_at?: string
+          google_place_id?: string
+          maps_url?: string | null
+          rating?: number | null
+          review_count?: number | null
+        }
+        Relationships: []
+      }
       place: {
         Row: {
           address: string | null
@@ -33,6 +104,19 @@ export type Database = {
           external_id: string
           geog: unknown
           geom: unknown
+          google_business_status: string | null
+          google_business_status_updated_at: string | null
+          google_maps_url: string | null
+          google_match_address: string | null
+          google_match_distance_m: number | null
+          google_match_method: string | null
+          google_match_name: string | null
+          google_match_place_id: string | null
+          google_match_reasons: string | null
+          google_match_score: number | null
+          google_match_status: string | null
+          google_match_updated_at: string | null
+          google_place_id: string | null
           halal_status: Database["public"]["Enums"]["halal_status"] | null
           id: string
           lat: number
@@ -70,6 +154,19 @@ export type Database = {
           external_id: string
           geog?: unknown
           geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
           halal_status?: Database["public"]["Enums"]["halal_status"] | null
           id?: string
           lat: number
@@ -107,6 +204,19 @@ export type Database = {
           external_id?: string
           geog?: unknown
           geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
           halal_status?: Database["public"]["Enums"]["halal_status"] | null
           id?: string
           lat?: number
@@ -171,6 +281,13 @@ export type Database = {
             columns: ["place_id"]
             isOneToOne: false
             referencedRelation: "place"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_photo_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "place_google_ready"
             referencedColumns: ["id"]
           },
           {
@@ -307,6 +424,10 @@ export type Database = {
           apple_place_id: string | null
           category: string | null
           display_location: string | null
+          google_business_status: string | null
+          google_maps_url: string | null
+          google_match_status: string | null
+          google_place_id: string | null
           halal_status: Database["public"]["Enums"]["halal_status"] | null
           id: string | null
           lat: number | null
@@ -362,6 +483,159 @@ export type Database = {
           f_table_schema?: unknown
           srid?: number | null
           type?: string | null
+        }
+        Relationships: []
+      }
+      place_google_ready: {
+        Row: {
+          address: string | null
+          address_normalized: string | null
+          apple_place_id: string | null
+          category: string | null
+          cc_certifier_org: string | null
+          cc_halal_confidence: number | null
+          cc_halal_likelihood: string | null
+          cc_halal_status: string | null
+          cc_halal_type: string | null
+          cc_is_zabiha: boolean | null
+          cc_note: string | null
+          cc_reasoning_raw: string | null
+          created_at: string | null
+          display_location: string | null
+          external_id: string | null
+          geog: unknown
+          geom: unknown
+          google_business_status: string | null
+          google_business_status_updated_at: string | null
+          google_maps_url: string | null
+          google_match_address: string | null
+          google_match_distance_m: number | null
+          google_match_method: string | null
+          google_match_name: string | null
+          google_match_place_id: string | null
+          google_match_reasons: string | null
+          google_match_score: number | null
+          google_match_status: string | null
+          google_match_updated_at: string | null
+          google_place_id: string | null
+          halal_status: Database["public"]["Enums"]["halal_status"] | null
+          id: string | null
+          lat: number | null
+          lon: number | null
+          name: string | null
+          name_normalized: string | null
+          note: string | null
+          open_hours_json: Json | null
+          price_tier: number | null
+          rating: number | null
+          rating_count: number | null
+          serves_alcohol: boolean | null
+          source: string | null
+          source_id: string | null
+          source_raw: Json | null
+          state: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          address_normalized?: string | null
+          apple_place_id?: string | null
+          category?: string | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
+          created_at?: string | null
+          display_location?: string | null
+          external_id?: string | null
+          geog?: unknown
+          geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string | null
+          lat?: number | null
+          lon?: number | null
+          name?: string | null
+          name_normalized?: string | null
+          note?: string | null
+          open_hours_json?: Json | null
+          price_tier?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          serves_alcohol?: boolean | null
+          source?: string | null
+          source_id?: string | null
+          source_raw?: Json | null
+          state?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          address_normalized?: string | null
+          apple_place_id?: string | null
+          category?: string | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
+          created_at?: string | null
+          display_location?: string | null
+          external_id?: string | null
+          geog?: unknown
+          geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string | null
+          lat?: number | null
+          lon?: number | null
+          name?: string | null
+          name_normalized?: string | null
+          note?: string | null
+          open_hours_json?: Json | null
+          price_tier?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          serves_alcohol?: boolean | null
+          source?: string | null
+          source_id?: string | null
+          source_raw?: Json | null
+          state?: string | null
+          status?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -711,6 +985,10 @@ export type Database = {
           apple_place_id: string
           category: string
           display_location: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number
@@ -734,6 +1012,10 @@ export type Database = {
           category: string
           display_location: string
           external_id: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number
@@ -756,6 +1038,10 @@ export type Database = {
           category: string
           display_location: string
           external_id: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number
@@ -784,6 +1070,10 @@ export type Database = {
           category: string
           display_location: string
           external_id: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number
@@ -841,6 +1131,7 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      purge_expired_google_cache: { Args: never; Returns: undefined }
       purge_expired_yelp_cache: { Args: never; Returns: undefined }
       refresh_community_top_rated_v1: { Args: never; Returns: undefined }
       resolve_place_state: {
@@ -867,6 +1158,10 @@ export type Database = {
           apple_place_id: string
           category: string
           external_id: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number
@@ -888,6 +1183,10 @@ export type Database = {
           category: string
           display_location: string
           external_id: string
+          google_business_status: string
+          google_maps_url: string
+          google_match_status: string
+          google_place_id: string
           halal_status: string
           id: string
           lat: number

@@ -1037,6 +1037,8 @@ struct ContentView: View {
             source: place.source,
             sourceID: place.sourceID,
             externalID: place.externalID,
+            googlePlaceID: place.googlePlaceID,
+            googleMapsURL: place.googleMapsURL,
             applePlaceID: place.applePlaceID,
             note: place.note,
             displayLocation: place.displayLocation,
@@ -2276,7 +2278,11 @@ struct ContentView: View {
 
                         Text("Data sources")
                             .font(.headline)
-                        Text("Halal status comes from our curated dataset. Apple Maps details are loaded live at runtime; only identifiers may be cached.")
+                        Text("Halal status comes from our curated dataset.")
+                            .foregroundStyle(.secondary)
+                        Text("Maps, ratings, and photos are powered by Google Maps and Google Places (fetched via our backend with short-term caching).")
+                            .foregroundStyle(.secondary)
+                        Text("Apple Maps is used only for directions and fallback place details.")
                             .foregroundStyle(.secondary)
 
                         Text("Disclaimer")
@@ -2320,7 +2326,7 @@ struct ContentView: View {
 
                         Text("Sharing")
                             .font(.headline)
-                        Text("Map/search requests are sent to our backend (Supabase) to fetch place data. Yelp details (ratings/photos) are fetched via our backend proxy.")
+                        Text("Map/search requests are sent to our backend (Supabase) to fetch place data. Google Places details (ratings/photos) are fetched via our backend proxy.")
                             .foregroundStyle(.secondary)
 
                         Text("Tracking")
@@ -4194,7 +4200,7 @@ private actor TopRatedCuisineResolver {
             }
             var path = comps.path
             if !path.hasSuffix("/") { path.append("/") }
-            path.append("rest/v1/place")
+            path.append("rest/v1/place_google_ready")
             comps.path = path
             comps.queryItems = [
                 URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
@@ -5636,6 +5642,121 @@ actor PlacePhotoCache {
     }
 }
 
+private enum GooglePlaceCacheError: Error {
+    case missingGooglePlaceID
+}
+
+private actor GooglePlaceCache {
+    static let shared = GooglePlaceCache()
+
+    private var cache: [String: GooglePlaceData] = [:]
+    private var inflight: [String: Task<GooglePlaceData, Error>] = [:]
+    private var googleIDByPlaceID: [UUID: String] = [:]
+    private var idInflight: [UUID: Task<String?, Never>] = [:]
+    private var lastRefreshAttempt: [String: Date] = [:]
+    private let refreshThrottle: TimeInterval = 60 * 10
+
+    func cachedData(for place: Place) async -> GooglePlaceData? {
+        guard let googlePlaceID = place.googlePlaceID ?? googleIDByPlaceID[place.id] else { return nil }
+        if let cached = cache[googlePlaceID] {
+            if cached.isExpired {
+                cache[googlePlaceID] = nil
+            } else {
+                googleIDByPlaceID[place.id] = googlePlaceID
+                return cached
+            }
+        }
+        return nil
+    }
+
+    func fetchPlace(for place: Place, forceRefresh: Bool = false) async throws -> GooglePlaceData {
+        guard let googlePlaceID = await resolveGooglePlaceID(for: place) else {
+            throw GooglePlaceCacheError.missingGooglePlaceID
+        }
+        return try await fetchPlace(googlePlaceID: googlePlaceID, placeID: place.id, forceRefresh: forceRefresh)
+    }
+
+    func fetchPlace(
+        googlePlaceID: String,
+        placeID: UUID? = nil,
+        forceRefresh: Bool = false
+    ) async throws -> GooglePlaceData {
+        if let placeID { googleIDByPlaceID[placeID] = googlePlaceID }
+
+        if !forceRefresh {
+            if let cached = cache[googlePlaceID], !cached.isExpired {
+                return cached
+            }
+        }
+
+        if let task = inflight[googlePlaceID] {
+            let data = try await task.value
+            if let placeID { googleIDByPlaceID[placeID] = googlePlaceID }
+            return data
+        }
+
+        if forceRefresh {
+            let cached = cache[googlePlaceID]
+            if let cached, !cached.isExpired, shouldThrottleRefresh(for: googlePlaceID) {
+                return cached
+            }
+            markRefreshAttempt(for: googlePlaceID)
+        }
+
+        let task = Task { try await GooglePlacesAPI.fetchPlace(googlePlaceID: googlePlaceID) }
+        inflight[googlePlaceID] = task
+        defer { inflight[googlePlaceID] = nil }
+
+        let data = try await task.value
+        if !data.isExpired {
+            cache[googlePlaceID] = data
+        } else {
+            cache[googlePlaceID] = nil
+        }
+        if let placeID { googleIDByPlaceID[placeID] = googlePlaceID }
+        return data
+    }
+
+    private func resolveGooglePlaceID(for place: Place) async -> String? {
+        if let googlePlaceID = place.googlePlaceID {
+            googleIDByPlaceID[place.id] = googlePlaceID
+            return googlePlaceID
+        }
+        if let cached = googleIDByPlaceID[place.id] { return cached }
+        if let task = idInflight[place.id] {
+            return await task.value
+        }
+
+        let task = Task { () -> String? in
+            guard let dto = try? await PlaceAPI.fetchPlaceDetails(placeID: place.id),
+                  let resolved = Place(dto: dto) else {
+                return nil
+            }
+            return resolved.googlePlaceID
+        }
+        idInflight[place.id] = task
+
+        let id = await task.value
+        idInflight[place.id] = nil
+        if let id {
+            googleIDByPlaceID[place.id] = id
+        }
+        return id
+    }
+
+    private func shouldThrottleRefresh(for googlePlaceID: String) -> Bool {
+        if let last = lastRefreshAttempt[googlePlaceID],
+           Date().timeIntervalSince(last) < refreshThrottle {
+            return true
+        }
+        return false
+    }
+
+    private func markRefreshAttempt(for googlePlaceID: String) {
+        lastRefreshAttempt[googlePlaceID] = Date()
+    }
+}
+
 private enum YelpBusinessCacheError: Error {
     case notYelpBacked
     case missingYelpID
@@ -6936,6 +7057,16 @@ struct PlaceDetailView: View {
 
     private var ratingModel: RatingDisplayModel? {
         let currentPlace = viewModel.resolvedPlace ?? place
+        if let googleData = viewModel.googleData,
+           let rating = googleData.rating,
+           rating > 0 {
+            return RatingDisplayModel(
+                rating: rating,
+                reviewCount: googleData.reviewCount,
+                source: "Google",
+                sourceURL: googleData.mapsURL.flatMap(URL.init(string:))
+            )
+        }
         if currentPlace.isYelpBacked {
             guard let yelpData = viewModel.yelpData,
                   let rating = yelpData.rating,
@@ -7096,18 +7227,38 @@ private struct PhotoSelection: Identifiable, Equatable {
     let index: Int
 }
 
-private struct YelpPhotoAttributionOverlay: View {
-    let url: URL?
+private enum PhotoAttribution {
+    case yelp(URL?)
+    case text(String)
+}
+
+private struct PhotoAttributionOverlay: View {
+    let attribution: PhotoAttribution
 
     var body: some View {
-        let mark = YelpLogoMark(style: .overlay)
-        if let url {
-            Link(destination: url) { mark }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open Yelp")
-        } else {
-            mark
-                .accessibilityLabel("Yelp")
+        switch attribution {
+        case .yelp(let url):
+            let mark = YelpLogoMark(style: .overlay)
+            if let url {
+                Link(destination: url) { mark }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open Yelp")
+            } else {
+                mark
+                    .accessibilityLabel("Yelp")
+            }
+        case .text(let label):
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.55), in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
+                .shadow(color: Color.black.opacity(0.4), radius: 4, y: 2)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .accessibilityLabel(label)
         }
     }
 }
@@ -7176,8 +7327,8 @@ private struct FullscreenPhotoView: View {
             .offset(y: dragOffset)
         }
         .overlay(alignment: .bottomTrailing) {
-            if shouldShowYelpAttribution {
-                YelpPhotoAttributionOverlay(url: yelpURL)
+            if let attribution = currentAttribution {
+                PhotoAttributionOverlay(attribution: attribution)
                     .padding(16)
                     .offset(y: dragOffset)
             }
@@ -7248,13 +7399,12 @@ private struct FullscreenPhotoView: View {
         .background(Color.black)
     }
 
-    private var currentPhotoIsYelp: Bool {
-        guard photos.indices.contains(currentIndex) else { return false }
-        return photos[currentIndex].isYelpPhoto
-    }
-
-    private var shouldShowYelpAttribution: Bool {
-        currentPhotoIsYelp || yelpURL != nil
+    private var currentAttribution: PhotoAttribution? {
+        guard photos.indices.contains(currentIndex) else { return nil }
+        let photo = photos[currentIndex]
+        if photo.isYelpPhoto { return .yelp(yelpURL) }
+        if let label = photo.attributionLabel { return .text(label) }
+        return nil
     }
 }
 
@@ -7305,6 +7455,21 @@ private extension PlacePhoto {
         src.lowercased().contains("yelp") ||
         (attribution?.lowercased().contains("yelp") ?? false) ||
         imageUrl.lowercased().contains("yelp")
+    }
+
+    var isGooglePhoto: Bool {
+        src.lowercased().contains("google") ||
+        (attribution?.lowercased().contains("google") ?? false) ||
+        imageUrl.lowercased().contains("google")
+    }
+
+    var attributionLabel: String? {
+        if let trimmed = attribution?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !trimmed.isEmpty {
+            return trimmed
+        }
+        if isGooglePhoto { return "Google" }
+        return nil
     }
 }
 
@@ -7368,8 +7533,8 @@ private struct PhotoCarouselView: View {
         .frame(height: 220)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(alignment: .bottomTrailing) {
-            if shouldShowYelpAttribution {
-                YelpPhotoAttributionOverlay(url: yelpAttributionURL)
+            if let attribution = currentAttribution {
+                PhotoAttributionOverlay(attribution: attribution)
                     .padding(16)
             }
         }
@@ -7401,8 +7566,12 @@ private struct PhotoCarouselView: View {
         await PhotoPrefetcher.shared.prefetch(url)
     }
 
-    private var shouldShowYelpAttribution: Bool {
-        yelpAttributionURL != nil || photos.contains { $0.isYelpPhoto }
+    private var currentAttribution: PhotoAttribution? {
+        guard photos.indices.contains(selectedIndex) else { return nil }
+        let photo = photos[selectedIndex]
+        if photo.isYelpPhoto { return .yelp(yelpAttributionURL) }
+        if let label = photo.attributionLabel { return .text(label) }
+        return nil
     }
 }
 
@@ -7561,6 +7730,8 @@ final class PlaceDetailViewModel: ObservableObject {
     @Published private(set) var loadingState: LoadingState = .idle
     @Published var photos: [PlacePhoto] = []
     @Published private(set) var resolvedPlace: Place?
+    @Published private(set) var googleData: GooglePlaceData?
+    @Published private(set) var googleErrorMessage: String?
     @Published private(set) var yelpData: YelpBusinessData?
     @Published private(set) var yelpErrorMessage: String?
 
@@ -7579,6 +7750,8 @@ final class PlaceDetailViewModel: ObservableObject {
         if resolvedPlace?.id != place.id {
             resolvedPlace = place
             photos = []
+            googleData = nil
+            googleErrorMessage = nil
             yelpData = nil
             yelpErrorMessage = nil
         }
@@ -7622,6 +7795,71 @@ final class PlaceDetailViewModel: ObservableObject {
             return prefix + rest
         } else {
             return String(digits.filter { $0.isNumber })
+        }
+    }
+
+    func loadGoogleData(for place: Place) async {
+        if let current = googleData, current.isExpired {
+            googleData = nil
+        }
+
+        if let cached = await GooglePlaceCache.shared.cachedData(for: place) {
+            googleData = cached
+            googleErrorMessage = nil
+            if cached.isNearExpiry {
+                refreshGoogleData(for: place)
+            }
+            return
+        }
+
+        do {
+            let data = try await GooglePlaceCache.shared.fetchPlace(for: place)
+            googleData = data
+            googleErrorMessage = nil
+        } catch GooglePlaceCacheError.missingGooglePlaceID {
+            googleData = nil
+            googleErrorMessage = nil
+        } catch {
+            googleData = nil
+            googleErrorMessage = error.localizedDescription
+#if DEBUG
+            print("[GooglePlacesAPI] Failed to fetch Google data:", error)
+#endif
+        }
+    }
+
+    private func refreshGoogleData(for place: Place) {
+        let placeID = place.id
+        Task { [weak self] in
+            guard let self else { return }
+            guard let refreshed = try? await GooglePlaceCache.shared.fetchPlace(
+                for: place,
+                forceRefresh: true
+            ) else { return }
+            let googlePhotos = refreshed.photos.map { photo in
+                let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+                return PlacePhoto(
+                    placeID: placeID,
+                    position: photo.position,
+                    url: photo.url,
+                    attribution: photo.attribution,
+                    source: "google",
+                    externalId: externalId,
+                    width: photo.width,
+                    height: photo.height
+                )
+            }
+            await MainActor.run {
+                guard self.resolvedPlace?.id == placeID else { return }
+                self.googleData = refreshed
+                self.googleErrorMessage = nil
+                self.photos = googlePhotos
+            }
+            await PlacePhotoCache.shared.set(
+                placeID,
+                photos: googlePhotos,
+                expiresAt: refreshed.effectiveExpiresAt
+            )
         }
     }
 
@@ -7689,9 +7927,43 @@ final class PlaceDetailViewModel: ObservableObject {
 
     func loadPhotos(for place: Place) async {
         do {
+            if let cached = await PlacePhotoCache.shared.get(place.id) {
+                if cached.contains(where: { $0.isGooglePhoto }) {
+                    self.photos = cached
+                }
+            }
+
+            await loadGoogleData(for: place)
+            if let googleData {
+                let googlePhotos = googleData.photos.map { photo in
+                    let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+                    return PlacePhoto(
+                        placeID: place.id,
+                        position: photo.position,
+                        url: photo.url,
+                        attribution: photo.attribution,
+                        source: "google",
+                        externalId: externalId,
+                        width: photo.width,
+                        height: photo.height
+                    )
+                }
+                self.photos = googlePhotos
+                await PlacePhotoCache.shared.set(
+                    place.id,
+                    photos: googlePhotos,
+                    expiresAt: googleData.effectiveExpiresAt
+                )
+                return
+            } else {
+                googleData = nil
+            }
+
             if place.isYelpBacked {
                 if let cached = await PlacePhotoCache.shared.get(place.id) {
-                    self.photos = cached
+                    if cached.contains(where: { $0.isYelpPhoto }) {
+                        self.photos = cached
+                    }
                 }
                 await loadYelpData(for: place)
                 if let yelpData {
@@ -9149,6 +9421,8 @@ private struct PlaceCache {
 private extension MapScreenViewModel {
     nonisolated static func trustedSourceFilter(_ place: Place) -> Bool {
         if isBlocklistedChain(place) { return false }
+        if place.isGoogleClosed { return false }
+        if !place.isGoogleMatched { return false }
         guard let rawSource = place.source?.trimmingCharacters(in: .whitespacesAndNewlines), !rawSource.isEmpty else {
             return true
         }

@@ -146,7 +146,7 @@ enum PlaceAPI {
     ) async throws -> FetchAllPlacesResponse {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
-        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,apple_place_id,note,source_raw"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,google_place_id,google_match_status,google_maps_url,google_business_status,apple_place_id,note,source_raw"
         let baseQueryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
@@ -171,7 +171,7 @@ enum PlaceAPI {
 
         while start < desired {
             let end = min(start + size - 1, desired - 1)
-            var request = try makeGETRequest(path: "rest/v1/place", queryItems: baseQueryItems)
+            var request = try makeGETRequest(path: "rest/v1/place_google_ready", queryItems: baseQueryItems)
             request.setValue("items", forHTTPHeaderField: "Range-Unit")
             request.setValue("\(start)-\(end)", forHTTPHeaderField: "Range")
             request.setValue("count=exact", forHTTPHeaderField: "Prefer")
@@ -528,7 +528,7 @@ enum PlaceAPI {
         let encodedQuery = query.replacingOccurrences(of: "*", with: "")
         let likePattern = "*\(encodedQuery)*"
 
-        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,apple_place_id,note"
+        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,google_place_id,google_match_status,google_maps_url,google_business_status,apple_place_id,note"
 
         let queryItems = [
             URLQueryItem(name: "select", value: selectColumns),
@@ -539,7 +539,7 @@ enum PlaceAPI {
             URLQueryItem(name: "or", value: "(name.ilike.\(likePattern),address.ilike.\(likePattern))")
         ]
 
-        let request = try makeGETRequest(path: "rest/v1/place", queryItems: queryItems)
+        let request = try makeGETRequest(path: "rest/v1/place_google_ready", queryItems: queryItems)
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {

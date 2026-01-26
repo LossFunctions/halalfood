@@ -24,4 +24,23 @@ extension PlacePhoto {
         self.priority = position
         self.attribution = attribution
     }
+
+    init(placeID: UUID,
+         position: Int,
+         url: String,
+         attribution: String?,
+         source: String,
+         externalId: String? = nil,
+         width: Int? = nil,
+         height: Int? = nil) {
+        self.id = UUID()
+        self.placeId = placeID
+        self.src = source
+        self.externalId = externalId
+        self.imageUrl = url
+        self.width = width
+        self.height = height
+        self.priority = position
+        self.attribution = attribution
+    }
 }

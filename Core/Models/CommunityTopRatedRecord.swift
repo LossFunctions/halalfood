@@ -15,6 +15,10 @@ struct CommunityTopRatedRecord: Decodable {
     let ratingCount: Int?
     let servesAlcohol: Bool?
     let source: String?
+    let googlePlaceID: String?
+    let googleMatchStatus: String?
+    let googleMapsURL: String?
+    let googleBusinessStatus: String?
     let applePlaceID: String?
     let note: String?
     let sourceRaw: PlaceDTO.SourceRaw?
@@ -35,6 +39,10 @@ struct CommunityTopRatedRecord: Decodable {
         case ratingCount = "rating_count"
         case servesAlcohol = "serves_alcohol"
         case source
+        case googlePlaceID = "google_place_id"
+        case googleMatchStatus = "google_match_status"
+        case googleMapsURL = "google_maps_url"
+        case googleBusinessStatus = "google_business_status"
         case applePlaceID = "apple_place_id"
         case note
         case sourceRaw = "source_raw"
@@ -57,6 +65,10 @@ struct CommunityTopRatedRecord: Decodable {
         ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount)
         servesAlcohol = try container.decodeIfPresent(Bool.self, forKey: .servesAlcohol)
         source = try container.decodeIfPresent(String.self, forKey: .source)
+        googlePlaceID = try container.decodeIfPresent(String.self, forKey: .googlePlaceID)
+        googleMatchStatus = try container.decodeIfPresent(String.self, forKey: .googleMatchStatus)
+        googleMapsURL = try container.decodeIfPresent(String.self, forKey: .googleMapsURL)
+        googleBusinessStatus = try container.decodeIfPresent(String.self, forKey: .googleBusinessStatus)
         applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         sourceRaw = try container.decodeIfPresent(PlaceDTO.SourceRaw.self, forKey: .sourceRaw)
@@ -79,6 +91,10 @@ struct CommunityTopRatedRecord: Decodable {
             source: source,
             source_id: nil,
             external_id: nil,
+            google_place_id: googlePlaceID,
+            google_match_status: googleMatchStatus,
+            google_maps_url: googleMapsURL,
+            google_business_status: googleBusinessStatus,
             apple_place_id: applePlaceID,
             note: note,
             source_raw: sourceRaw

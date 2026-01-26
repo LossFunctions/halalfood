@@ -50,6 +50,10 @@ struct Place: Identifiable, Hashable, Sendable {
     let source: String?
     let sourceID: String?
     let externalID: String?
+    let googlePlaceID: String?
+    let googleMatchStatus: String?
+    let googleMapsURL: String?
+    let googleBusinessStatus: String?
     let applePlaceID: String?
     let note: String?
     let displayLocation: String?
@@ -81,12 +85,18 @@ struct Place: Identifiable, Hashable, Sendable {
         let isYelpBacked = normalizedSource.contains("yelp") ||
             normalizedExternal.hasPrefix("yelp:") ||
             normalizedSourceID.contains("yelp")
-        rating = isYelpBacked ? nil : dto.rating
-        ratingCount = isYelpBacked ? nil : dto.rating_count
+        let isGoogleBacked = dto.google_place_id != nil
+        let usesExternalRating = isYelpBacked || isGoogleBacked
+        rating = usesExternalRating ? nil : dto.rating
+        ratingCount = usesExternalRating ? nil : dto.rating_count
         servesAlcohol = dto.serves_alcohol
         source = dto.source
         sourceID = dto.source_id
         externalID = dto.external_id
+        googlePlaceID = dto.google_place_id
+        googleMatchStatus = dto.google_match_status
+        googleMapsURL = dto.google_maps_url
+        googleBusinessStatus = dto.google_business_status
         applePlaceID = dto.apple_place_id
         note = dto.note
         displayLocation = dto.display_location ?? dto.source_raw?.display_location
@@ -124,6 +134,10 @@ extension Place {
          source: String? = "manual",
          sourceID: String? = nil,
          externalID: String? = nil,
+         googlePlaceID: String? = nil,
+         googleMatchStatus: String? = nil,
+         googleMapsURL: String? = nil,
+         googleBusinessStatus: String? = nil,
          applePlaceID: String? = nil,
          note: String? = nil,
          displayLocation: String? = nil,
@@ -142,6 +156,10 @@ extension Place {
         self.source = source
         self.sourceID = sourceID
         self.externalID = externalID
+        self.googlePlaceID = googlePlaceID
+        self.googleMatchStatus = googleMatchStatus
+        self.googleMapsURL = googleMapsURL
+        self.googleBusinessStatus = googleBusinessStatus
         self.applePlaceID = applePlaceID
         self.note = note
         self.displayLocation = displayLocation
@@ -160,6 +178,10 @@ extension Place {
          source: String?,
          sourceID: String?,
          externalID: String?,
+         googlePlaceID: String?,
+         googleMatchStatus: String? = nil,
+         googleMapsURL: String?,
+         googleBusinessStatus: String? = nil,
          applePlaceID: String?,
          note: String?,
          displayLocation: String?,
@@ -178,6 +200,10 @@ extension Place {
         self.source = source
         self.sourceID = sourceID
         self.externalID = externalID
+        self.googlePlaceID = googlePlaceID
+        self.googleMatchStatus = googleMatchStatus
+        self.googleMapsURL = googleMapsURL
+        self.googleBusinessStatus = googleBusinessStatus
         self.applePlaceID = applePlaceID
         self.note = note
         self.displayLocation = displayLocation
@@ -202,6 +228,10 @@ extension Place: Codable {
         case source
         case sourceID
         case externalID
+        case googlePlaceID
+        case googleMatchStatus
+        case googleMapsURL
+        case googleBusinessStatus
         case applePlaceID
         case note
     }
@@ -223,6 +253,10 @@ extension Place: Codable {
         let source = try container.decodeIfPresent(String.self, forKey: .source)
         let sourceID = try container.decodeIfPresent(String.self, forKey: .sourceID)
         let externalID = try container.decodeIfPresent(String.self, forKey: .externalID)
+        let googlePlaceID = try container.decodeIfPresent(String.self, forKey: .googlePlaceID)
+        let googleMatchStatus = try container.decodeIfPresent(String.self, forKey: .googleMatchStatus)
+        let googleMapsURL = try container.decodeIfPresent(String.self, forKey: .googleMapsURL)
+        let googleBusinessStatus = try container.decodeIfPresent(String.self, forKey: .googleBusinessStatus)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         let note = try container.decodeIfPresent(String.self, forKey: .note)
         let categoriesRaw = try container.decodeIfPresent([String].self, forKey: .categories) ?? []
@@ -245,6 +279,10 @@ extension Place: Codable {
             source: source,
             sourceID: sourceID,
             externalID: externalID,
+            googlePlaceID: googlePlaceID,
+            googleMatchStatus: googleMatchStatus,
+            googleMapsURL: googleMapsURL,
+            googleBusinessStatus: googleBusinessStatus,
             applePlaceID: applePlaceID,
             note: note,
             displayLocation: displayLocation,
@@ -270,6 +308,10 @@ extension Place: Codable {
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(sourceID, forKey: .sourceID)
         try container.encodeIfPresent(externalID, forKey: .externalID)
+        try container.encodeIfPresent(googlePlaceID, forKey: .googlePlaceID)
+        try container.encodeIfPresent(googleMatchStatus, forKey: .googleMatchStatus)
+        try container.encodeIfPresent(googleMapsURL, forKey: .googleMapsURL)
+        try container.encodeIfPresent(googleBusinessStatus, forKey: .googleBusinessStatus)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
     }
@@ -291,7 +333,27 @@ extension Place {
 }
 
 extension Place {
+    var hasGooglePlaceID: Bool {
+        guard let id = googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+        return !id.isEmpty
+    }
+
+    var isGoogleMatched: Bool {
+        guard let status = googleMatchStatus?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty else {
+            return false
+        }
+        return status.lowercased() == "matched"
+    }
+
+    var isGoogleClosed: Bool {
+        guard let status = googleBusinessStatus?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty else {
+            return false
+        }
+        return status.lowercased().contains("closed")
+    }
+
     var isYelpBacked: Bool {
+        if hasGooglePlaceID { return false }
         if normalizedSourceKey == "yelp" { return true }
         if let sourceID, sourceID.lowercased().contains("yelp") { return true }
         if let externalID, externalID.lowercased().hasPrefix("yelp:") { return true }
@@ -300,11 +362,11 @@ extension Place {
     }
 
     var displayRating: Double? {
-        isYelpBacked ? nil : rating
+        (isYelpBacked || hasGooglePlaceID) ? nil : rating
     }
 
     var displayRatingCount: Int? {
-        isYelpBacked ? nil : ratingCount
+        (isYelpBacked || hasGooglePlaceID) ? nil : ratingCount
     }
 
     var yelpID: String? {

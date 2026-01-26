@@ -25,6 +25,7 @@
 		B505BA1D2E7CE233008D2917 /* PlaceDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA162E7CE233008D2917 /* PlaceDTO.swift */; };
 		B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA192E7CE233008D2917 /* SupabaseManager.swift */; };
 		B5A0BEF12F0D1234008D2917 /* YelpAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0BEEF2F0D1234008D2917 /* YelpAPI.swift */; };
+		B5A0BEF42F0D1234008D2918 /* GooglePlacesAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0BEF22F0D1234008D2918 /* GooglePlacesAPI.swift */; };
 		B505BA1F2E7CE233008D2917 /* Place.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA152E7CE233008D2917 /* Place.swift */; };
 		B505BA202E7CE233008D2917 /* MKCoordinateRegion+BBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA132E7CE233008D2917 /* MKCoordinateRegion+BBox.swift */; };
 		B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B505BA212E7CE283008D2917 /* HalalMapView.swift */; };
@@ -86,6 +87,7 @@
 		B505BA182E7CE233008D2917 /* PlaceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceAPI.swift; sourceTree = "<group>"; };
 		B505BA192E7CE233008D2917 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		B5A0BEEF2F0D1234008D2917 /* YelpAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YelpAPI.swift; sourceTree = "<group>"; };
+		B5A0BEF22F0D1234008D2918 /* GooglePlacesAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePlacesAPI.swift; sourceTree = "<group>"; };
 		B505BA212E7CE283008D2917 /* HalalMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalalMapView.swift; sourceTree = "<group>"; };
 		B505BA252E7CE741008D2917 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; name = Info.plist; path = HalalFood/Info.plist; sourceTree = "<group>"; };
 		B505BA2A2E7CF100008D2917 /* LocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
@@ -218,6 +220,7 @@
 				B505BA182E7CE233008D2917 /* PlaceAPI.swift */,
 				B505BA192E7CE233008D2917 /* SupabaseManager.swift */,
 				B5A0BEEF2F0D1234008D2917 /* YelpAPI.swift */,
+				B5A0BEF22F0D1234008D2918 /* GooglePlacesAPI.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -420,6 +423,7 @@
 				B505BA1C2E7CE233008D2917 /* PlaceAPI.swift in Sources */,
 				B505BA1D2E7CE233008D2917 /* PlaceDTO.swift in Sources */,
 				B5A0BEF12F0D1234008D2917 /* YelpAPI.swift in Sources */,
+				B5A0BEF42F0D1234008D2918 /* GooglePlacesAPI.swift in Sources */,
 				B505BA222E7CE283008D2917 /* HalalMapView.swift in Sources */,
 				B505BA2B2E7CF100008D2917 /* LocationProvider.swift in Sources */,
 				7ED499816768FCDCC1EB81D0 /* ApplePlaceDetailService.swift in Sources */,
@@ -629,7 +633,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Debug;
@@ -670,7 +674,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 			};
 			name = Release;
@@ -691,7 +695,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HalalFood.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HalalFood";
 			};
@@ -713,7 +717,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HalalFood.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HalalFood";
 			};
@@ -733,7 +737,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 				TEST_TARGET_NAME = HalalFood;
 			};
@@ -753,7 +757,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 					TARGETED_DEVICE_FAMILY = "1";
 				TEST_TARGET_NAME = HalalFood;
 			};

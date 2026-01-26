@@ -1,11 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "OrangePin2.png",
+      "filename" : "OrangePin.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "OrangePin2.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
