@@ -86,7 +86,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "google_maps_api_key"
-            value = "AIzaSyD6RymUSgNIaEzDmfilisnN4MeHGgn0vcs"
+            value = "AIzaSyD6kJkrEoT2zW_6jxaHRvslYyYP_t7uAVM"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

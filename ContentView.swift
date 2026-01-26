@@ -4929,6 +4929,7 @@ private struct TopRatedPhotoThumb: View {
     @State private var imageURL: URL?
     @State private var attempted = false
     private static var urlCache: [UUID: URL] = [:]
+    private static let urlCacheLock = NSLock()
     private static let supabaseObjectPrefix = "/storage/v1/object/public/"
     private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
     private static let preferredWidth = "320"
@@ -4945,7 +4946,7 @@ private struct TopRatedPhotoThumb: View {
                 .resizable()
                 .scaledToFill()
         } else {
-            let resolvedURL = imageURL ?? TopRatedPhotoThumb.urlCache[placeID]
+            let resolvedURL = imageURL ?? TopRatedPhotoThumb.cachedURL(for: placeID)
             Group {
                 if let url = resolvedURL {
                     CachedAsyncImage(url: url) {
@@ -5008,7 +5009,7 @@ private struct TopRatedPhotoThumb: View {
                    let url = URL(string: row.image_url) {
                     let optimized = TopRatedPhotoThumb.optimizedURL(from: url)
                     imageURL = optimized
-                    TopRatedPhotoThumb.urlCache[placeID] = optimized
+                    TopRatedPhotoThumb.setCachedURL(optimized, for: placeID)
                     Task.detached {
                         await TopRatedPhotoThumb.warmCache(for: optimized)
                     }
@@ -5028,7 +5029,7 @@ private struct TopRatedPhotoThumb: View {
     // Allow prefetching from TopRatedScreen
     static func prefetch(for id: UUID) {
         if localThumb(for: id) != nil { return }
-        if urlCache[id] != nil { return }
+        if cachedURL(for: id) != nil { return }
         guard let supabaseURL = Env.optionalURL(),
               let anonKey = Env.optionalAnonKey() else { return }
         Task.detached {
@@ -5053,7 +5054,7 @@ private struct TopRatedPhotoThumb: View {
                     if let row = try? JSONDecoder().decode([PhotoRow].self, from: data).first,
                        let url = URL(string: row.image_url) {
                         let optimized = optimizedURL(from: url)
-                        await cache(optimized, for: id)
+                        setCachedURL(optimized, for: id)
                         // Fetch to populate image cache
                         await warmCache(for: optimized)
                     }
@@ -5094,13 +5095,22 @@ private struct TopRatedPhotoThumb: View {
     }
 
     static func cache(_ url: URL, for id: UUID) async {
-        await MainActor.run {
-            urlCache[id] = url
-        }
+        setCachedURL(url, for: id)
     }
 
     private static func warmCache(for url: URL) async {
         await YelpImagePolicy.warm(url)
+    }
+
+    private static func cachedURL(for id: UUID) -> URL? {
+        urlCacheLock.lock(); defer { urlCacheLock.unlock() }
+        return urlCache[id]
+    }
+
+    private static func setCachedURL(_ url: URL, for id: UUID) {
+        urlCacheLock.lock()
+        urlCache[id] = url
+        urlCacheLock.unlock()
     }
 }
 
@@ -5151,6 +5161,10 @@ private actor GoogleThumbCache {
     private var urlCache: [UUID: URL] = [:]
     private var inflight: [UUID: Task<URL?, Never>] = [:]
 
+    nonisolated func prefetch(_ place: Place) {
+        Task { await prefetchInternal(place) }
+    }
+
     func cachedURL(for placeID: UUID) -> URL? {
         urlCache[placeID]
     }
@@ -5162,6 +5176,15 @@ private actor GoogleThumbCache {
             if let cachedPhotos = await PlacePhotoCache.shared.get(place.id),
                let first = cachedPhotos.first(where: { $0.isGooglePhoto }),
                let url = URL(string: first.imageUrl) {
+                return GoogleThumbURLBuilder.thumbnailURL(from: url)
+            }
+            if let directID = normalizedGooglePlaceID(place.googlePlaceID),
+               let data = try? await GooglePlaceCache.shared.fetchPlace(
+                   googlePlaceID: directID,
+                   placeID: place.id
+               ),
+               let first = data.photos.first,
+               let url = URL(string: first.url) {
                 return GoogleThumbURLBuilder.thumbnailURL(from: url)
             }
             guard let data = try? await GooglePlaceCache.shared.fetchPlace(for: place),
@@ -5178,12 +5201,31 @@ private actor GoogleThumbCache {
         return url
     }
 
-    func prefetch(_ place: Place) {
+    private func prefetchInternal(_ place: Place) async {
         if urlCache[place.id] != nil { return }
         if inflight[place.id] != nil { return }
-        Task {
-            _ = await fetchURL(for: place)
+        _ = await fetchURL(for: place)
+    }
+
+    private func normalizedGooglePlaceID(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lowered = trimmed.lowercased()
+        if lowered.hasPrefix("google:") {
+            let stripped = String(trimmed.dropFirst(7))
+            return normalizedGooglePlaceID(stripped)
         }
+        if let range = lowered.range(of: "place_id:") {
+            let tail = trimmed[range.upperBound...]
+            let candidate = tail.split { $0 == "&" || $0 == " " || $0 == "," || $0 == ")" }.first
+            return normalizedGooglePlaceID(candidate.map(String.init))
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+        if trimmed.rangeOfCharacter(from: allowed.inverted) != nil {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -6722,20 +6764,25 @@ private struct NewSpotImageView: View {
     let image: NewSpotImage
     let place: Place?
     let overrideURL: URL?
+    private let useYelpOverride = false
+    private let useLegacyThumbs = false
 
     var body: some View {
-        if let overrideURL {
+        if useYelpOverride, let overrideURL {
             CachedAsyncImage(url: overrideURL) {
                 fallbackImage
             } failure: {
                 fallbackImage
             }
             .scaledToFill()
-        } else if let place, !place.isYelpBacked {
-            ZStack {
-                fallbackImage
-                TopRatedPhotoThumb(placeID: place.id, showsPlaceholder: false)
-                GooglePlaceThumbWithFallback(place: place, fallback: AnyView(Color.clear))
+        } else if let place {
+            if useLegacyThumbs {
+                ZStack {
+                    TopRatedPhotoThumb(placeID: place.id, showsPlaceholder: false)
+                    NewSpotGoogleThumb(place: place)
+                }
+            } else {
+                NewSpotGoogleThumb(place: place)
             }
         } else {
             fallbackImage
@@ -6760,6 +6807,75 @@ private struct NewSpotImageView: View {
                 Image(name)
                     .resizable()
                     .scaledToFill()
+            }
+        }
+    }
+
+    private struct NewSpotGoogleThumb: View {
+        let place: Place
+        @State private var imageURL: URL?
+        @State private var refreshToken: Int = 0
+
+        var body: some View {
+            Group {
+                if let url = imageURL {
+                    CachedAsyncImage(url: url) {
+                        Color.clear
+                    } failure: {
+                        Color.clear
+                    }
+                    .scaledToFill()
+                } else {
+                    Color.clear
+                }
+            }
+            .task(id: loadToken) {
+                await loadImage()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .placePhotoCacheDidUpdate)) { notice in
+                guard let placeID = notice.userInfo?["placeID"] as? UUID else { return }
+                guard placeID == place.id else { return }
+                refreshToken &+= 1
+            }
+        }
+
+        private var loadToken: String {
+            "\(place.id.uuidString)-\(refreshToken)"
+        }
+
+        private func loadImage() async {
+            if let cached = await PlacePhotoCache.shared.get(place.id),
+               let first = cached.first(where: { $0.isGooglePhoto }),
+               let url = URL(string: first.imageUrl) {
+                await MainActor.run { imageURL = GoogleThumbURLBuilder.thumbnailURL(from: url) }
+                return
+            }
+
+            do {
+                let data = try await GooglePlaceCache.shared.fetchPlace(for: place)
+                guard let first = data.photos.first,
+                      let url = URL(string: first.url) else {
+                    return
+                }
+                let googlePhotos = data.photos.map { photo in
+                    let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+                    return PlacePhoto(
+                        placeID: place.id,
+                        position: photo.position,
+                        url: photo.url,
+                        attribution: photo.attribution,
+                        source: "google",
+                        externalId: externalId,
+                        width: photo.width,
+                        height: photo.height
+                    )
+                }
+                await PlacePhotoCache.shared.set(place.id, photos: googlePhotos, expiresAt: data.effectiveExpiresAt)
+                await MainActor.run { imageURL = GoogleThumbURLBuilder.thumbnailURL(from: url) }
+            } catch {
+#if DEBUG
+                print("[NewSpotGoogleThumb] Failed to load Google photo for \(place.name):", error)
+#endif
             }
         }
     }
@@ -7489,7 +7605,8 @@ struct PlaceDetailView: View {
                 headline: "Halal Details",
                 note: display.note,
                 reminder: display.reminder,
-                status: display.status
+                status: display.status,
+                servesAlcohol: place.servesAlcohol
             )
             .transition(AnyTransition.opacity)
         }
@@ -7528,6 +7645,7 @@ private struct HalalDetailsCard: View {
     let note: String?
     let reminder: String
     let status: HalalUIStatus
+    let servesAlcohol: Bool?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -7539,6 +7657,18 @@ private struct HalalDetailsCard: View {
                 Spacer(minLength: 0)
 
                 HalalStatusBadge(status: status)
+            }
+
+            HalalDetailRow(
+                iconName: status == .full ? "Full Halal" : "Partial Halal",
+                text: status == .full ? "Full halal menu" : "Partial halal menu"
+            )
+
+            if let servesAlcohol {
+                HalalDetailRow(
+                    iconName: servesAlcohol ? "Yes Alcohol" : "No Alcohol",
+                    text: servesAlcohol ? "Alcohol served" : "No alcohol served"
+                )
             }
 
             if let note {
@@ -7573,6 +7703,25 @@ private struct HalalDetailsCard: View {
     private var surfaceColor: Color { Color(.secondarySystemGroupedBackground) }
     private var outlineColor: Color { Color.black.opacity(0.06) }
     private var shadowColor: Color { Color.black.opacity(0.05) }
+}
+
+private struct HalalDetailRow: View {
+    let iconName: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(iconName)
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+
+            Text(text)
+                .font(.system(.callout, design: .rounded).weight(.medium))
+                .foregroundStyle(Color.primary)
+        }
+    }
 }
 
 private struct HalalStatusBadge: View {
@@ -8480,11 +8629,37 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private var yelpCandidatesAllCache: [Place] = []
 
     func place(with id: UUID) -> Place? {
-        if let match = places.first(where: { $0.id == id }) { return match }
-        if let match = searchResults.first(where: { $0.id == id }) { return match }
-        if let match = allPlaces.first(where: { $0.id == id }) { return match }
-        if let match = globalDataset.first(where: { $0.id == id }) { return match }
-        return nil
+        let candidates = [
+            places.first(where: { $0.id == id }),
+            searchResults.first(where: { $0.id == id }),
+            allPlaces.first(where: { $0.id == id }),
+            globalDataset.first(where: { $0.id == id })
+        ].compactMap { $0 }
+
+        return pickBestPlace(from: candidates)
+    }
+
+    private func pickBestPlace(from candidates: [Place]) -> Place? {
+        guard var best = candidates.first else { return nil }
+        var bestScore = placeScore(best)
+        for candidate in candidates.dropFirst() {
+            let score = placeScore(candidate)
+            if score > bestScore {
+                best = candidate
+                bestScore = score
+            }
+        }
+        return best
+    }
+
+    private func placeScore(_ place: Place) -> Int {
+        var score = 0
+        if place.hasGooglePlaceID { score += 4 }
+        if let mapsURL = place.googleMapsURL, !mapsURL.isEmpty { score += 2 }
+        if let externalID = place.externalID, !externalID.isEmpty { score += 1 }
+        if let address = place.address, !address.isEmpty { score += 1 }
+        if let displayLocation = place.displayLocation, !displayLocation.isEmpty { score += 1 }
+        return score
     }
 
     func fetchPlaceDetails(for id: UUID) async -> Place? {
