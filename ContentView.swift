@@ -960,7 +960,9 @@ struct ContentView: View {
         var seen = Set<UUID>()
         let missingIDs = newSpotConfigs.compactMap { config -> UUID? in
             let id = config.placeID
-            guard viewModel.place(with: id) == nil else { return nil }
+            if let place = viewModel.place(with: id), place.hasGooglePlaceID {
+                return nil
+            }
             guard seen.insert(id).inserted else { return nil }
             return id
         }
@@ -5188,6 +5190,7 @@ private actor GoogleThumbCache {
 private struct GooglePlaceThumb: View {
     let place: Place
     @State private var imageURL: URL?
+    @State private var cacheRefresh: Int = 0
 
     var body: some View {
         let resolvedURL = imageURL
@@ -5203,8 +5206,13 @@ private struct GooglePlaceThumb: View {
                 placeholder
             }
         }
-        .task(id: loadKey) {
+        .task(id: loadToken) {
             await loadImage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .placePhotoCacheDidUpdate)) { notice in
+            guard let placeID = notice.userInfo?["placeID"] as? UUID else { return }
+            guard placeID == place.id else { return }
+            cacheRefresh &+= 1
         }
     }
 
@@ -5226,6 +5234,10 @@ private struct GooglePlaceThumb: View {
         return trimmed.isEmpty ? place.id.uuidString : "\(place.id.uuidString)-\(trimmed)"
     }
 
+    private var loadToken: String {
+        "\(loadKey)-\(cacheRefresh)"
+    }
+
     private func loadImage() async {
         if imageURL != nil { return }
         if let url = await GoogleThumbCache.shared.fetchURL(for: place) {
@@ -5243,6 +5255,7 @@ private struct GooglePlaceThumbWithFallback: View {
     let place: Place
     let fallback: AnyView
     @State private var imageURL: URL?
+    @State private var cacheRefresh: Int = 0
 
     var body: some View {
         ZStack {
@@ -5256,14 +5269,23 @@ private struct GooglePlaceThumbWithFallback: View {
                 .scaledToFill()
             }
         }
-        .task(id: loadKey) {
+        .task(id: loadToken) {
             await loadImage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .placePhotoCacheDidUpdate)) { notice in
+            guard let placeID = notice.userInfo?["placeID"] as? UUID else { return }
+            guard placeID == place.id else { return }
+            cacheRefresh &+= 1
         }
     }
 
     private var loadKey: String {
         let trimmed = place.googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? place.id.uuidString : "\(place.id.uuidString)-\(trimmed)"
+    }
+
+    private var loadToken: String {
+        "\(loadKey)-\(cacheRefresh)"
     }
 
     private func loadImage() async {
@@ -5884,7 +5906,18 @@ actor PlacePhotoCache {
 
     func set(_ id: UUID, photos: [PlacePhoto], expiresAt: Date? = nil) {
         map[id] = Entry(photos: photos, expiresAt: expiresAt)
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .placePhotoCacheDidUpdate,
+                object: nil,
+                userInfo: ["placeID": id]
+            )
+        }
     }
+}
+
+private extension Notification.Name {
+    static let placePhotoCacheDidUpdate = Notification.Name("placePhotoCacheDidUpdate")
 }
 
 private enum GooglePlaceCacheError: Error {
@@ -5963,21 +5996,34 @@ private actor GooglePlaceCache {
     }
 
     private func resolveGooglePlaceID(for place: Place) async -> String? {
-        if let googlePlaceID = place.googlePlaceID {
+        if let googlePlaceID = normalizedGooglePlaceID(place.googlePlaceID) {
             googleIDByPlaceID[place.id] = googlePlaceID
             return googlePlaceID
         }
         if let cached = googleIDByPlaceID[place.id] { return cached }
+        if let parsed = googlePlaceID(from: place.googleMapsURL) ?? googlePlaceID(from: place.externalID) {
+            googleIDByPlaceID[place.id] = parsed
+            return parsed
+        }
         if let task = idInflight[place.id] {
             return await task.value
         }
 
         let task = Task { () -> String? in
+            if let metadata = try? await PlaceAPI.fetchPlaceGoogleMetadata(placeID: place.id) {
+                if let id = normalizedGooglePlaceID(metadata.googlePlaceID) {
+                    return id
+                }
+                if let parsed = googlePlaceID(from: metadata.googleMapsURL)
+                    ?? googlePlaceID(from: metadata.externalID) {
+                    return parsed
+                }
+            }
             guard let dto = try? await PlaceAPI.fetchPlaceDetails(placeID: place.id),
                   let resolved = Place(dto: dto) else {
                 return nil
             }
-            return resolved.googlePlaceID
+            return normalizedGooglePlaceID(resolved.googlePlaceID)
         }
         idInflight[place.id] = task
 
@@ -5987,6 +6033,39 @@ private actor GooglePlaceCache {
             googleIDByPlaceID[place.id] = id
         }
         return id
+    }
+
+    private func normalizedGooglePlaceID(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+        if trimmed.rangeOfCharacter(from: allowed.inverted) != nil {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func googlePlaceID(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("google:") {
+            let stripped = String(trimmed.dropFirst(7))
+            return normalizedGooglePlaceID(stripped)
+        }
+        return extractGooglePlaceID(from: trimmed)
+    }
+
+    private func extractGooglePlaceID(from raw: String) -> String? {
+        let marker = "place_id:"
+        if let range = raw.range(of: marker) {
+            let tail = raw[range.upperBound...]
+            let candidate = tail.split { $0 == "&" || $0 == " " || $0 == "," || $0 == ")" }.first
+            return normalizedGooglePlaceID(candidate.map(String.init))
+        }
+        return normalizedGooglePlaceID(raw)
     }
 
     private func shouldThrottleRefresh(for googlePlaceID: String) -> Bool {
@@ -6365,9 +6444,11 @@ private struct NewSpotsScreen: View {
     @State private var isPreviouslyTrendingExpanded = false
     @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let primarySpotLimit = 6
+    private let useYelpPhotos = false
 
     private var validYelpData: [UUID: YelpBusinessData] {
-        Dictionary(uniqueKeysWithValues: yelpData.filter { !$0.value.isExpired })
+        guard useYelpPhotos else { return [:] }
+        return Dictionary(uniqueKeysWithValues: yelpData.filter { !$0.value.isExpired })
     }
 
     var body: some View {
@@ -6430,7 +6511,7 @@ private struct NewSpotsScreen: View {
     }
 
     private var yelpTaskKey: [UUID] {
-        yelpLoadPlaces.map(\.id)
+        useYelpPhotos ? yelpLoadPlaces.map(\.id) : []
     }
 
     private var yelpLoadPlaces: [Place] {
@@ -6450,10 +6531,11 @@ private struct NewSpotsScreen: View {
     }
 
     private var googleLoadPlaces: [Place] {
-        yelpLoadPlaces.filter { !$0.isYelpBacked }
+        yelpLoadPlaces
     }
 
     private func loadYelpData(for places: [Place]) async {
+        guard useYelpPhotos else { return }
         let candidates = prioritizePlacesByDistance(places.filter { $0.isYelpBacked })
         guard !candidates.isEmpty else { return }
 
@@ -6531,7 +6613,7 @@ private struct NewSpotsScreen: View {
     }
 
     private func prefetchGoogleThumbs(for places: [Place]) async {
-        let candidates = prioritizePlacesByDistance(places.filter { !$0.isYelpBacked })
+        let candidates = prioritizePlacesByDistance(places)
         guard !candidates.isEmpty else { return }
 
         let priorityCount = min(6, candidates.count)

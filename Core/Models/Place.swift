@@ -91,7 +91,12 @@ struct Place: Identifiable, Hashable, Sendable {
         source = dto.source
         sourceID = dto.source_id
         externalID = dto.external_id
-        googlePlaceID = dto.google_place_id
+        let trimmedGoogleID = dto.google_place_id?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedGoogleID, !trimmedGoogleID.isEmpty {
+            googlePlaceID = trimmedGoogleID
+        } else {
+            googlePlaceID = nil
+        }
         googleMatchStatus = dto.google_match_status
         googleMapsURL = dto.google_maps_url
         googleBusinessStatus = dto.google_business_status

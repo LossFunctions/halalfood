@@ -32,6 +32,18 @@ extension BBox {
 }
 
 enum PlaceAPI {
+    struct PlaceGoogleMetadata: Decodable {
+        let googlePlaceID: String?
+        let googleMapsURL: String?
+        let externalID: String?
+
+        enum CodingKeys: String, CodingKey {
+            case googlePlaceID = "google_place_id"
+            case googleMapsURL = "google_maps_url"
+            case externalID = "external_id"
+        }
+    }
+
     struct FetchAllPlacesResponse {
         let places: [PlaceDTO]
         let eTag: String?
@@ -352,6 +364,32 @@ enum PlaceAPI {
 
         let decoder = JSONDecoder()
         return try decoder.decode([PlaceDTO].self, from: data)
+    }
+
+    static func fetchPlaceGoogleMetadata(placeID: UUID) async throws -> PlaceGoogleMetadata? {
+        let queryItems = [
+            URLQueryItem(name: "select", value: "google_place_id,google_maps_url,external_id"),
+            URLQueryItem(name: "id", value: "eq.\(placeID.uuidString)"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "limit", value: "1")
+        ]
+        let request = try makeGETRequest(path: "rest/v1/place", queryItems: queryItems)
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(
+                statusCode: httpResponse.statusCode,
+                body: String(data: data, encoding: .utf8)
+            )
+        }
+
+        let decoder = JSONDecoder()
+        let rows = try decoder.decode([PlaceGoogleMetadata].self, from: data)
+        return rows.first
     }
 
     static func fetchCommunityTopRated(limitPerRegion: Int = 20) async throws -> [CommunityTopRatedRecord] {
