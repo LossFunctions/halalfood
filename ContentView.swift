@@ -235,14 +235,14 @@ private enum FavoritesSortOption: String, CaseIterable, Identifiable {
 }
 
 private enum TopRatedSortOption: String, CaseIterable, Identifiable {
-    case yelp
+    case google
     case community
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .yelp: return "Top Rated"
+        case .google: return "Top Rated"
         case .community: return "Community Ratings"
         }
     }
@@ -316,6 +316,14 @@ private enum CommunityTopRatedConfig {
             "The Buttery"
         ]
     ]
+
+    static let excludedFromAllLocations: Set<String> = Set([
+        "Fry Chick",
+        "Sooq NYC",
+        "Halal Indian Grill",
+        "Neerob Restaurant & Halal Chinese",
+        "220 African Restaurant"
+    ].map { PlaceOverrides.normalizedName(for: $0) })
 
 }
 
@@ -576,7 +584,7 @@ private struct CommunityTopRatedSnapshot: Sendable {
     let allPlaces: [Place]
     let globalPlaces: [Place]
     let searchResults: [Place]
-    let yelpFallback: [Place]
+    let googleFallback: [Place]
     let hasTrustedData: Bool
 }
 
@@ -600,10 +608,10 @@ private enum CommunityTopRatedEngine {
         let dedupedPool = PlaceOverrides.deduplicate(pool)
         let filteredPool = dedupedPool.filteredByCurrentGeoScope()
 
-        let yelpBase = snapshot.yelpFallback
+        let googleBase = snapshot.googleFallback
         var fallbackByRegion: [TopRatedRegion: [Place]] = [:]
         for region in CommunityTopRatedConfig.regions {
-            let matches = yelpBase.filter { CommunityRegionClassifier.matches($0, region: region) }
+            let matches = googleBase.filter { CommunityRegionClassifier.matches($0, region: region) }
             fallbackByRegion[region] = Array(matches.prefix(20))
         }
 
@@ -656,6 +664,10 @@ private enum CommunityTopRatedEngine {
                 for region in CommunityTopRatedConfig.regions {
                     if let list = regionResults[region], i < list.count {
                         let p = list[i]
+                        let normalized = PlaceOverrides.normalizedName(for: p.name)
+                        if CommunityTopRatedConfig.excludedFromAllLocations.contains(normalized) {
+                            continue
+                        }
                         if seen.insert(p.id).inserted {
                             combined.append(p)
                         }
@@ -733,7 +745,7 @@ struct ContentView: View {
     @StateObject private var appleHalalSearch = AppleHalalSearchService()
     @StateObject private var favoritesStore = FavoritesStore()
     @State private var favoritesSort: FavoritesSortOption = .recentlySaved
-    @State private var topRatedSort: TopRatedSortOption = .yelp
+    @State private var topRatedSort: TopRatedSortOption = .google
     @State private var topRatedRegion: TopRatedRegion = .all
     @State private var hasCenteredOnUser = false
     @State private var selectedApplePlace: ApplePlaceSelection?
@@ -753,8 +765,8 @@ struct ContentView: View {
     @State private var refinedPlacesCacheVersion: Int = 0
     @State private var visiblePins: [PlacePin] = []
     @State private var viewportCache = ViewportCache()
-    @State private var topRatedYelpDataCache: [UUID: YelpBusinessData] = [:]
-    @State private var topRatedYelpOrderCache: [String: [UUID]] = [:]
+    @State private var topRatedGoogleDataCache: [UUID: GooglePlaceData] = [:]
+    @State private var topRatedGoogleOrderCache: [String: [UUID]] = [:]
     @State private var searchDebounceTask: DispatchWorkItem?
     @State private var pinSelectionTask: Task<Void, Never>?
     @State private var newSpotFetchTask: Task<Void, Never>?
@@ -792,8 +804,8 @@ struct ContentView: View {
         _initialPinsProgress = State(initialValue: shouldShowInitial ? 0.05 : 1.0)
     }
 
-    private var topRatedYelpOrderKey: String {
-        "yelp:\(topRatedRegion.rawValue)"
+    private var topRatedGoogleOrderKey: String {
+        "google:\(topRatedRegion.rawValue)"
     }
 
     private let newSpotConfigs: [NewSpotConfig] = [
@@ -1201,8 +1213,8 @@ struct ContentView: View {
 
     private var topRatedDisplay: [Place] {
         switch topRatedSort {
-        case .yelp:
-            return viewModel.yelpCandidatePlaces(limit: 60, region: topRatedRegion)
+        case .google:
+            return viewModel.googleCandidatePlaces(limit: 60, region: topRatedRegion)
         case .community:
             return communityTopRated(for: topRatedRegion)
         }
@@ -1909,9 +1921,9 @@ struct ContentView: View {
                         sortOption: topRatedSort,
                         region: topRatedRegion,
                         userLocation: locationManager.lastKnownLocation,
-                        yelpData: $topRatedYelpDataCache,
-                        cachedYelpOrder: topRatedYelpOrderCache[topRatedYelpOrderKey],
-                        onYelpOrderChange: { topRatedYelpOrderCache[topRatedYelpOrderKey] = $0 },
+                        googleData: $topRatedGoogleDataCache,
+                        cachedGoogleOrder: topRatedGoogleOrderCache[topRatedGoogleOrderKey],
+                        onGoogleOrderChange: { topRatedGoogleOrderCache[topRatedGoogleOrderKey] = $0 },
                         topInset: currentTopSafeAreaInset(),
                         bottomInset: currentBottomSafeAreaInset(),
                         isCommunityLoading: topRatedSort == .community
@@ -3568,9 +3580,9 @@ private struct TopRatedScreen: View {
     let sortOption: TopRatedSortOption
     let region: TopRatedRegion
     let userLocation: CLLocation?
-    @Binding var yelpData: [UUID: YelpBusinessData]
-    let cachedYelpOrder: [UUID]?
-    let onYelpOrderChange: ([UUID]) -> Void
+    @Binding var googleData: [UUID: GooglePlaceData]
+    let cachedGoogleOrder: [UUID]?
+    let onGoogleOrderChange: ([UUID]) -> Void
     let topInset: CGFloat
     let bottomInset: CGFloat
     let isCommunityLoading: Bool
@@ -3579,10 +3591,10 @@ private struct TopRatedScreen: View {
     let onRegionChange: (TopRatedRegion) -> Void
 
     private let detailColor = Color.primary.opacity(0.65)
-    @State private var communityVisibleLimit: Int = 20
-    @State private var yelpOrderedIDs: [UUID] = []
-    @State private var didFinalizeYelpOrder = false
-    private let communityPageSize: Int = 20
+    @State private var visibleLimit: Int = 10
+    @State private var googleOrderedIDs: [UUID] = []
+    @State private var didFinalizeGoogleOrder = false
+    private let pageSize: Int = 10
 
     var body: some View {
         let effectivePlaces = displayPlaces
@@ -3649,12 +3661,8 @@ private struct TopRatedScreen: View {
             } else {
                 let displayPairs: [(offset: Int, element: Place)] = {
                     let enumerated = Array(effectivePlaces.enumerated())
-                    if sortOption == .community {
-                        return Array(enumerated.prefix(communityVisibleLimit))
-                    }
-                    return enumerated
+                    return Array(enumerated.prefix(visibleLimit))
                 }()
-                let lastDisplayedOffset = displayPairs.last?.offset
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
@@ -3668,42 +3676,40 @@ private struct TopRatedScreen: View {
                                 Button { onSelect(place) } label: {
                                     TopRatedRow(
                                         place: place,
-                                        yelpData: validYelpData(for: place.id),
+                                        googleData: validGoogleData(for: place.id),
                                         rank: (sortOption == .community ? index + 1 : nil),
-                                        showYelpRating: sortOption != .community
+                                        showRating: sortOption != .community
                                     )
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.vertical, 10)
-                                .onAppear {
-                                    guard sortOption == .community,
-                                          let lastDisplayedOffset,
-                                          index == lastDisplayedOffset,
-                                          communityVisibleLimit < effectivePlaces.count else { return }
-                                    communityVisibleLimit = min(communityVisibleLimit + communityPageSize, effectivePlaces.count)
-                                }
                             }
                         }
                         .padding(18)
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
 
-                        if sortOption == .community, communityVisibleLimit < effectivePlaces.count {
+                        if visibleLimit < effectivePlaces.count {
                             Button {
-                                communityVisibleLimit = min(communityVisibleLimit + communityPageSize, effectivePlaces.count)
+                                visibleLimit = min(visibleLimit + pageSize, effectivePlaces.count)
                             } label: {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .tint(detailColor)
-                                    Text("Show more favorites")
-                                        .font(.footnote.weight(.semibold))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.primary.opacity(0.06), in: Capsule())
+                                Text("Show More")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        Color(.secondarySystemGroupedBackground),
+                                        in: Capsule()
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.08), radius: 12, y: 6)
                             }
                             .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                     .padding(.vertical, 8)
@@ -3711,7 +3717,7 @@ private struct TopRatedScreen: View {
                 .task(id: displayPairs.map { $0.element.id }) {
                     // Warm prefetch a small number of thumbnails for instant display
                     let prioritized = prioritizePlacesByDistance(displayPairs.map { $0.element })
-                    for place in prioritized.prefix(communityPageSize) {
+                    for place in prioritized.prefix(pageSize) {
                         if place.isYelpBacked {
                             TopRatedPhotoThumb.prefetch(for: place.id)
                         } else {
@@ -3727,26 +3733,22 @@ private struct TopRatedScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
         .onChange(of: sortOption) { newValue in
-            if newValue == .community {
-                communityVisibleLimit = communityPageSize
-            }
+            visibleLimit = pageSize
         }
-        .onChange(of: yelpTaskKey) { _ in
-            didFinalizeYelpOrder = false
-            yelpOrderedIDs = resolvedInitialYelpOrder()
+        .onChange(of: googleTaskKey) { _ in
+            didFinalizeGoogleOrder = false
+            googleOrderedIDs = resolvedInitialGoogleOrder()
         }
         .onChange(of: region) { _ in
-            communityVisibleLimit = communityPageSize
+            visibleLimit = pageSize
         }
         .onChange(of: places.count) { _ in
-            if sortOption == .community {
-                communityVisibleLimit = min(communityVisibleLimit, max(places.count, communityPageSize))
-            }
+            visibleLimit = min(visibleLimit, max(places.count, pageSize))
         }
-        .task(id: yelpTaskKey) {
-            didFinalizeYelpOrder = false
-            yelpOrderedIDs = resolvedInitialYelpOrder()
-            await loadYelpData(for: yelpLoadPlaces)
+        .task(id: googleTaskKey) {
+            didFinalizeGoogleOrder = false
+            googleOrderedIDs = resolvedInitialGoogleOrder()
+            await loadGoogleData(for: googleLoadPlaces)
         }
     }
 
@@ -3772,15 +3774,15 @@ private struct TopRatedScreen: View {
         switch sortOption {
         case .community:
             return places
-        case .yelp:
-            return yelpSortedPlaces
+        case .google:
+            return googleSortedPlaces
         }
     }
 
-    private var yelpSortedPlaces: [Place] {
-        let candidates = places.filter { $0.isYelpBacked }
+    private var googleSortedPlaces: [Place] {
+        let candidates = places.filter { $0.hasGooglePlaceID }
         guard !candidates.isEmpty else { return [] }
-        let order = resolvedYelpOrder(for: candidates)
+        let order = resolvedGoogleOrder(for: candidates)
         guard !order.isEmpty else { return candidates }
         let rank: [UUID: Int] = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($0.element, $0.offset) })
         return candidates.sorted { lhs, rhs in
@@ -3791,32 +3793,32 @@ private struct TopRatedScreen: View {
         }
     }
 
-    private func validYelpData(for id: UUID) -> YelpBusinessData? {
-        guard let data = yelpData[id], !data.isExpired else { return nil }
+    private func validGoogleData(for id: UUID) -> GooglePlaceData? {
+        guard let data = googleData[id], !data.isExpired else { return nil }
         return data
     }
 
-    private func resolvedInitialYelpOrder() -> [UUID] {
-        let candidateIDs = Set(places.filter(\.isYelpBacked).map(\.id))
-        if let cachedYelpOrder {
-            let filtered = cachedYelpOrder.filter { candidateIDs.contains($0) }
+    private func resolvedInitialGoogleOrder() -> [UUID] {
+        let candidateIDs = Set(places.filter(\.hasGooglePlaceID).map(\.id))
+        if let cachedGoogleOrder {
+            let filtered = cachedGoogleOrder.filter { candidateIDs.contains($0) }
             if !filtered.isEmpty { return filtered }
         }
-        return places.filter(\.isYelpBacked).map(\.id)
+        return places.filter(\.hasGooglePlaceID).map(\.id)
     }
 
-    private func resolvedYelpOrder(for candidates: [Place]) -> [UUID] {
+    private func resolvedGoogleOrder(for candidates: [Place]) -> [UUID] {
         let candidateIDs = Set(candidates.map(\.id))
-        if !yelpOrderedIDs.isEmpty {
-            let filtered = yelpOrderedIDs.filter { candidateIDs.contains($0) }
+        if !googleOrderedIDs.isEmpty {
+            let filtered = googleOrderedIDs.filter { candidateIDs.contains($0) }
             if !filtered.isEmpty { return filtered }
         }
-        return computeYelpSortOrder(for: candidates)
+        return computeGoogleSortOrder(for: candidates)
     }
 
-    private func computeYelpSortOrder(for candidates: [Place]) -> [UUID] {
+    private func computeGoogleSortOrder(for candidates: [Place]) -> [UUID] {
         let scored: [(id: UUID, name: String, rating: Double, count: Int)] = candidates.map { place in
-            let data = validYelpData(for: place.id)
+            let data = validGoogleData(for: place.id)
             let rating = data?.rating ?? -1
             let count = data?.reviewCount ?? 0
             return (place.id, place.name, rating, count)
@@ -3829,33 +3831,33 @@ private struct TopRatedScreen: View {
         return sorted.map(\.id)
     }
 
-    private func finalizeYelpOrderIfNeeded(for candidates: [Place]) {
-        guard sortOption == .yelp else { return }
-        guard !didFinalizeYelpOrder else { return }
-        let order = computeYelpSortOrder(for: candidates)
+    private func finalizeGoogleOrderIfNeeded(for candidates: [Place]) {
+        guard sortOption == .google else { return }
+        guard !didFinalizeGoogleOrder else { return }
+        let order = computeGoogleSortOrder(for: candidates)
         guard !order.isEmpty else { return }
-        didFinalizeYelpOrder = true
-        yelpOrderedIDs = order
-        onYelpOrderChange(order)
+        didFinalizeGoogleOrder = true
+        googleOrderedIDs = order
+        onGoogleOrderChange(order)
     }
 
-    private var yelpTaskKey: [UUID] {
-        yelpLoadPlaces.map(\.id)
+    private var googleTaskKey: [UUID] {
+        googleLoadPlaces.map(\.id)
     }
 
-    private var yelpLoadPlaces: [Place] {
+    private var googleLoadPlaces: [Place] {
         switch sortOption {
         case .community:
-            return Array(places.prefix(communityVisibleLimit))
-        case .yelp:
-            // Important: keep the task key stable. `displayPlaces` depends on `yelpData` (sorting),
-            // which would otherwise cause repeated reloads as `yelpData` updates.
-            return places
+            return Array(places.prefix(visibleLimit))
+        case .google:
+            // Important: keep the task key stable. `displayPlaces` depends on `googleData` (sorting),
+            // which would otherwise cause repeated reloads as `googleData` updates.
+            return Array(places.prefix(visibleLimit))
         }
     }
 
-    private func loadYelpData(for places: [Place]) async {
-        let candidates = prioritizePlacesByDistance(places.filter { $0.isYelpBacked })
+    private func loadGoogleData(for places: [Place]) async {
+        let candidates = prioritizePlacesByDistance(places.filter { $0.hasGooglePlaceID })
         guard !candidates.isEmpty else { return }
         let maxConcurrent = 4
         let priorityCount = min(10, candidates.count)
@@ -3864,9 +3866,9 @@ private struct TopRatedScreen: View {
 
         func refresh(_ place: Place) {
             Task {
-                if let refreshed = try? await YelpBusinessCache.shared.fetchBusiness(for: place, forceRefresh: true) {
+                if let refreshed = try? await GooglePlaceCache.shared.fetchPlace(for: place, forceRefresh: true) {
                     await MainActor.run {
-                        yelpData[place.id] = refreshed
+                        googleData[place.id] = refreshed
                     }
                 }
             }
@@ -3875,10 +3877,10 @@ private struct TopRatedScreen: View {
         func resolve(_ place: Place) async {
             if Task.isCancelled { return }
 
-            if let existing = await MainActor.run(body: { yelpData[place.id] }) {
+            if let existing = await MainActor.run(body: { googleData[place.id] }) {
                 if existing.isExpired {
                     await MainActor.run {
-                        yelpData[place.id] = nil
+                        googleData[place.id] = nil
                     }
                 } else {
                     if existing.isNearExpiry {
@@ -3888,9 +3890,9 @@ private struct TopRatedScreen: View {
                 }
             }
 
-            if let cached = await YelpBusinessCache.shared.cachedData(for: place) {
+            if let cached = await GooglePlaceCache.shared.cachedData(for: place) {
                 await MainActor.run {
-                    yelpData[place.id] = cached
+                    googleData[place.id] = cached
                 }
                 if cached.isNearExpiry {
                     refresh(place)
@@ -3899,9 +3901,9 @@ private struct TopRatedScreen: View {
             }
 
             do {
-                let data = try await YelpBusinessCache.shared.fetchBusiness(for: place)
+                let data = try await GooglePlaceCache.shared.fetchPlace(for: place)
                 await MainActor.run {
-                    yelpData[place.id] = data
+                    googleData[place.id] = data
                 }
             } catch {
                 // ignore list failures
@@ -3912,7 +3914,7 @@ private struct TopRatedScreen: View {
             await resolve(place)
         }
         await MainActor.run {
-            finalizeYelpOrderIfNeeded(for: candidates)
+            finalizeGoogleOrderIfNeeded(for: candidates)
         }
 
         guard !remaining.isEmpty else { return }
@@ -3949,9 +3951,9 @@ private struct TopRatedScreen: View {
 
 private struct TopRatedRow: View {
     let place: Place
-    let yelpData: YelpBusinessData?
+    let googleData: GooglePlaceData?
     let rank: Int?
-    let showYelpRating: Bool
+    let showRating: Bool
 
     private let detailColor = Color.primary.opacity(0.75)
     @State private var cuisine: String?
@@ -3959,7 +3961,7 @@ private struct TopRatedRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            TopRatedThumbnail(place: place, yelpPhotoURL: yelpPhotoURL)
+            TopRatedThumbnail(place: place, yelpPhotoURL: nil)
                 .frame(width: 64, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -3973,7 +3975,7 @@ private struct TopRatedRow: View {
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
 
-                if showYelpRating {
+                if showRating {
                     ratingView()
                 }
 
@@ -4005,35 +4007,51 @@ private struct TopRatedRow: View {
 
     @ViewBuilder
     private func ratingView() -> some View {
-        if place.isYelpBacked {
-            if let data = yelpData, let rating = data.rating, rating > 0 {
-                YelpInlineRatingView(rating: rating, reviewCount: data.reviewCount)
-            } else {
-                Text("Loading Yelp rating…")
+        let fallbackRating = place.displayRating
+        let fallbackCount = place.displayRatingCount
+        if let data = googleData, let rating = data.rating, rating > 0 {
+            ratingLine(rating: rating, count: data.reviewCount)
+        } else if place.hasGooglePlaceID, googleData == nil {
+            Text("Loading Google rating…")
+                .font(.footnote)
+                .foregroundStyle(Color.secondary)
+        } else if let rating = fallbackRating, rating > 0 {
+            ratingLine(rating: rating, count: fallbackCount)
+        } else if place.hasGooglePlaceID, googleData != nil {
+            noReviewsLine()
+        } else {
+            noReviewsLine()
+        }
+    }
+
+    @ViewBuilder
+    private func ratingLine(rating: Double, count: Int?) -> some View {
+        let hasCount = (count ?? 0) > 0
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.orange)
+            Text(String(format: "%.1f", rating))
+                .font(.subheadline)
+                .foregroundStyle(Color.primary)
+            if hasCount {
+                Text("(\(reviewLabel(for: count)))")
                     .font(.footnote)
                     .foregroundStyle(Color.secondary)
             }
-        } else {
-            let count = place.displayRatingCount ?? 0
-            let hasReviews = count > 0
-            HStack(spacing: 4) {
-                Image(systemName: hasReviews ? "star.fill" : "star")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(hasReviews ? Color.orange : Color.secondary)
-                if hasReviews, let rating = place.displayRating {
-                    Text(String(format: "%.1f", rating))
-                        .font(.subheadline)
-                        .foregroundStyle(Color.primary)
-                    Text("(\(reviewLabel(for: count)))")
-                        .font(.footnote)
-                        .foregroundStyle(Color.secondary)
-                } else {
-                    Text("No reviews yet")
-                        .font(.footnote)
-                        .foregroundStyle(Color.secondary)
-                        .italic()
-                }
-            }
+        }
+    }
+
+    @ViewBuilder
+    private func noReviewsLine() -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.secondary)
+            Text("No reviews yet")
+                .font(.footnote)
+                .foregroundStyle(Color.secondary)
+                .italic()
         }
     }
 
@@ -4044,11 +4062,6 @@ private struct TopRatedRow: View {
         return "\(count) reviews"
     }
 
-    private var yelpPhotoURL: URL? {
-        guard let urlString = yelpData?.photos.first?.url else { return nil }
-        guard let url = URL(string: urlString) else { return nil }
-        return TopRatedPhotoThumb.optimizedURL(from: url)
-    }
 
     private func categoryLine() -> String {
         // Show cuisine if fetched; otherwise just halal label
@@ -5156,8 +5169,8 @@ private enum GooglePhotoURLBuilder {
     }
 }
 
-private actor GoogleThumbCache {
-    static let shared = GoogleThumbCache()
+private actor GooglePhotoResolver {
+    static let shared = GooglePhotoResolver()
     private var urlCache: [UUID: URL] = [:]
     private var inflight: [UUID: Task<URL?, Never>] = [:]
 
@@ -5165,35 +5178,40 @@ private actor GoogleThumbCache {
         Task { await prefetchInternal(place) }
     }
 
-    func cachedURL(for placeID: UUID) -> URL? {
-        urlCache[placeID]
-    }
-
-    func fetchURL(for place: Place) async -> URL? {
+    func fetchThumbnailURL(for place: Place) async -> URL? {
         if let cached = urlCache[place.id] { return cached }
+        if let cachedPhotos = await PlacePhotoCache.shared.get(place.id),
+           let first = cachedPhotos.first(where: { $0.isGooglePhoto }),
+           let url = URL(string: first.imageUrl) {
+            let thumb = GoogleThumbURLBuilder.thumbnailURL(from: url)
+            urlCache[place.id] = thumb
+            return thumb
+        }
         if let task = inflight[place.id] { return await task.value }
+
         let task = Task<URL?, Never> {
             if let cachedPhotos = await PlacePhotoCache.shared.get(place.id),
                let first = cachedPhotos.first(where: { $0.isGooglePhoto }),
                let url = URL(string: first.imageUrl) {
                 return GoogleThumbURLBuilder.thumbnailURL(from: url)
             }
-            if let directID = normalizedGooglePlaceID(place.googlePlaceID),
+
+            if let directID = resolveGooglePlaceID(for: place),
                let data = try? await GooglePlaceCache.shared.fetchPlace(
                    googlePlaceID: directID,
                    placeID: place.id
                ),
-               let first = data.photos.first,
-               let url = URL(string: first.url) {
-                return GoogleThumbURLBuilder.thumbnailURL(from: url)
+               let url = await cacheGooglePhotosIfNeeded(data, placeID: place.id) {
+                return url
             }
+
             guard let data = try? await GooglePlaceCache.shared.fetchPlace(for: place),
-                  let first = data.photos.first,
-                  let url = URL(string: first.url) else {
+                  let url = await cacheGooglePhotosIfNeeded(data, placeID: place.id) else {
                 return nil
             }
-            return GoogleThumbURLBuilder.thumbnailURL(from: url)
+            return url
         }
+
         inflight[place.id] = task
         let url = await task.value
         inflight[place.id] = nil
@@ -5204,28 +5222,72 @@ private actor GoogleThumbCache {
     private func prefetchInternal(_ place: Place) async {
         if urlCache[place.id] != nil { return }
         if inflight[place.id] != nil { return }
-        _ = await fetchURL(for: place)
+        _ = await fetchThumbnailURL(for: place)
+    }
+
+    private func cacheGooglePhotosIfNeeded(_ data: GooglePlaceData, placeID: UUID) async -> URL? {
+        guard let first = data.photos.first,
+              let url = URL(string: first.url) else {
+            return nil
+        }
+        let googlePhotos = data.photos.map { photo in
+            let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+            return PlacePhoto(
+                placeID: placeID,
+                position: photo.position,
+                url: photo.url,
+                attribution: photo.attribution,
+                source: "google",
+                externalId: externalId,
+                width: photo.width,
+                height: photo.height
+            )
+        }
+        await PlacePhotoCache.shared.set(
+            placeID,
+            photos: googlePhotos,
+            expiresAt: data.effectiveExpiresAt
+        )
+        return GoogleThumbURLBuilder.thumbnailURL(from: url)
+    }
+
+    private func resolveGooglePlaceID(for place: Place) -> String? {
+        if let id = normalizedGooglePlaceID(place.googlePlaceID) { return id }
+        if let parsed = googlePlaceID(from: place.googleMapsURL) { return parsed }
+        if let parsed = googlePlaceID(from: place.externalID) { return parsed }
+        return nil
     }
 
     private func normalizedGooglePlaceID(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let lowered = trimmed.lowercased()
-        if lowered.hasPrefix("google:") {
-            let stripped = String(trimmed.dropFirst(7))
-            return normalizedGooglePlaceID(stripped)
-        }
-        if let range = lowered.range(of: "place_id:") {
-            let tail = trimmed[range.upperBound...]
-            let candidate = tail.split { $0 == "&" || $0 == " " || $0 == "," || $0 == ")" }.first
-            return normalizedGooglePlaceID(candidate.map(String.init))
-        }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
         if trimmed.rangeOfCharacter(from: allowed.inverted) != nil {
             return nil
         }
         return trimmed
+    }
+
+    private func googlePlaceID(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("google:") {
+            let stripped = String(trimmed.dropFirst(7))
+            return normalizedGooglePlaceID(stripped)
+        }
+        return extractGooglePlaceID(from: trimmed)
+    }
+
+    private func extractGooglePlaceID(from raw: String) -> String? {
+        let marker = "place_id:"
+        if let range = raw.range(of: marker) {
+            let tail = raw[range.upperBound...]
+            let candidate = tail.split { $0 == "&" || $0 == " " || $0 == "," || $0 == ")" }.first
+            return normalizedGooglePlaceID(candidate.map(String.init))
+        }
+        return normalizedGooglePlaceID(raw)
     }
 }
 
@@ -5268,7 +5330,7 @@ private struct GooglePlaceThumb: View {
     }
 
     static func prefetch(for place: Place) {
-        GoogleThumbCache.shared.prefetch(place)
+        GooglePhotoResolver.shared.prefetch(place)
     }
 
     private var loadKey: String {
@@ -5282,13 +5344,17 @@ private struct GooglePlaceThumb: View {
 
     private func loadImage() async {
         if imageURL != nil { return }
-        if let url = await GoogleThumbCache.shared.fetchURL(for: place) {
-            imageURL = url
+        if let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+            await MainActor.run {
+                imageURL = url
+            }
             return
         }
         try? await Task.sleep(nanoseconds: 500_000_000)
-        if imageURL == nil, let url = await GoogleThumbCache.shared.fetchURL(for: place) {
-            imageURL = url
+        if imageURL == nil, let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+            await MainActor.run {
+                imageURL = url
+            }
         }
     }
 }
@@ -5332,13 +5398,17 @@ private struct GooglePlaceThumbWithFallback: View {
 
     private func loadImage() async {
         if imageURL != nil { return }
-        if let url = await GoogleThumbCache.shared.fetchURL(for: place) {
-            imageURL = url
+        if let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+            await MainActor.run {
+                imageURL = url
+            }
             return
         }
         try? await Task.sleep(nanoseconds: 500_000_000)
-        if imageURL == nil, let url = await GoogleThumbCache.shared.fetchURL(for: place) {
-            imageURL = url
+        if imageURL == nil, let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+            await MainActor.run {
+                imageURL = url
+            }
         }
     }
 }
@@ -6847,35 +6917,22 @@ private struct NewSpotImageView: View {
             if let cached = await PlacePhotoCache.shared.get(place.id),
                let first = cached.first(where: { $0.isGooglePhoto }),
                let url = URL(string: first.imageUrl) {
-                await MainActor.run { imageURL = GoogleThumbURLBuilder.thumbnailURL(from: url) }
+                await MainActor.run {
+                    imageURL = GoogleThumbURLBuilder.thumbnailURL(from: url)
+                }
                 return
             }
-
-            do {
-                let data = try await GooglePlaceCache.shared.fetchPlace(for: place)
-                guard let first = data.photos.first,
-                      let url = URL(string: first.url) else {
-                    return
+            if let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+                await MainActor.run {
+                    imageURL = url
                 }
-                let googlePhotos = data.photos.map { photo in
-                    let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
-                    return PlacePhoto(
-                        placeID: place.id,
-                        position: photo.position,
-                        url: photo.url,
-                        attribution: photo.attribution,
-                        source: "google",
-                        externalId: externalId,
-                        width: photo.width,
-                        height: photo.height
-                    )
+                return
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if imageURL == nil, let url = await GooglePhotoResolver.shared.fetchThumbnailURL(for: place) {
+                await MainActor.run {
+                    imageURL = url
                 }
-                await PlacePhotoCache.shared.set(place.id, photos: googlePhotos, expiresAt: data.effectiveExpiresAt)
-                await MainActor.run { imageURL = GoogleThumbURLBuilder.thumbnailURL(from: url) }
-            } catch {
-#if DEBUG
-                print("[NewSpotGoogleThumb] Failed to load Google photo for \(place.name):", error)
-#endif
             }
         }
     }
@@ -8625,8 +8682,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
     private let persistDebounceNanoseconds: UInt64 = 1_500_000_000
     private let diskSnapshotStalenessInterval: TimeInterval = 60 * 60 * 6
     private var globalDatasetETag: String?
-    private var yelpCandidateCacheSignature: Int?
-    private var yelpCandidatesAllCache: [Place] = []
+    private var googleCandidateCacheSignature: Int?
+    private var googleCandidatesAllCache: [Place] = []
 
     func place(with id: UUID) -> Place? {
         let candidates = [
@@ -9376,7 +9433,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             allPlaces: allPlaces,
             globalPlaces: globalDataset,
             searchResults: searchResults,
-            yelpFallback: yelpCandidatePlaces(limit: 80),
+            googleFallback: googleCandidatePlaces(limit: 80),
             hasTrustedData: hasTrustedCommunityDataset()
         )
     }
@@ -9427,8 +9484,14 @@ final class MapScreenViewModel: @MainActor ObservableObject {
                 var seen = Set<UUID>()
                 var deduplicated: [Place] = []
                 deduplicated.reserveCapacity(combined.count)
-                for place in combined where seen.insert(place.id).inserted {
-                    deduplicated.append(place)
+                for place in combined {
+                    let normalized = PlaceOverrides.normalizedName(for: place.name)
+                    if CommunityTopRatedConfig.excludedFromAllLocations.contains(normalized) {
+                        continue
+                    }
+                    if seen.insert(place.id).inserted {
+                        deduplicated.append(place)
+                    }
                 }
                 if !deduplicated.isEmpty {
                     let fallbackLimit = max(limitPerRegion * 3, limitPerRegion)
@@ -9486,9 +9549,9 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         return Array(sorted.prefix(limit))
     }
 
-    fileprivate func yelpCandidatePlaces(limit: Int = 60, region: TopRatedRegion = .all) -> [Place] {
-        ensureYelpCandidateCacheIfNeeded()
-        let base = yelpCandidatesAllCache
+    fileprivate func googleCandidatePlaces(limit: Int = 60, region: TopRatedRegion = .all) -> [Place] {
+        ensureGoogleCandidateCacheIfNeeded()
+        let base = googleCandidatesAllCache
         let filtered: [Place]
         if region == .all {
             filtered = base
@@ -9499,17 +9562,19 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         return Array(filtered.prefix(limit))
     }
 
-    private func ensureYelpCandidateCacheIfNeeded() {
-        let signature = currentYelpCandidateCacheSignature()
-        guard yelpCandidateCacheSignature != signature else { return }
-        yelpCandidateCacheSignature = signature
+    private func ensureGoogleCandidateCacheIfNeeded() {
+        let signature = currentGoogleCandidateCacheSignature()
+        guard googleCandidateCacheSignature != signature else { return }
+        googleCandidateCacheSignature = signature
 
         let source = globalDataset.isEmpty ? allPlaces : globalDataset
-        let yelpBacked = source.filter { $0.isYelpBacked }
-        yelpCandidatesAllCache = PlaceOverrides.deduplicate(yelpBacked)
+        let googleBacked = source.filter { place in
+            place.hasGooglePlaceID && place.isGoogleMatched && !place.isGoogleClosed
+        }
+        googleCandidatesAllCache = PlaceOverrides.deduplicate(googleBacked)
     }
 
-    private func currentYelpCandidateCacheSignature() -> Int {
+    private func currentGoogleCandidateCacheSignature() -> Int {
         var value = globalDatasetVersion &+ filteredPlacesVersion
         value = value &+ (globalDataset.count &* 31)
         value = value &+ (allPlaces.count &* 17)
