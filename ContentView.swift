@@ -1945,7 +1945,14 @@ struct ContentView: View {
                     spotlight: spotlightEntry,
                     userLocation: locationManager.lastKnownLocation,
                     topInset: currentTopSafeAreaInset(),
-                    isPreviouslyTrendingExpanded: $isPreviouslyTrendingExpanded,
+                    isPreviouslyTrendingExpanded: isPreviouslyTrendingExpanded,
+                    onToggleExpand: {
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isPreviouslyTrendingExpanded.toggle()
+                            }
+                        }
+                    },
                     onSelect: { place in
                         selectedPlace = place
                     }
@@ -2464,6 +2471,7 @@ struct ContentView: View {
             HStack(spacing: interTabSpacing) {
                 ForEach(BottomTab.allCases) { tab in
                     Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
                         bottomTab = tab
                     } label: {
                         VStack(spacing: 6) {
@@ -6351,6 +6359,9 @@ private struct FavoritesPanel: View {
     let onCollapse: () -> Void
     let onSortChange: (FavoritesSortOption) -> Void
 
+    @State private var googleRatings: [String: GooglePlaceData] = [:]
+    @State private var fetchTask: Task<Void, Never>?
+
     private let detailColor = Color.secondary
 
     var body: some View {
@@ -6400,7 +6411,10 @@ private struct FavoritesPanel: View {
                             Button {
                                 onSelect(snapshot)
                             } label: {
-                                FavoriteRow(snapshot: snapshot)
+                                FavoriteRow(
+                                    snapshot: snapshot,
+                                    googleData: snapshot.googlePlaceID.flatMap { googleRatings[$0] }
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -6416,6 +6430,45 @@ private struct FavoritesPanel: View {
             in: RoundedRectangle(cornerRadius: 22, style: .continuous)
         )
         .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+        .task(id: favorites.map(\.id)) {
+            await fetchGoogleRatings()
+        }
+    }
+
+    private func fetchGoogleRatings() async {
+        // Get favorites that have googlePlaceID but no stored rating
+        let toFetch = favorites.filter { snapshot in
+            guard let googleID = snapshot.googlePlaceID, !googleID.isEmpty else { return false }
+            // Skip if we already have cached data
+            if googleRatings[googleID] != nil { return false }
+            // Fetch if no rating stored
+            return snapshot.rating == nil
+        }
+
+        guard !toFetch.isEmpty else { return }
+
+        // Fetch in parallel with concurrency limit
+        await withTaskGroup(of: (String, GooglePlaceData?).self) { group in
+            for snapshot in toFetch.prefix(10) { // Limit concurrent fetches
+                guard let googleID = snapshot.googlePlaceID else { continue }
+                group.addTask {
+                    do {
+                        let data = try await GooglePlacesAPI.fetchPlace(googlePlaceID: googleID)
+                        return (googleID, data)
+                    } catch {
+                        return (googleID, nil)
+                    }
+                }
+            }
+
+            for await (googleID, data) in group {
+                if let data {
+                    await MainActor.run {
+                        googleRatings[googleID] = data
+                    }
+                }
+            }
+        }
     }
 
     private func sortButton(for option: FavoritesSortOption) -> some View {
@@ -6567,7 +6620,8 @@ private struct NewSpotsScreen: View {
     let spotlight: NewSpotEntry?
     let userLocation: CLLocation?
     let topInset: CGFloat
-    @Binding var isPreviouslyTrendingExpanded: Bool
+    let isPreviouslyTrendingExpanded: Bool
+    let onToggleExpand: () -> Void
     let onSelect: (Place) -> Void
     @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let primarySpotLimit = 6
@@ -6605,7 +6659,8 @@ private struct NewSpotsScreen: View {
                         PreviouslyTrendingCard(
                             spots: previousEntries,
                             yelpData: availableYelpData,
-                            isExpanded: $isPreviouslyTrendingExpanded,
+                            isExpanded: isPreviouslyTrendingExpanded,
+                            onToggle: onToggleExpand,
                             onSelect: onSelect
                         )
                     }
@@ -6642,12 +6697,10 @@ private struct NewSpotsScreen: View {
     }
 
     private var yelpLoadPlaces: [Place] {
-        var candidates = Array(spots.prefix(primarySpotLimit)).map(\.place)
+        // Always include all spots to avoid task key changes when expanding
+        var candidates = spots.map(\.place)
         if let spotlight {
             candidates.append(spotlight.place)
-        }
-        if isPreviouslyTrendingExpanded {
-            candidates.append(contentsOf: spots.dropFirst(primarySpotLimit).map(\.place))
         }
         var seen = Set<UUID>()
         return candidates.filter { seen.insert($0.id).inserted }
@@ -6798,11 +6851,12 @@ private struct NewSpotsScreen: View {
     private struct PreviouslyTrendingCard: View {
         let spots: [NewSpotEntry]
         let yelpData: [UUID: YelpBusinessData]
-        @Binding var isExpanded: Bool
+        let isExpanded: Bool
+        let onToggle: () -> Void
         let onSelect: (Place) -> Void
 
-        // Local state just to test if buttons work at all
-        @State private var testCounter = 0
+        // Local test state - this worked before
+        @State private var tapCount = 0
 
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
@@ -6813,22 +6867,24 @@ private struct NewSpotsScreen: View {
                         .font(.headline.weight(.semibold))
                     Spacer()
 
-                    // Test button - shows tap count
+                    // Test button - same structure that worked
                     Button {
-                        testCounter += 1
+                        tapCount += 1
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onToggle()
                     } label: {
-                        Text("Taps: \(testCounter)")
-                            .font(.subheadline.bold())
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                        Text("Tap:\(tapCount)")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                             .background(Color.blue)
                             .foregroundColor(.white)
-                            .cornerRadius(8)
+                            .cornerRadius(6)
                     }
                 }
                 .foregroundStyle(Color.primary)
 
-                // Always show for now
+                // ALWAYS show the list - same as when it worked
                 NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
                     .padding(.top, 8)
             }
@@ -7085,7 +7141,8 @@ private struct NewSpotImageView: View {
                     source: place.source,
                     sourceID: place.sourceID,
                     externalID: place.externalID,
-                    applePlaceID: place.applePlaceID
+                    applePlaceID: place.applePlaceID,
+                    googlePlaceID: place.googlePlaceID
                 )
             } label: {
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
@@ -7364,7 +7421,8 @@ struct PlaceDetailView: View {
                 source: currentPlace.source,
                 sourceID: currentPlace.sourceID,
                 externalID: currentPlace.externalID,
-                applePlaceID: appleID
+                applePlaceID: appleID,
+                googlePlaceID: currentPlace.googlePlaceID
             )
         }
     }
@@ -7385,7 +7443,8 @@ struct PlaceDetailView: View {
             source: currentPlace.source,
             sourceID: currentPlace.sourceID,
             externalID: currentPlace.externalID,
-            applePlaceID: appleID
+            applePlaceID: appleID,
+            googlePlaceID: currentPlace.googlePlaceID
         )
     }
 
