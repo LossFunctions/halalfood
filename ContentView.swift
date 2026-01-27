@@ -780,6 +780,7 @@ struct ContentView: View {
     @State private var initialPinsProgress = 0.0
     @State private var isFavoritesPanelCollapsed = false
     @State private var isFavoritesPanelPinnedCollapsed = false
+    @State private var isPreviouslyTrendingExpanded = false
 #if DEBUG
     @State private var didLogInitialAppear = false
     @StateObject private var communityInstrumentation = CommunityInstrumentation()
@@ -1202,7 +1203,7 @@ struct ContentView: View {
             }
         case .rating:
             return base.sorted { lhs, rhs in
-                switch (lhs.displayRating, rhs.displayRating) {
+                switch (lhs.rating, rhs.rating) {
                 case let (l?, r?) where l != r:
                     return l > r
                 case (.some, nil):
@@ -1210,8 +1211,8 @@ struct ContentView: View {
                 case (nil, .some):
                     return false
                 default:
-                    let lhsCount = lhs.displayRatingCount ?? 0
-                    let rhsCount = rhs.displayRatingCount ?? 0
+                    let lhsCount = lhs.ratingCount ?? 0
+                    let rhsCount = rhs.ratingCount ?? 0
                     if lhsCount != rhsCount { return lhsCount > rhsCount }
                     return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
                 }
@@ -1750,13 +1751,12 @@ struct ContentView: View {
                     selectedPlace = nil
                 }
             case .places:
+                // Only center on first use; otherwise preserve existing map state
                 if let location = locationManager.lastKnownLocation, !hasCenteredOnUser {
                     centerMap(on: location)
-                } else {
-                    locationManager.requestCurrentLocation()
-                    refreshVisiblePlaces()
-                    refreshVisiblePins()
                 }
+                refreshVisiblePlaces()
+                refreshVisiblePins()
             case .newSpots:
                 selectedApplePlace = nil
                 isSearchOverlayPresented = false
@@ -1839,75 +1839,64 @@ struct ContentView: View {
     }
 
     private var mapShell: some View {
+        let isMapHidden = bottomTab == .newSpots || bottomTab == .more
         return ZStack(alignment: .top) {
-            if bottomTab == .newSpots {
-                NewSpotsScreen(
-                    spots: featuredNewSpots,
-                    spotlight: spotlightEntry,
-                    userLocation: locationManager.lastKnownLocation,
-                    topInset: currentTopSafeAreaInset(),
-                    onSelect: { place in
-                        selectedPlace = place
+            // Always keep MapTabContainer in hierarchy to preserve map state (zoom, position)
+            MapTabContainer(
+                mapRegion: $mapRegion,
+                selectedPlace: $selectedPlace,
+                selectedApplePlace: $selectedApplePlace,
+                pins: mapPins,
+                places: mapPlaces,
+                appleMapItems: mapAppleItems,
+                isLoading: viewModel.isLoading,
+                shouldShowLoadingIndicator: viewModel.isLoading && viewModel.places.isEmpty,
+                onRegionChange: { region in
+                    let effective = RegionGate.enforcedRegion(for: region)
+                    appleHalalSearch.search(in: effective)
+                    if shouldFetchDetails(for: region), !isRefinedFilterActive {
+                        viewModel.regionDidChange(to: region, filter: selectedFilter)
                     }
-                )
-                .environmentObject(favoritesStore)
-            } else if bottomTab == .more {
-                MoreScreen(
-                    isUserOutsideCoverage: isUserOutsideCoverage,
-                    onSwitchToMap: { bottomTab = .places }
-                )
-            } else {
-                MapTabContainer(
-                    mapRegion: $mapRegion,
-                    selectedPlace: $selectedPlace,
-                    selectedApplePlace: $selectedApplePlace,
-                    pins: mapPins,
-                    places: mapPlaces,
-                    appleMapItems: mapAppleItems,
-                    isLoading: viewModel.isLoading,
-                    shouldShowLoadingIndicator: viewModel.isLoading && viewModel.places.isEmpty,
-                    onRegionChange: { region in
-                        let effective = RegionGate.enforcedRegion(for: region)
-                        appleHalalSearch.search(in: effective)
-                        if shouldFetchDetails(for: region), !isRefinedFilterActive {
-                            viewModel.regionDidChange(to: region, filter: selectedFilter)
-                        }
-                        refreshVisiblePlaces()
-                        refreshVisiblePins()
-                        if bottomTab == .favorites, isFavoritesPanelCollapsed, !isFavoritesPanelPinnedCollapsed {
-                            scheduleFavoritesPanelReopen()
-                        }
-                    },
-                    onPinSelected: { pin in
-                        selectedApplePlace = nil
-                        pinSelectionTask?.cancel()
-                        if let cached = viewModel.place(with: pin.id) {
-                            selectedPlace = cached
-                            return
-                        }
-                        pinSelectionTask = Task { @MainActor in
-                            defer { pinSelectionTask = nil }
-                            if let place = await viewModel.fetchPlaceDetails(for: pin.id) {
-                                selectedPlace = place
-                            }
-                        }
-                    },
-                    onPlaceSelected: { place in
-                        selectedPlace = place
-                    },
-                    onAppleItemSelected: { mapItem in
-                        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
-                    },
-                    onMapTap: {
-                        if activeDropdown != nil {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                activeDropdown = nil
-                            }
-                        }
-                        collapseFavoritesPanelForMapInteraction()
+                    refreshVisiblePlaces()
+                    refreshVisiblePins()
+                    if bottomTab == .favorites, isFavoritesPanelCollapsed, !isFavoritesPanelPinnedCollapsed {
+                        scheduleFavoritesPanelReopen()
                     }
-                )
+                },
+                onPinSelected: { pin in
+                    selectedApplePlace = nil
+                    pinSelectionTask?.cancel()
+                    if let cached = viewModel.place(with: pin.id) {
+                        selectedPlace = cached
+                        return
+                    }
+                    pinSelectionTask = Task { @MainActor in
+                        defer { pinSelectionTask = nil }
+                        if let place = await viewModel.fetchPlaceDetails(for: pin.id) {
+                            selectedPlace = place
+                        }
+                    }
+                },
+                onPlaceSelected: { place in
+                    selectedPlace = place
+                },
+                onAppleItemSelected: { mapItem in
+                    selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+                },
+                onMapTap: {
+                    if activeDropdown != nil {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            activeDropdown = nil
+                        }
+                    }
+                    collapseFavoritesPanelForMapInteraction()
+                }
+            )
+            .opacity(isMapHidden ? 0 : 1)
+            .allowsHitTesting(!isMapHidden)
 
+            // Search bar and filter bar - only show when map is visible
+            if !isMapHidden {
                 VStack(alignment: .leading, spacing: 0) {
                     searchBar
                     mapFilterBar
@@ -1922,30 +1911,54 @@ struct ContentView: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
+            }
 
-                if bottomTab == .topRated {
-                    TopRatedScreen(
-                        places: topRatedDisplay,
-                        sortOption: topRatedSort,
-                        region: topRatedRegion,
-                        userLocation: locationManager.lastKnownLocation,
-                        googleData: $topRatedGoogleDataCache,
-                        cachedGoogleOrder: topRatedGoogleOrderCache[topRatedGoogleOrderKey],
-                        onGoogleOrderChange: { topRatedGoogleOrderCache[topRatedGoogleOrderKey] = $0 },
-                        topInset: currentTopSafeAreaInset(),
-                        bottomInset: currentBottomSafeAreaInset(),
-                        isCommunityLoading: topRatedSort == .community
-                            && communityCache[.all] == nil
-                            && (communityPrecomputeTask != nil || !viewModel.hasTrustedCommunityDataset()),
-                        onSelect: { place in
-                            focus(on: place)
-                        },
-                        onSortChange: { topRatedSort = $0 },
-                        onRegionChange: { topRatedRegion = $0 }
-                    )
-                    .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
-                    .ignoresSafeArea()
-                }
+            // TopRatedScreen overlays the map
+            if bottomTab == .topRated {
+                TopRatedScreen(
+                    places: topRatedDisplay,
+                    sortOption: topRatedSort,
+                    region: topRatedRegion,
+                    userLocation: locationManager.lastKnownLocation,
+                    googleData: $topRatedGoogleDataCache,
+                    cachedGoogleOrder: topRatedGoogleOrderCache[topRatedGoogleOrderKey],
+                    onGoogleOrderChange: { topRatedGoogleOrderCache[topRatedGoogleOrderKey] = $0 },
+                    topInset: currentTopSafeAreaInset(),
+                    bottomInset: currentBottomSafeAreaInset(),
+                    isCommunityLoading: topRatedSort == .community
+                        && communityCache[.all] == nil
+                        && (communityPrecomputeTask != nil || !viewModel.hasTrustedCommunityDataset()),
+                    onSelect: { place in
+                        focus(on: place)
+                    },
+                    onSortChange: { topRatedSort = $0 },
+                    onRegionChange: { topRatedRegion = $0 }
+                )
+                .transition(AnyTransition.move(edge: .top).combined(with: .opacity))
+                .ignoresSafeArea()
+            }
+
+            // NewSpotsScreen completely covers map
+            if bottomTab == .newSpots {
+                NewSpotsScreen(
+                    spots: featuredNewSpots,
+                    spotlight: spotlightEntry,
+                    userLocation: locationManager.lastKnownLocation,
+                    topInset: currentTopSafeAreaInset(),
+                    isPreviouslyTrendingExpanded: $isPreviouslyTrendingExpanded,
+                    onSelect: { place in
+                        selectedPlace = place
+                    }
+                )
+                .environmentObject(favoritesStore)
+            }
+
+            // MoreScreen completely covers map
+            if bottomTab == .more {
+                MoreScreen(
+                    isUserOutsideCoverage: isUserOutsideCoverage,
+                    onSwitchToMap: { bottomTab = .places }
+                )
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -3505,7 +3518,7 @@ private struct PlaceRow: View {
                 Text(place.halalStatus.label.localizedCapitalized)
                     .font(.caption)
                     .foregroundStyle(detailColor)
-                if let rating = place.displayRating {
+                if let rating = place.displayRating, rating > 0 {
                     let count = place.displayRatingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
                     HStack(spacing: 4) {
@@ -3513,17 +3526,12 @@ private struct PlaceRow: View {
                         Image(systemName: "star.fill")
                             .font(.caption2)
                             .foregroundStyle(Color.accentColor)
-                        Text("(\(count) \(ratingLabel))")
-                        if let source = place.source, !source.isEmpty {
-                            Text("- \(readableSource(source))")
+                        if count > 0 {
+                            Text("(\(count) \(ratingLabel))")
                         }
                     }
                     .font(.caption2)
                     .foregroundStyle(detailColor)
-                } else if let source = place.source, !source.isEmpty {
-                    Text(readableSource(source))
-                        .font(.caption2)
-                        .foregroundStyle(detailColor)
                 }
             }
             Spacer()
@@ -6518,25 +6526,20 @@ private struct FavoriteRow: View {
                     .font(.caption)
                     .foregroundStyle(detailColor)
 
-                if let rating = snapshot.displayRating {
-                    let count = snapshot.displayRatingCount ?? 0
+                if let rating = snapshot.rating, rating > 0 {
+                    let count = snapshot.ratingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
                     HStack(spacing: 4) {
                         Text(String(format: "%.1f", rating))
                         Image(systemName: "star.fill")
                             .font(.caption2)
                             .foregroundStyle(Color.accentColor)
-                        Text("(\(count) \(ratingLabel))")
-                        if let source = snapshot.source, !source.isEmpty {
-                            Text("- \(readableSource(source))")
+                        if count > 0 {
+                            Text("(\(count) \(ratingLabel))")
                         }
                     }
                     .font(.caption2)
                     .foregroundStyle(detailColor)
-                } else if let source = snapshot.source, !source.isEmpty {
-                    Text(readableSource(source))
-                        .font(.caption2)
-                        .foregroundStyle(detailColor)
                 }
             }
 
@@ -6564,8 +6567,8 @@ private struct NewSpotsScreen: View {
     let spotlight: NewSpotEntry?
     let userLocation: CLLocation?
     let topInset: CGFloat
+    @Binding var isPreviouslyTrendingExpanded: Bool
     let onSelect: (Place) -> Void
-    @State private var isPreviouslyTrendingExpanded = false
     @State private var yelpData: [UUID: YelpBusinessData] = [:]
     private let primarySpotLimit = 6
     private let useYelpPhotos = false
@@ -6800,27 +6803,49 @@ private struct NewSpotsScreen: View {
 
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
-                DisclosureGroup(isExpanded: $isExpanded) {
+                headerView
+
+                if isExpanded {
                     NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
                         .padding(.top, 8)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.headline.weight(.semibold))
-                        Text("Previously Trending")
-                            .font(.headline.weight(.semibold))
-                        Spacer()
-                        Text("\(spots.count)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.secondary)
-                    }
-                    .foregroundStyle(Color.primary)
                 }
-                .tint(Color.primary)
             }
             .padding(18)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(isExpanded ? Color.green.opacity(0.2) : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Only toggle if tapping the header area (when collapsed, entire card is header)
+                if !isExpanded {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isExpanded = true
+                    }
+                }
+            }
+        }
+
+        private var headerView: some View {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.headline.weight(.semibold))
+                Text("Previously Trending")
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Text("\(spots.count)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .foregroundStyle(Color.primary)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isExpanded.toggle()
+                }
+            }
         }
     }
 
@@ -6977,9 +7002,7 @@ private struct NewSpotImageView: View {
                                 .foregroundStyle(Color.primary)
                                 .lineLimit(1)
 
-                            if place.isYelpBacked, let data = yelpData, let rating = data.rating, rating > 0 {
-                                YelpInlineRatingView(rating: rating, reviewCount: data.reviewCount)
-                            } else if place.displayRating != nil {
+                            if place.displayRating != nil {
                                 ratingView(for: place)
                             }
 
@@ -7068,8 +7091,8 @@ private struct NewSpotImageView: View {
                     for: place,
                     name: place.name,
                     address: place.address,
-                    rating: place.displayRating,
-                    ratingCount: place.displayRatingCount,
+                    rating: place.rating,
+                    ratingCount: place.ratingCount,
                     source: place.source,
                     sourceID: place.sourceID,
                     externalID: place.externalID,
@@ -7344,8 +7367,8 @@ struct PlaceDetailView: View {
                 for: currentPlace,
                 name: displayName,
                 address: displayAddress,
-                rating: currentPlace.displayRating,
-                ratingCount: currentPlace.displayRatingCount,
+                rating: currentPlace.rating,
+                ratingCount: currentPlace.ratingCount,
                 source: currentPlace.source,
                 sourceID: currentPlace.sourceID,
                 externalID: currentPlace.externalID,
