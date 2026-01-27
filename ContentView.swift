@@ -6803,7 +6803,25 @@ private struct NewSpotsScreen: View {
 
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
-                headerView
+                // Header as a Button - same pattern as working NewSpotRow
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.headline.weight(.semibold))
+                        Text("Previously Trending")
+                            .font(.headline.weight(.semibold))
+                        Spacer()
+                        Text("\(spots.count)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                    }
+                    .foregroundStyle(Color.primary)
+                }
 
                 if isExpanded {
                     NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
@@ -6813,39 +6831,6 @@ private struct NewSpotsScreen: View {
             .padding(18)
             .background(isExpanded ? Color.green.opacity(0.2) : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                // Only toggle if tapping the header area (when collapsed, entire card is header)
-                if !isExpanded {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        isExpanded = true
-                    }
-                }
-            }
-        }
-
-        private var headerView: some View {
-            HStack(spacing: 8) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.headline.weight(.semibold))
-                Text("Previously Trending")
-                    .font(.headline.weight(.semibold))
-                Spacer()
-                Text("\(spots.count)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-            }
-            .foregroundStyle(Color.primary)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isExpanded.toggle()
-                }
-            }
         }
     }
 
