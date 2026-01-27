@@ -6801,35 +6801,39 @@ private struct NewSpotsScreen: View {
         @Binding var isExpanded: Bool
         let onSelect: (Place) -> Void
 
+        // Local state just to test if buttons work at all
+        @State private var testCounter = 0
+
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
-                // Header as a Button - same pattern as working NewSpotRow
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.headline.weight(.semibold))
-                        Text("Previously Trending")
-                            .font(.headline.weight(.semibold))
-                        Spacer()
-                        Text("\(spots.count)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.secondary)
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.secondary)
-                    }
-                    .foregroundStyle(Color.primary)
-                }
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.headline.weight(.semibold))
+                    Text("Previously Trending")
+                        .font(.headline.weight(.semibold))
+                    Spacer()
 
-                if isExpanded {
-                    NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
-                        .padding(.top, 8)
+                    // Test button - shows tap count
+                    Button {
+                        testCounter += 1
+                    } label: {
+                        Text("Taps: \(testCounter)")
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
                 }
+                .foregroundStyle(Color.primary)
+
+                // Always show for now
+                NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
+                    .padding(.top, 8)
             }
             .padding(18)
-            .background(isExpanded ? Color.green.opacity(0.2) : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
         }
     }
@@ -7345,6 +7349,9 @@ struct PlaceDetailView: View {
     private func toggleFavorite() {
         let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
         let currentPlace = viewModel.resolvedPlace ?? place
+        // Prefer Google rating if available, otherwise fall back to place rating
+        let effectiveRating = viewModel.googleData?.rating ?? currentPlace.rating
+        let effectiveRatingCount = viewModel.googleData?.reviewCount ?? currentPlace.ratingCount
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             let currentlyFavorite = isFavorite
             Haptics.favoriteToggled(isNowFavorite: !currentlyFavorite)
@@ -7352,8 +7359,8 @@ struct PlaceDetailView: View {
                 for: currentPlace,
                 name: displayName,
                 address: displayAddress,
-                rating: currentPlace.rating,
-                ratingCount: currentPlace.ratingCount,
+                rating: effectiveRating,
+                ratingCount: effectiveRatingCount,
                 source: currentPlace.source,
                 sourceID: currentPlace.sourceID,
                 externalID: currentPlace.externalID,
@@ -7366,12 +7373,15 @@ struct PlaceDetailView: View {
         guard favoritesStore.contains(id: place.id) else { return }
         let appleID = appleLoadedDetails?.applePlaceID ?? place.applePlaceID
         let currentPlace = viewModel.resolvedPlace ?? place
+        // Prefer Google rating if available
+        let effectiveRating = viewModel.googleData?.rating ?? currentPlace.rating
+        let effectiveRatingCount = viewModel.googleData?.reviewCount ?? currentPlace.ratingCount
         favoritesStore.updateFavoriteIfNeeded(
             for: currentPlace,
             name: displayName,
             address: displayAddress,
-            rating: currentPlace.displayRating,
-            ratingCount: currentPlace.displayRatingCount,
+            rating: effectiveRating,
+            ratingCount: effectiveRatingCount,
             source: currentPlace.source,
             sourceID: currentPlace.sourceID,
             externalID: currentPlace.externalID,

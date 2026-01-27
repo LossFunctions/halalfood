@@ -84,10 +84,9 @@ struct Place: Identifiable, Hashable, Sendable {
         let isYelpBacked = normalizedSource.contains("yelp") ||
             normalizedExternal.hasPrefix("yelp:") ||
             normalizedSourceID.contains("yelp")
-        let isGoogleBacked = dto.google_place_id != nil
-        let usesExternalRating = isYelpBacked || isGoogleBacked
-        rating = usesExternalRating ? nil : dto.rating
-        ratingCount = usesExternalRating ? nil : dto.rating_count
+        // Use database rating for Google-backed places, but not for Yelp-backed (legacy)
+        rating = isYelpBacked ? nil : dto.rating
+        ratingCount = isYelpBacked ? nil : dto.rating_count
         servesAlcohol = dto.serves_alcohol
         source = dto.source
         sourceID = dto.source_id
@@ -376,11 +375,11 @@ extension Place {
     }
 
     var displayRating: Double? {
-        (isYelpBacked || hasGooglePlaceID) ? nil : rating
+        isYelpBacked ? nil : rating
     }
 
     var displayRatingCount: Int? {
-        (isYelpBacked || hasGooglePlaceID) ? nil : ratingCount
+        isYelpBacked ? nil : ratingCount
     }
 
     var yelpID: String? {
