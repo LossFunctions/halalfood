@@ -54,6 +54,7 @@ struct Place: Identifiable, Hashable, Sendable {
     let googleBusinessStatus: String?
     let applePlaceID: String?
     let note: String?
+    let certifierOrg: String?
     let displayLocation: String?
 
     init?(dto: PlaceDTO) {
@@ -102,6 +103,8 @@ struct Place: Identifiable, Hashable, Sendable {
         googleBusinessStatus = dto.google_business_status
         applePlaceID = dto.apple_place_id
         note = dto.note
+        let trimmedCertifier = dto.cc_certifier_org?.trimmingCharacters(in: .whitespacesAndNewlines)
+        certifierOrg = (trimmedCertifier?.isEmpty ?? true) ? nil : trimmedCertifier
         displayLocation = dto.display_location ?? dto.source_raw?.display_location
     }
 }
@@ -143,6 +146,7 @@ extension Place {
          googleBusinessStatus: String? = nil,
          applePlaceID: String? = nil,
          note: String? = nil,
+         certifierOrg: String? = nil,
          displayLocation: String? = nil,
          categories: Set<String> = []) {
         self.id = id
@@ -165,6 +169,7 @@ extension Place {
         self.googleBusinessStatus = googleBusinessStatus
         self.applePlaceID = applePlaceID
         self.note = note
+        self.certifierOrg = certifierOrg
         self.displayLocation = displayLocation
     }
 
@@ -187,6 +192,7 @@ extension Place {
          googleBusinessStatus: String? = nil,
          applePlaceID: String?,
          note: String?,
+         certifierOrg: String? = nil,
          displayLocation: String?,
          categories: Set<String>) {
         self.id = id
@@ -209,6 +215,7 @@ extension Place {
         self.googleBusinessStatus = googleBusinessStatus
         self.applePlaceID = applePlaceID
         self.note = note
+        self.certifierOrg = certifierOrg
         self.displayLocation = displayLocation
     }
 }
@@ -237,6 +244,7 @@ extension Place: Codable {
         case googleBusinessStatus
         case applePlaceID
         case note
+        case certifierOrg
     }
 
     init(from decoder: Decoder) throws {
@@ -262,6 +270,7 @@ extension Place: Codable {
         let googleBusinessStatus = try container.decodeIfPresent(String.self, forKey: .googleBusinessStatus)
         let applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         let note = try container.decodeIfPresent(String.self, forKey: .note)
+        let certifierOrg = try container.decodeIfPresent(String.self, forKey: .certifierOrg)
         let categoriesRaw = try container.decodeIfPresent([String].self, forKey: .categories) ?? []
         let normalizedCategories = categoriesRaw
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
@@ -288,6 +297,7 @@ extension Place: Codable {
             googleBusinessStatus: googleBusinessStatus,
             applePlaceID: applePlaceID,
             note: note,
+            certifierOrg: certifierOrg,
             displayLocation: displayLocation,
             categories: Set(normalizedCategories)
         )
@@ -317,6 +327,7 @@ extension Place: Codable {
         try container.encodeIfPresent(googleBusinessStatus, forKey: .googleBusinessStatus)
         try container.encodeIfPresent(applePlaceID, forKey: .applePlaceID)
         try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(certifierOrg, forKey: .certifierOrg)
     }
 }
 

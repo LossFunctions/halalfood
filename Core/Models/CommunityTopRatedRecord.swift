@@ -21,6 +21,7 @@ struct CommunityTopRatedRecord: Decodable {
     let googleBusinessStatus: String?
     let applePlaceID: String?
     let note: String?
+    let ccCertifierOrg: String?
     let sourceRaw: PlaceDTO.SourceRaw?
     let primaryImageURL: String?
 
@@ -45,6 +46,7 @@ struct CommunityTopRatedRecord: Decodable {
         case googleBusinessStatus = "google_business_status"
         case applePlaceID = "apple_place_id"
         case note
+        case ccCertifierOrg = "cc_certifier_org"
         case sourceRaw = "source_raw"
         case primaryImageURL = "primary_image_url"
     }
@@ -71,6 +73,7 @@ struct CommunityTopRatedRecord: Decodable {
         googleBusinessStatus = try container.decodeIfPresent(String.self, forKey: .googleBusinessStatus)
         applePlaceID = try container.decodeIfPresent(String.self, forKey: .applePlaceID)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        ccCertifierOrg = try container.decodeIfPresent(String.self, forKey: .ccCertifierOrg)
         sourceRaw = try container.decodeIfPresent(PlaceDTO.SourceRaw.self, forKey: .sourceRaw)
         primaryImageURL = try container.decodeIfPresent(String.self, forKey: .primaryImageURL)
     }
@@ -97,6 +100,7 @@ struct CommunityTopRatedRecord: Decodable {
             google_business_status: googleBusinessStatus,
             apple_place_id: applePlaceID,
             note: note,
+            cc_certifier_org: ccCertifierOrg,
             source_raw: sourceRaw
         )
     }

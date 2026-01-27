@@ -21,6 +21,7 @@ struct PlaceDTO: Decodable, Identifiable {
     let google_business_status: String?
     let apple_place_id: String?
     let note: String?
+    let cc_certifier_org: String?
     let source_raw: SourceRaw?
 
     struct SourceRaw: Decodable {
@@ -49,6 +50,7 @@ struct PlaceDTO: Decodable, Identifiable {
         case google_business_status
         case apple_place_id
         case note
+        case cc_certifier_org
         case source_raw
     }
 }

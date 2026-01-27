@@ -7387,9 +7387,15 @@ struct PlaceDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             partialHalalMessageView()
 
-            Label(place.halalStatus.label, systemImage: "checkmark.seal")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            let currentPlace = viewModel.resolvedPlace ?? place
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(currentPlace.halalStatus.label, systemImage: "checkmark.seal")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let certifier = currentPlace.certifierOrg {
+                    CertifierBadge(certifier: certifier)
+                }
+            }
 
             Text("Our halal classification comes from our own Supabase dataset.")
                 .font(.caption)
@@ -7663,25 +7669,27 @@ struct PlaceDetailView: View {
                 note: display.note,
                 reminder: display.reminder,
                 status: display.status,
-                servesAlcohol: place.servesAlcohol
+                servesAlcohol: place.servesAlcohol,
+                certifierOrg: display.certifierOrg
             )
             .transition(AnyTransition.opacity)
         }
     }
 
     private var halalDetailsDisplay: HalalDetailsDisplay? {
+        let currentPlace = viewModel.resolvedPlace ?? place
         // Show details card for both partial (yes) and fully halal (only)
-        switch place.halalStatus {
+        switch currentPlace.halalStatus {
         case .yes:
             let reminder = "Please always double check with restaurant."
-            let trimmed = place.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = currentPlace.note?.trimmingCharacters(in: .whitespacesAndNewlines)
             let note = (trimmed?.isEmpty ?? true) ? nil : trimmed
-            return HalalDetailsDisplay(status: .partial, note: note, reminder: reminder)
+            return HalalDetailsDisplay(status: .partial, note: note, reminder: reminder, certifierOrg: currentPlace.certifierOrg)
         case .only:
             let reminder = "Please always double check with restaurant."
-            let trimmed = place.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = currentPlace.note?.trimmingCharacters(in: .whitespacesAndNewlines)
             let note = (trimmed?.isEmpty ?? true) ? nil : trimmed
-            return HalalDetailsDisplay(status: .full, note: note, reminder: reminder)
+            return HalalDetailsDisplay(status: .full, note: note, reminder: reminder, certifierOrg: currentPlace.certifierOrg)
         default:
             return nil
         }
@@ -7695,6 +7703,7 @@ private struct HalalDetailsDisplay {
     let status: HalalUIStatus
     let note: String?
     let reminder: String
+    let certifierOrg: String?
 }
 
 private struct HalalDetailsCard: View {
@@ -7703,6 +7712,7 @@ private struct HalalDetailsCard: View {
     let reminder: String
     let status: HalalUIStatus
     let servesAlcohol: Bool?
+    let certifierOrg: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -7712,19 +7722,19 @@ private struct HalalDetailsCard: View {
                     .foregroundStyle(textColor)
 
                 Spacer(minLength: 0)
-
-                HalalStatusBadge(status: status)
             }
 
             HalalDetailRow(
                 iconName: status == .full ? "Full Halal" : "Partial Halal",
-                text: status == .full ? "Full halal menu" : "Partial halal menu"
+                text: status == .full ? "Full halal menu" : "Partial halal menu",
+                certifierOrg: certifierOrg
             )
 
             if let servesAlcohol {
                 HalalDetailRow(
                     iconName: servesAlcohol ? "Yes Alcohol" : "No Alcohol",
-                    text: servesAlcohol ? "Alcohol served" : "No alcohol served"
+                    text: servesAlcohol ? "Alcohol served" : "No alcohol served",
+                    certifierOrg: nil
                 )
             }
 
@@ -7765,6 +7775,7 @@ private struct HalalDetailsCard: View {
 private struct HalalDetailRow: View {
     let iconName: String
     let text: String
+    let certifierOrg: String?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -7774,11 +7785,45 @@ private struct HalalDetailRow: View {
                 .scaledToFit()
                 .frame(width: 44, height: 44)
 
-            Text(text)
-                .font(.system(.callout, design: .rounded).weight(.medium))
-                .foregroundStyle(Color.primary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(text)
+                        .font(.system(.callout, design: .rounded).weight(.medium))
+                        .foregroundStyle(Color.primary)
+
+                    if let certifier = certifierOrg {
+                        CertifierBadge(certifier: certifier)
+                    }
+                }
+            }
         }
     }
+}
+
+private struct CertifierBadge: View {
+    let certifier: String
+
+    private var displayText: String {
+        "\(certifier) Certified"
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(badgeColor)
+
+            Text(displayText)
+                .font(.system(.caption2, design: .rounded).weight(.semibold))
+                .foregroundStyle(badgeColor)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(badgeColor.opacity(0.1), in: Capsule())
+        .overlay(Capsule().stroke(badgeColor.opacity(0.25), lineWidth: 1))
+    }
+
+    private var badgeColor: Color { Color(red: 0.13, green: 0.55, blue: 0.45) }
 }
 
 private struct HalalStatusBadge: View {
@@ -8362,6 +8407,12 @@ final class PlaceDetailViewModel: ObservableObject {
             return
         }
 
+        if place.certifierOrg == nil {
+            Task { [weak self] in
+                await self?.refreshSupabasePlace(for: place)
+            }
+        }
+
         loadingState = .loading
         do {
             let details = try await service.details(for: place)
@@ -8376,6 +8427,19 @@ final class PlaceDetailViewModel: ObservableObject {
         } catch {
             loadingState = .failed(error.localizedDescription)
             lastSuccessfulPlaceID = nil
+        }
+    }
+
+    private func refreshSupabasePlace(for place: Place) async {
+        do {
+            guard let dto = try await PlaceAPI.fetchPlaceDetails(placeID: place.id),
+                  let updated = Place(dto: dto) else { return }
+            guard resolvedPlace?.id == place.id else { return }
+            resolvedPlace = updated
+        } catch {
+#if DEBUG
+            print("[PlaceDetailViewModel] Supabase place refresh failed:", error)
+#endif
         }
     }
 
