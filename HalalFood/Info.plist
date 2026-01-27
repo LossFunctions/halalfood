@@ -8,6 +8,8 @@
 		<string>ru</string>
 		<string>ur</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 	<key>LIMIT_TO_NYC_LONG_ISLAND</key>
 	<true/>
 	<key>MANUAL_PLACES</key>

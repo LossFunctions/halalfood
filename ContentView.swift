@@ -11,6 +11,7 @@ enum MapFilter: CaseIterable, Identifiable {
     case all
     case fullyHalal
     case partialHalal
+    case zabihahHalal
 
     var id: Self { self }
 
@@ -19,6 +20,7 @@ enum MapFilter: CaseIterable, Identifiable {
         case .all: return "All"
         case .fullyHalal: return "Fully Halal"
         case .partialHalal: return "Partial Halal"
+        case .zabihahHalal: return "Certified"
         }
     }
 
@@ -27,6 +29,7 @@ enum MapFilter: CaseIterable, Identifiable {
         case .all: return nil
         case .fullyHalal: return "checkmark.seal.fill"
         case .partialHalal: return "circle.lefthalf.fill"
+        case .zabihahHalal: return "checkmark.shield.fill"
         }
     }
 }
@@ -1107,7 +1110,7 @@ struct ContentView: View {
     }
 
     private var isRefinedFilterActive: Bool {
-        selectedCategoryOption != nil || selectedCuisineOption != nil
+        selectedCategoryOption != nil || selectedCuisineOption != nil || selectedFilter == .zabihahHalal
     }
 
     private var filterSelectionSignature: Int {
@@ -1165,6 +1168,11 @@ struct ContentView: View {
 
         if let cuisine = selectedCuisineOption {
             let filtered = scoped.filter { matchesCuisine($0, option: cuisine) }
+            return filtered
+        }
+
+        if selectedFilter == .zabihahHalal {
+            let filtered = scoped.filter { $0.certifierOrg != nil }
             return filtered
         }
 
@@ -1959,7 +1967,7 @@ struct ContentView: View {
     }
 
     private var filterBarItems: [MapFilterBarItem] {
-        [.filter(.all), .filter(.fullyHalal), .filter(.partialHalal), .category]
+        [.filter(.all), .filter(.fullyHalal), .filter(.partialHalal), .filter(.zabihahHalal), .category]
     }
 
     private var categoryDropdownItems: [CategoryDropdownItem] {
@@ -3002,6 +3010,10 @@ private extension ContentView {
             filteredPins = scopedPins.filter { $0.halalStatus == .only }
         case .partialHalal:
             filteredPins = scopedPins.filter { $0.halalStatus == .yes }
+        case .zabihahHalal:
+            // Zabihah filter uses full Place data, pins don't have certifierOrg
+            // This case is guarded by isRefinedFilterActive check above
+            filteredPins = []
         }
         let bbox = mapRegion.bbox
         let next = filteredPins.filter { pin in
@@ -9597,6 +9609,8 @@ final class MapScreenViewModel: @MainActor ObservableObject {
             filtered = allPlaces.filter { $0.halalStatus == .only }
         case .partialHalal:
             filtered = allPlaces.filter { $0.halalStatus == .yes }
+        case .zabihahHalal:
+            filtered = allPlaces.filter { $0.certifierOrg != nil }
         }
         places = filtered
     }
