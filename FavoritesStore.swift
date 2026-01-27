@@ -16,6 +16,7 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
     var sourceID: String?
     var externalID: String?
     var applePlaceID: String?
+    var googlePlaceID: String?
     var savedAt: Date
 
     var coordinate: CLLocationCoordinate2D {
@@ -38,7 +39,8 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
                   source: String?,
                   sourceID: String?,
                   externalID: String?,
-                  applePlaceID: String?) -> FavoritePlaceSnapshot {
+                  applePlaceID: String?,
+                  googlePlaceID: String?) -> FavoritePlaceSnapshot {
         FavoritePlaceSnapshot(
             id: id,
             name: name,
@@ -53,6 +55,7 @@ struct FavoritePlaceSnapshot: Identifiable, Codable, Hashable {
             sourceID: sourceID,
             externalID: externalID,
             applePlaceID: applePlaceID ?? place.applePlaceID,
+            googlePlaceID: googlePlaceID ?? place.googlePlaceID,
             savedAt: savedAt
         )
     }
@@ -88,7 +91,8 @@ final class FavoritesStore: ObservableObject {
                         source: String?,
                         sourceID: String?,
                         externalID: String?,
-                        applePlaceID: String?) {
+                        applePlaceID: String?,
+                        googlePlaceID: String?) {
         if favoriteIDs.contains(place.id) {
             removeFavorite(withId: place.id)
         } else {
@@ -100,7 +104,8 @@ final class FavoritesStore: ObservableObject {
                         source: source,
                         sourceID: sourceID,
                         externalID: externalID,
-                        applePlaceID: applePlaceID)
+                        applePlaceID: applePlaceID,
+                        googlePlaceID: googlePlaceID)
         }
     }
 
@@ -112,7 +117,8 @@ final class FavoritesStore: ObservableObject {
                                 source: String?,
                                 sourceID: String?,
                                 externalID: String?,
-                                applePlaceID: String?) {
+                                applePlaceID: String?,
+                                googlePlaceID: String?) {
         guard let index = favorites.firstIndex(where: { $0.id == place.id }) else { return }
         favorites[index] = favorites[index].updating(from: place,
                                                      name: name,
@@ -122,7 +128,8 @@ final class FavoritesStore: ObservableObject {
                                                      source: source,
                                                      sourceID: sourceID,
                                                      externalID: externalID,
-                                                     applePlaceID: applePlaceID)
+                                                     applePlaceID: applePlaceID,
+                                                     googlePlaceID: googlePlaceID)
         persist()
     }
 
@@ -140,7 +147,8 @@ final class FavoritesStore: ObservableObject {
                              source: String?,
                              sourceID: String?,
                              externalID: String?,
-                             applePlaceID: String?) {
+                             applePlaceID: String?,
+                             googlePlaceID: String?) {
         let snapshot = FavoritePlaceSnapshot(
             id: place.id,
             name: name,
@@ -155,6 +163,7 @@ final class FavoritesStore: ObservableObject {
             sourceID: sourceID,
             externalID: externalID,
             applePlaceID: applePlaceID ?? place.applePlaceID,
+            googlePlaceID: googlePlaceID ?? place.googlePlaceID,
             savedAt: Date()
         )
 

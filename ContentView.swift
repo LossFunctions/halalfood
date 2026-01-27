@@ -6538,6 +6538,7 @@ private struct FavoritesCollapsedPill: View {
 
 private struct FavoriteRow: View {
     let snapshot: FavoritePlaceSnapshot
+    let googleData: GooglePlaceData?
 
     private let detailColor = Color.primary.opacity(0.75)
 
@@ -6556,6 +6557,15 @@ private struct FavoriteRow: View {
         case .no:
             return .red
         }
+    }
+
+    // Prefer fetched Google rating, fall back to stored rating
+    private var effectiveRating: Double? {
+        googleData?.rating ?? snapshot.rating
+    }
+
+    private var effectiveRatingCount: Int? {
+        googleData?.reviewCount ?? snapshot.ratingCount
     }
 
     var body: some View {
@@ -6579,8 +6589,8 @@ private struct FavoriteRow: View {
                     .font(.caption)
                     .foregroundStyle(detailColor)
 
-                if let rating = snapshot.rating, rating > 0 {
-                    let count = snapshot.ratingCount ?? 0
+                if let rating = effectiveRating, rating > 0 {
+                    let count = effectiveRatingCount ?? 0
                     let ratingLabel = count == 1 ? "rating" : "ratings"
                     HStack(spacing: 4) {
                         Text(String(format: "%.1f", rating))
@@ -6865,12 +6875,21 @@ private struct NewSpotsScreen: View {
                         .font(.headline.weight(.semibold))
                     Text("Previously Trending")
                         .font(.headline.weight(.semibold))
+
+                    // Debug: show isExpanded value from parent
+                    Text(isExpanded ? "OPEN" : "CLOSED")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isExpanded ? Color.green : Color.red)
+                        .foregroundColor(.white)
+                        .cornerRadius(4)
+
                     Spacer()
 
-                    // Test button - same structure that worked
+                    // Test button
                     Button {
                         tapCount += 1
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         onToggle()
                     } label: {
                         Text("Tap:\(tapCount)")
@@ -6884,9 +6903,11 @@ private struct NewSpotsScreen: View {
                 }
                 .foregroundStyle(Color.primary)
 
-                // ALWAYS show the list - same as when it worked
-                NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
-                    .padding(.top, 8)
+                // Show list only when expanded
+                if isExpanded {
+                    NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
+                        .padding(.top, 8)
+                }
             }
             .padding(18)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
