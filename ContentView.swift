@@ -7802,25 +7802,134 @@ private struct HalalDetailRow: View {
 
 private struct CertifierBadge: View {
     let certifier: String
+    @State private var showingInfo = false
 
     private var displayText: String {
         "\(certifier) Certified"
     }
 
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(badgeColor)
+    private var certifierInfo: CertifierInfo {
+        CertifierInfo.info(for: certifier)
+    }
 
-            Text(displayText)
-                .font(.system(.caption2, design: .rounded).weight(.semibold))
-                .foregroundStyle(badgeColor)
+    var body: some View {
+        Button {
+            showingInfo = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(badgeColor)
+
+                Text(displayText)
+                    .font(.system(.caption2, design: .rounded).weight(.semibold))
+                    .foregroundStyle(badgeColor)
+
+                Image(systemName: "info.circle")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(badgeColor.opacity(0.7))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(badgeColor.opacity(0.1), in: Capsule())
+            .overlay(Capsule().stroke(badgeColor.opacity(0.25), lineWidth: 1))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(badgeColor.opacity(0.1), in: Capsule())
-        .overlay(Capsule().stroke(badgeColor.opacity(0.25), lineWidth: 1))
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingInfo) {
+            CertifierInfoSheet(info: certifierInfo)
+                .presentationDetents([.height(280)])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var badgeColor: Color { Color(red: 0.13, green: 0.55, blue: 0.45) }
+}
+
+private struct CertifierInfo {
+    let code: String
+    let fullName: String
+    let description: String
+
+    static func info(for code: String) -> CertifierInfo {
+        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        switch normalized {
+        case "HMS":
+            return CertifierInfo(
+                code: "HMS",
+                fullName: "Halal Monitoring Services",
+                description: "HMS (Halal Monitoring Services) monitors and certifies that meat is hand-slaughtered according to the principles of Zabiha Halal."
+            )
+        case "SBNY":
+            return CertifierInfo(
+                code: "SBNY",
+                fullName: "Shar'i Board of New York",
+                description: "SBNY (Shar'i Board of New York) is a halal certification organization that ensures food establishments comply with Islamic dietary laws and Zabiha standards."
+            )
+        case "HFSAA":
+            return CertifierInfo(
+                code: "HFSAA",
+                fullName: "Halal Food Standards Alliance of America",
+                description: "HFSAA (Halal Food Standards Alliance of America) certifies food products and establishments to meet authentic halal standards based on Islamic guidelines."
+            )
+        case "ISNA":
+            return CertifierInfo(
+                code: "ISNA",
+                fullName: "Islamic Services of America",
+                description: "ISA (Islamic Services of America, formerly ISNA Halal) provides halal certification ensuring products meet Islamic dietary requirements."
+            )
+        case "HFA":
+            return CertifierInfo(
+                code: "HFA",
+                fullName: "Halal Food Authority",
+                description: "HFA (Halal Food Authority) is a certification body that monitors and certifies halal food products and establishments."
+            )
+        default:
+            return CertifierInfo(
+                code: code,
+                fullName: code,
+                description: "This establishment has been certified halal by \(code)."
+            )
+        }
+    }
+}
+
+private struct CertifierInfoSheet: View {
+    let info: CertifierInfo
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 16) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(badgeColor)
+
+                VStack(spacing: 6) {
+                    Text(info.fullName)
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .multilineTextAlignment(.center)
+
+                    Text(info.code)
+                        .font(.system(.subheadline, design: .rounded).weight(.medium))
+                        .foregroundStyle(Color.secondary)
+                }
+
+                Text(info.description)
+                    .font(.system(.body, design: .rounded))
+                    .foregroundStyle(Color.primary.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 24)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 
     private var badgeColor: Color { Color(red: 0.13, green: 0.55, blue: 0.45) }

@@ -164,6 +164,7 @@ enum PlaceAPI {
             URLQueryItem(name: "status", value: "eq.published"),
             URLQueryItem(name: "category", value: "eq.restaurant"),
             URLQueryItem(name: "halal_status", value: "in.(\"yes\",\"only\")"),
+            URLQueryItem(name: "google_business_status", value: "neq.CLOSED_PERMANENTLY"),
             URLQueryItem(name: "order", value: "rating.desc.nullslast")
         ]
 
@@ -572,6 +573,7 @@ enum PlaceAPI {
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
             URLQueryItem(name: "halal_status", value: "in.(\"yes\",\"only\")"),
+            URLQueryItem(name: "google_business_status", value: "neq.CLOSED_PERMANENTLY"),
             URLQueryItem(name: "order", value: "rating.desc.nullslast"),
             URLQueryItem(name: "limit", value: "\(sanitizedLimit)"),
             URLQueryItem(name: "or", value: "(name.ilike.\(likePattern),address.ilike.\(likePattern))")
