@@ -41,32 +41,64 @@ struct YelpRatingRow: View {
     var style: Style = .prominent
 
     var body: some View {
-        let row = HStack(spacing: rowSpacing) {
-            sourceLabelView
-            HStack(spacing: 6) {
-                if model.isYelp {
-                    YelpReviewRibbon(rating: model.rating, style: style)
-                        .accessibilityHidden(true)
-                } else {
-                    Image(systemName: "star.fill")
-                        .font(starFont)
-                        .foregroundStyle(Color.yellow)
-                        .symbolRenderingMode(.hierarchical)
-                }
-                Text(model.formattedRating)
-                    .font(ratingFont)
-                    .fontWeight(.semibold)
-            }
-        }
-        .padding(contentPadding)
-        .background(backgroundShape)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        let row = rowContent
+            .padding(contentPadding)
+            .background(backgroundShape)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
         if let url = model.sourceURL {
             Link(destination: url) { row }
                 .buttonStyle(.plain)
         } else {
             row
+        }
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        if style == .prominent && !model.isYelp {
+            // Full-width strip with 5-star visualization for Google/other sources
+            HStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    FiveStarRating(rating: model.rating)
+                    Text(model.formattedRating)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                Spacer()
+                HStack(spacing: 4) {
+                    if let count = model.formattedReviewCount {
+                        Text("(\(count))")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("•")
+                            .font(.subheadline)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Text(sourceNameOnly)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            // Original compact layout for Yelp and inline style
+            HStack(spacing: rowSpacing) {
+                sourceLabelView
+                HStack(spacing: 6) {
+                    if model.isYelp {
+                        YelpReviewRibbon(rating: model.rating, style: style)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "star.fill")
+                            .font(starFont)
+                            .foregroundStyle(Color.yellow)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    Text(model.formattedRating)
+                        .font(ratingFont)
+                        .fontWeight(.semibold)
+                }
+            }
         }
     }
 
@@ -98,9 +130,13 @@ struct YelpRatingRow: View {
         }
     }
 
-    private var sourceLabelText: String {
+    private var sourceNameOnly: String {
         let trimmedSource = model.source?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = (trimmedSource?.isEmpty == false) ? trimmedSource! : "Rating"
+        return (trimmedSource?.isEmpty == false) ? trimmedSource! : "Rating"
+    }
+
+    private var sourceLabelText: String {
+        let base = sourceNameOnly
         if let count = model.formattedReviewCountShort {
             return "\(base) (\(count))"
         }
@@ -130,7 +166,34 @@ struct YelpRatingRow: View {
         case .inline:
             .init(top: 0, leading: 0, bottom: 0, trailing: 0)
         case .prominent:
-            .init(top: 8, leading: 12, bottom: 8, trailing: 12)
+            .init(top: 12, leading: 14, bottom: 12, trailing: 14)
+        }
+    }
+}
+
+struct FiveStarRating: View {
+    let rating: Double
+
+    private let totalStars = 5
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<totalStars, id: \.self) { index in
+                starImage(for: index)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.yellow)
+            }
+        }
+    }
+
+    private func starImage(for index: Int) -> Image {
+        let threshold = Double(index) + 1
+        if rating >= threshold {
+            return Image(systemName: "star.fill")
+        } else if rating >= threshold - 0.5 {
+            return Image(systemName: "star.leadinghalf.filled")
+        } else {
+            return Image(systemName: "star")
         }
     }
 }
