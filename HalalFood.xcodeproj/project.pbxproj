@@ -35,6 +35,7 @@
 		B52064912E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52064902E8B71CD00C5BEB6 /* ApplePlaceUpsertPayload.swift */; };
 		B5D4E2022EA50ABC008D2917 /* PerformanceInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D4E2012EA50ABC008D2917 /* PerformanceInstrumentation.swift */; };
 		F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */; };
+		A9B8C7D6E5F41234567890AB /* GooglePlaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C1A2B3D4E5F67890ABCDEF /* GooglePlaceDetailView.swift */; };
 		E1A2B3C52E8C000100000002 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C42E8C000100000001 /* PlacePhoto.swift */; };
 		F0F0AAA11B1C2D3E4F5A6B7C /* GeoScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F0AAA01B1C2D3E4F5A6B7C /* GeoScope.swift */; };
 		B5A1B2C52E8D1234008D2917 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A1B2C42E8D1234008D2917 /* FavoritesStore.swift */; };
@@ -62,6 +63,7 @@
 
 /* Begin PBXFileReference section */
 		62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapItemDetailCardView.swift; sourceTree = "<group>"; };
+		E4C1A2B3D4E5F67890ABCDEF /* GooglePlaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePlaceDetailView.swift; sourceTree = "<group>"; };
 		7C280CB3F874A2F80DB8F1A9 /* ApplePlaceDetailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePlaceDetailService.swift; sourceTree = "<group>"; };
 		C1F0B2C12F123456008D2917 /* PlaceDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDiskCache.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* PlacePin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePin.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 			children = (
                 D1E2F3A42F9AB12300AAA222 /* Haptics.swift */,
 				C2D0F1A42F9AB12300AAA111 /* YelpRatingRow.swift */,
+				E4C1A2B3D4E5F67890ABCDEF /* GooglePlaceDetailView.swift */,
 				62ACFC6C7616754D8D5D0C37 /* MapItemDetailCardView.swift */,
 			);
 			path = UI;
@@ -432,6 +435,7 @@
 				B1C2D3E4F5061728394A5B6D /* PlacePinsDiskCache.swift in Sources */,
 				C1D2E3F405162738495A6B7D /* PlacePinsStore.swift in Sources */,
 				F5C5945FAD6E3D3E8260D92C /* MapItemDetailCardView.swift in Sources */,
+				A9B8C7D6E5F41234567890AB /* GooglePlaceDetailView.swift in Sources */,
 				A88C4F57CC85C79FA1AE103B /* MKMapItem+Compat.swift in Sources */,
 				B505BA1E2E7CE233008D2917 /* SupabaseManager.swift in Sources */,
 				B505BA1F2E7CE233008D2917 /* Place.swift in Sources */,

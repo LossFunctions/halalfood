@@ -1,6 +1,20 @@
 -- Exclude permanently closed places from all API responses
 -- Places with google_business_status = 'CLOSED_PERMANENTLY' will not appear in the app
 
+drop function if exists public.get_places_in_bbox_v3(
+    double precision,
+    double precision,
+    double precision,
+    double precision,
+    text,
+    integer
+);
+
+drop function if exists public.search_places(text, text, integer);
+drop function if exists public.search_places_v2(text, text, integer);
+drop function if exists public.get_place_details(uuid);
+drop function if exists public.get_place_details_by_ids(uuid[]);
+
 -- Update get_places_in_bbox_v3 to exclude closed places
 CREATE OR REPLACE FUNCTION public.get_places_in_bbox_v3(
     west double precision,
@@ -394,3 +408,24 @@ ON public.community_top_rated_v1 (region, region_rank);
 
 -- Refresh the view
 REFRESH MATERIALIZED VIEW public.community_top_rated_v1;
+
+grant execute on function public.get_places_in_bbox_v3(
+    double precision,
+    double precision,
+    double precision,
+    double precision,
+    text,
+    integer
+) to anon, authenticated, service_role;
+
+grant execute on function public.search_places(text, text, integer)
+    to anon, authenticated, service_role;
+
+grant execute on function public.search_places_v2(text, text, integer)
+    to anon, authenticated, service_role;
+
+grant execute on function public.get_place_details(uuid)
+    to anon, authenticated, service_role;
+
+grant execute on function public.get_place_details_by_ids(uuid[])
+    to anon, authenticated, service_role;

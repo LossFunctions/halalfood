@@ -30,3 +30,9 @@ enabled = true
 policy = "per_worker"
 inspector_port = 8083
 deno_version = 2
+
+[functions.yelp_proxy]
+verify_jwt = false
+
+[functions.google_places_proxy]
+verify_jwt = false

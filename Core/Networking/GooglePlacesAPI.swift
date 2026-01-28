@@ -64,6 +64,10 @@ enum GooglePlacesAPI {
             reviewCount: payloadResponse.reviewCount,
             mapsURL: payloadResponse.mapsUrl,
             businessStatus: payloadResponse.businessStatus,
+            phoneNumber: payloadResponse.phoneNumber,
+            websiteURL: payloadResponse.websiteUrl,
+            formattedAddress: payloadResponse.formattedAddress,
+            openingHours: payloadResponse.openingHours,
             photos: photos,
             fetchedAt: fetchedAt,
             expiresAt: expiresAt
@@ -87,6 +91,10 @@ nonisolated struct GooglePlaceData: Codable, Equatable {
     let reviewCount: Int?
     let mapsURL: String?
     let businessStatus: String?
+    let phoneNumber: String?
+    let websiteURL: String?
+    let formattedAddress: String?
+    let openingHours: GoogleOpeningHours?
     let photos: [GooglePhotoData]
     let fetchedAt: Date
     let expiresAt: Date
@@ -117,12 +125,21 @@ nonisolated struct GooglePhotoData: Codable, Equatable {
     let height: Int?
 }
 
+nonisolated struct GoogleOpeningHours: Codable, Equatable {
+    let weekdayDescriptions: [String]?
+    let openNow: Bool?
+}
+
 nonisolated private struct GoogleProxyResponse: Decodable {
     let placeId: String
     let rating: Double?
     let reviewCount: Int?
     let mapsUrl: String?
     let businessStatus: String?
+    let phoneNumber: String?
+    let websiteUrl: String?
+    let formattedAddress: String?
+    let openingHours: GoogleOpeningHours?
     let photos: [GoogleProxyPhoto]
     let fetchedAt: Date?
     let expiresAt: Date?

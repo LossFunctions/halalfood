@@ -750,6 +750,8 @@ private enum CommunityTopRatedEngine {
 
 
 struct ContentView: View {
+    private static let appleDetailsEnabled = false
+
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
         span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
@@ -1783,7 +1785,7 @@ struct ContentView: View {
                     .environmentObject(favoritesStore)
                     .presentationDetents([.medium, .large])
             }
-            .sheet(item: $selectedApplePlace) { selection in
+            .sheet(item: appleSheetSelection) { selection in
                 AppleMapItemSheet(selection: selection) {
                     selectedApplePlace = nil
                 }
@@ -1816,6 +1818,24 @@ struct ContentView: View {
                     .zIndex(2)
                 }
             }
+    }
+
+    private var appleSheetSelection: Binding<ApplePlaceSelection?> {
+        Binding(
+            get: { Self.appleDetailsEnabled ? selectedApplePlace : nil },
+            set: { newValue in
+                if Self.appleDetailsEnabled {
+                    selectedApplePlace = newValue
+                } else {
+                    selectedApplePlace = nil
+                }
+            }
+        )
+    }
+
+    private func presentApplePlace(_ mapItem: MKMapItem) {
+        guard Self.appleDetailsEnabled else { return }
+        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
     }
 
     private func applyPostOverlayModifiers<V: View>(_ view: V) -> some View {
@@ -1963,7 +1983,7 @@ struct ContentView: View {
                     selectedPlace = place
                 },
                 onAppleItemSelected: { mapItem in
-                    selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+                    presentApplePlace(mapItem)
                 },
                 onMapTap: {
                     if activeDropdown != nil {
@@ -2977,7 +2997,7 @@ private extension ContentView {
             mapRegion = targetRegion
         }
         selectedPlace = nil
-        selectedApplePlace = ApplePlaceSelection(mapItem: mapItem)
+        presentApplePlace(mapItem)
         isSearchOverlayPresented = false
         refreshVisiblePlaces()
         refreshVisiblePins()
@@ -7488,6 +7508,8 @@ private struct CalendarBadge: View {
 struct PlaceDetailView: View {
     let place: Place
 
+    private static let appleDetailsEnabled = false
+
     @StateObject private var viewModel = PlaceDetailViewModel()
     @State private var expandedPhotoSelection: PhotoSelection?
     @State private var isRatingEmbeddedInAppleCard = false
@@ -7501,7 +7523,7 @@ struct PlaceDetailView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let loadedDetails = appleLoadedDetails
+            let loadedDetails = Self.appleDetailsEnabled ? appleLoadedDetails : nil
 
             ZStack(alignment: .top) {
                 ScrollView {
@@ -7521,7 +7543,11 @@ struct PlaceDetailView: View {
                             YelpRatingRow(model: ratingModel, style: .prominent)
                         }
                         Divider().opacity(0.4)
-                        appleStatusSection
+                        if Self.appleDetailsEnabled {
+                            appleStatusSection
+                        } else {
+                            googleDetailsSection
+                        }
                     }
                     .padding(24)
                     .frame(minHeight: proxy.size.height, alignment: .top)
@@ -7545,7 +7571,7 @@ struct PlaceDetailView: View {
             }
         }
         .task(id: place.id) {
-            await viewModel.load(place: place)
+            await viewModel.load(place: place, includeAppleDetails: Self.appleDetailsEnabled)
             await viewModel.loadPhotos(for: place)
             refreshFavoriteSnapshot()
         }
@@ -7626,21 +7652,19 @@ struct PlaceDetailView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
+            ZStack {
                 Text(displayName)
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .multilineTextAlignment(.leading)
-                Spacer()
-                if !hasAppleDetails {
-                    favoriteButton
-                }
-            }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
 
-            if let address = displayAddress, !address.isEmpty {
-                Label(address, systemImage: "mappin.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if !hasAppleDetails {
+                    HStack {
+                        Spacer()
+                        favoriteButton
+                    }
+                }
             }
 
             // Rating moved below photos to follow: photos → rating → halal details.
@@ -7649,22 +7673,10 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private var halalSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            partialHalalMessageView()
-
-            let currentPlace = viewModel.resolvedPlace ?? place
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Label(currentPlace.halalStatus.label, systemImage: "checkmark.seal")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if let certifier = currentPlace.certifierOrg {
-                    CertifierBadge(certifier: certifier)
-                }
+        if halalDetailsDisplay != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                partialHalalMessageView()
             }
-
-            Text("Our halal classification comes from our own Supabase dataset.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -7695,6 +7707,14 @@ struct PlaceDetailView: View {
         case .loaded:
             EmptyView()
         }
+    }
+
+    private var googleDetailsSection: some View {
+        GooglePlaceDetailView(
+            place: viewModel.resolvedPlace ?? place,
+            googleData: viewModel.googleData,
+            googleErrorMessage: viewModel.googleErrorMessage
+        )
     }
 
     @ViewBuilder
@@ -7910,6 +7930,10 @@ struct PlaceDetailView: View {
     }
 
     private var displayAddress: String? {
+        if let formatted = viewModel.googleData?.formattedAddress,
+           !formatted.isEmpty {
+            return formatted
+        }
         if case let .loaded(details) = viewModel.loadingState {
             if let short = details.shortAddress, !short.isEmpty {
                 return short
@@ -7918,10 +7942,13 @@ struct PlaceDetailView: View {
                 return full
             }
         }
-        return place.address
+        let stored = (viewModel.resolvedPlace ?? place).address
+        if let stored, !stored.isEmpty { return stored }
+        return place.displayLocation
     }
 
     private var hasAppleDetails: Bool {
+        guard Self.appleDetailsEnabled else { return false }
         if case .loaded = viewModel.loadingState { return true }
         return false
     }
@@ -8217,6 +8244,7 @@ private struct HalalStatusBadge: View {
 
 extension PlaceDetailView {
     private var appleLoadedDetails: ApplePlaceDetails? {
+        guard Self.appleDetailsEnabled else { return nil }
         if case let .loaded(details) = viewModel.loadingState {
             return details
         }
@@ -8766,7 +8794,7 @@ final class PlaceDetailViewModel: ObservableObject {
         }
     }
 
-    func load(place: Place) async {
+    func load(place: Place, includeAppleDetails: Bool) async {
         if resolvedPlace?.id != place.id {
             resolvedPlace = place
             photos = []
@@ -8785,6 +8813,12 @@ final class PlaceDetailViewModel: ObservableObject {
             Task { [weak self] in
                 await self?.refreshSupabasePlace(for: place)
             }
+        }
+
+        guard includeAppleDetails else {
+            loadingState = .idle
+            lastSuccessfulPlaceID = nil
+            return
         }
 
         loadingState = .loading

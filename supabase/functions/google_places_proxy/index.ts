@@ -277,7 +277,10 @@ serve(async (req) => {
 
     const { data: cachedPlace, error: cachedPlaceError } = await supabase
         .from("google_place_cache")
-        .select("google_place_id, rating, review_count, business_status, maps_url, fetched_at, expires_at")
+        .select(
+            "google_place_id, rating, review_count, business_status, maps_url, fetched_at, expires_at, " +
+                "phone_number, website_url, formatted_address, opening_hours, details_version",
+        )
         .eq("google_place_id", placeId)
         .gt("expires_at", nowIso)
         .maybeSingle();
@@ -286,8 +289,23 @@ serve(async (req) => {
         console.error("cache lookup failed", cachedPlaceError);
     }
 
+    const cachedDetailsVersion = typeof cachedPlace?.details_version === "number"
+        ? cachedPlace.details_version
+        : 0;
+    const needsDetailRefresh = cachedDetailsVersion < 2;
+
+    let cachedPhotos: {
+        position: number;
+        photo_reference: string;
+        attribution: string | null;
+        width: number | null;
+        height: number | null;
+        fetched_at: string;
+        expires_at: string;
+    }[] | null = null;
+
     if (cachedPlace) {
-        const { data: cachedPhotos, error: cachedPhotosError } = await supabase
+        const { data: cachedPhotosData, error: cachedPhotosError } = await supabase
             .from("google_photo_cache")
             .select("position, photo_reference, attribution, width, height, fetched_at, expires_at")
             .eq("google_place_id", placeId)
@@ -297,7 +315,10 @@ serve(async (req) => {
         if (cachedPhotosError) {
             console.error("photo cache lookup failed", cachedPhotosError);
         }
+        cachedPhotos = cachedPhotosData ?? null;
+    }
 
+    if (cachedPlace && !needsDetailRefresh) {
         await updatePlaceStatus(
             supabase,
             placeId,
@@ -312,6 +333,10 @@ serve(async (req) => {
             review_count: cachedPlace.review_count,
             business_status: cachedPlace.business_status,
             maps_url: cachedPlace.maps_url,
+            phone_number: cachedPlace.phone_number,
+            website_url: cachedPlace.website_url,
+            formatted_address: cachedPlace.formatted_address,
+            opening_hours: cachedPlace.opening_hours,
             fetched_at: cachedPlace.fetched_at,
             expires_at: cachedPlace.expires_at,
             photos: (cachedPhotos ?? []).map((photo) => ({
@@ -326,24 +351,65 @@ serve(async (req) => {
         });
     }
 
+    if (cachedPlace && needsDetailRefresh) {
+        console.log("cache hit missing details, refreshing", {
+            placeId,
+            detailsVersion: cachedDetailsVersion,
+        });
+    }
+
     const detailsURL = new URL(`https://places.googleapis.com/v1/places/${placeId}`);
     const googleResponse = await fetch(detailsURL, {
         headers: {
             "X-Goog-Api-Key": GOOGLE_API_KEY,
-            "X-Goog-FieldMask": "id,rating,userRatingCount,photos,googleMapsUri,businessStatus",
+            "X-Goog-FieldMask": "id,rating,userRatingCount,photos,googleMapsUri,businessStatus," +
+                "regularOpeningHours,currentOpeningHours,nationalPhoneNumber,internationalPhoneNumber," +
+                "websiteUri,formattedAddress",
         },
     });
 
     const googlePayload = await googleResponse.json().catch(() => null);
-    if (!googleResponse.ok) {
+    if (!googleResponse.ok || googlePayload?.error) {
         const message = googlePayload?.error?.message ?? "Failed to fetch Google Places data.";
         const status = googleResponse.status === 404 ? 404 : 502;
+        if (cachedPlace) {
+            console.error("google fetch failed, serving cached data", {
+                placeId,
+                status,
+                message,
+            });
+            await updatePlaceStatus(
+                supabase,
+                placeId,
+                cachedPlace.business_status ?? null,
+                cachedPlace.maps_url ?? null,
+                nowIso,
+            );
+            return jsonResponse({
+                place_id: cachedPlace.google_place_id,
+                rating: cachedPlace.rating,
+                review_count: cachedPlace.review_count,
+                business_status: cachedPlace.business_status,
+                maps_url: cachedPlace.maps_url,
+                phone_number: cachedPlace.phone_number,
+                website_url: cachedPlace.website_url,
+                formatted_address: cachedPlace.formatted_address,
+                opening_hours: cachedPlace.opening_hours,
+                fetched_at: cachedPlace.fetched_at,
+                expires_at: cachedPlace.expires_at,
+                photos: (cachedPhotos ?? []).map((photo) => ({
+                    position: photo.position,
+                    url: buildPhotoProxyURL(url, photo.photo_reference, photo.width ?? undefined),
+                    attribution: photo.attribution ?? "Google",
+                    reference: photo.photo_reference,
+                    width: photo.width,
+                    height: photo.height,
+                })),
+                cache_status: "stale",
+                error: message,
+            });
+        }
         return jsonResponse({ error: message }, status);
-    }
-
-    if (googlePayload?.error) {
-        const message = googlePayload.error?.message ?? "Failed to fetch Google Places data.";
-        return jsonResponse({ error: message }, 502);
     }
 
     const result = googlePayload ?? {};
@@ -354,6 +420,35 @@ serve(async (req) => {
     const mapsUrl = typeof result.googleMapsUri === "string" ? result.googleMapsUri : null;
     const businessStatus = typeof result.businessStatus === "string" ? result.businessStatus : null;
     const photos = Array.isArray(result.photos) ? result.photos : [];
+    const phoneNumber = typeof result.nationalPhoneNumber === "string"
+        ? result.nationalPhoneNumber
+        : typeof result.internationalPhoneNumber === "string"
+        ? result.internationalPhoneNumber
+        : null;
+    const websiteUrl = typeof result.websiteUri === "string" ? result.websiteUri : null;
+    const formattedAddress = typeof result.formattedAddress === "string"
+        ? result.formattedAddress
+        : null;
+    const regularOpeningHours = result.regularOpeningHours ?? null;
+    const currentOpeningHours = result.currentOpeningHours ?? null;
+    const weekdayDescriptions = Array.isArray(regularOpeningHours?.weekdayDescriptions)
+        ? regularOpeningHours.weekdayDescriptions
+            .filter((entry: unknown): entry is string => typeof entry === "string")
+        : null;
+    const openNow = typeof currentOpeningHours?.openNow === "boolean"
+        ? currentOpeningHours.openNow
+        : typeof regularOpeningHours?.openNow === "boolean"
+        ? regularOpeningHours.openNow
+        : null;
+    const openingHours = (weekdayDescriptions && weekdayDescriptions.length > 0) ||
+            openNow !== null
+        ? {
+            weekday_descriptions: (weekdayDescriptions && weekdayDescriptions.length > 0)
+                ? weekdayDescriptions
+                : null,
+            open_now: openNow,
+        }
+        : null;
 
     const fetchedAt = nowIso;
     const expiresAt = new Date(now.getTime() + CACHE_TTL_MS).toISOString();
@@ -366,6 +461,11 @@ serve(async (req) => {
             review_count: reviewCount,
             business_status: businessStatus,
             maps_url: mapsUrl,
+            phone_number: phoneNumber,
+            website_url: websiteUrl,
+            formatted_address: formattedAddress,
+            opening_hours: openingHours,
+            details_version: 2,
             fetched_at: fetchedAt,
             expires_at: expiresAt,
         });
@@ -455,6 +555,10 @@ serve(async (req) => {
         review_count: reviewCount,
         business_status: businessStatus,
         maps_url: mapsUrl,
+        phone_number: phoneNumber,
+        website_url: websiteUrl,
+        formatted_address: formattedAddress,
+        opening_hours: openingHours,
         fetched_at: fetchedAt,
         expires_at: expiresAt,
         photos: photoPayload.map((photo) => ({

@@ -58,30 +58,45 @@ export type Database = {
       google_place_cache: {
         Row: {
           business_status: string | null
+          details_version: number | null
           expires_at: string
           fetched_at: string
+          formatted_address: string | null
           google_place_id: string
           maps_url: string | null
+          opening_hours: Json | null
+          phone_number: string | null
           rating: number | null
           review_count: number | null
+          website_url: string | null
         }
         Insert: {
           business_status?: string | null
+          details_version?: number | null
           expires_at: string
           fetched_at: string
+          formatted_address?: string | null
           google_place_id: string
           maps_url?: string | null
+          opening_hours?: Json | null
+          phone_number?: string | null
           rating?: number | null
           review_count?: number | null
+          website_url?: string | null
         }
         Update: {
           business_status?: string | null
+          details_version?: number | null
           expires_at?: string
           fetched_at?: string
+          formatted_address?: string | null
           google_place_id?: string
           maps_url?: string | null
+          opening_hours?: Json | null
+          phone_number?: string | null
           rating?: number | null
           review_count?: number | null
+          website_url?: string | null
         }
         Relationships: []
       }
