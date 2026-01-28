@@ -5,7 +5,7 @@ import MapKit
 #endif
 
 // Simple axis-aligned bounding box utility (distinct from Networking.BBox)
-struct GeoBBox {
+nonisolated struct GeoBBox {
     let minLat: Double
     let minLon: Double
     let maxLat: Double
@@ -26,7 +26,7 @@ struct GeoBBox {
 ///   }
 ///
 /// If `state` is provided and not `NY`, items are rejected even if within LI bbox.
-struct RegionGate {
+nonisolated struct RegionGate {
     // NYC five boroughs bbox
     private static let nyc = GeoBBox(
         minLat: 40.4774, minLon: -74.2591,
@@ -174,21 +174,21 @@ struct RegionGate {
 
 /// Optional protocol to adopt on your place model so you can filter collections
 /// succinctly without rewriting closures at each call site.
-protocol Geolocated {
+nonisolated protocol Geolocated {
     var latitude: Double { get }
     var longitude: Double { get }
     var state: String? { get }
     var country: String? { get }
 }
 
-extension Sequence where Element: Geolocated {
+nonisolated extension Sequence where Element: Geolocated {
     func filteredByCurrentGeoScope() -> [Element] {
         self.filter { RegionGate.allows(lat: $0.latitude, lon: $0.longitude, state: $0.state, country: $0.country) }
     }
 }
 
 // Specialization for Place: also derive state from address and enforce NY to avoid NJ/CT spillover.
-extension Sequence where Element == Place {
+nonisolated extension Sequence where Element == Place {
     func filteredByCurrentGeoScope() -> [Place] {
         self.filter { place in
             guard RegionGate.allows(lat: place.coordinate.latitude, lon: place.coordinate.longitude) else { return false }
@@ -200,7 +200,7 @@ extension Sequence where Element == Place {
     }
 }
 
-extension Sequence where Element == PlacePin {
+nonisolated extension Sequence where Element == PlacePin {
     func filteredByCurrentGeoScope() -> [PlacePin] {
         self.filter { pin in
             guard RegionGate.allows(lat: pin.latitude, lon: pin.longitude) else { return false }

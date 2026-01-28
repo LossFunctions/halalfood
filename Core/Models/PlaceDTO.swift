@@ -1,6 +1,6 @@
 import Foundation
 
-struct PlaceDTO: Decodable, Identifiable {
+nonisolated struct PlaceDTO: Decodable, Identifiable {
     let id: UUID
     let name: String
     let category: String
@@ -24,7 +24,7 @@ struct PlaceDTO: Decodable, Identifiable {
     let cc_certifier_org: String?
     let source_raw: SourceRaw?
 
-    struct SourceRaw: Decodable {
+    nonisolated struct SourceRaw: Decodable {
         let display_location: String?
         let categories: [String]?
     }

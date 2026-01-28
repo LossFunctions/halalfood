@@ -1,7 +1,7 @@
 import Foundation
 import Supabase
 
-enum Env {
+nonisolated enum Env {
     static var url: URL {
         if let cached = cachedURL { return cached }
         guard let url = optionalURL() else {

@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-private struct ManualPlaceDefinition {
+nonisolated private struct ManualPlaceDefinition {
     let id: UUID
     let name: String
     let anchorCoordinate: CLLocationCoordinate2D
@@ -316,7 +316,7 @@ actor ManualPlaceResolver {
     }
 }
 
-private extension MKCoordinateRegion {
+nonisolated private extension MKCoordinateRegion {
     func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
         let halfLat = span.latitudeDelta / 2.0
         let halfLon = span.longitudeDelta / 2.0

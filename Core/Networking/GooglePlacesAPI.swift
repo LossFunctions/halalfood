@@ -78,7 +78,7 @@ enum GooglePlacesAPIError: Error {
     case server(statusCode: Int, body: String?)
 }
 
-struct GooglePlaceData: Codable, Equatable {
+nonisolated struct GooglePlaceData: Codable, Equatable {
     static let maxCacheAge: TimeInterval = 60 * 60 * 23 + 60 * 55
     static let refreshWindow: TimeInterval = 60 * 60
 
@@ -92,7 +92,7 @@ struct GooglePlaceData: Codable, Equatable {
     let expiresAt: Date
 }
 
-extension GooglePlaceData {
+nonisolated extension GooglePlaceData {
     var effectiveExpiresAt: Date {
         let maxExpiresAt = fetchedAt.addingTimeInterval(Self.maxCacheAge)
         return min(expiresAt, maxExpiresAt)
@@ -108,7 +108,7 @@ extension GooglePlaceData {
     }
 }
 
-struct GooglePhotoData: Codable, Equatable {
+nonisolated struct GooglePhotoData: Codable, Equatable {
     let position: Int
     let url: String
     let attribution: String?
@@ -117,7 +117,7 @@ struct GooglePhotoData: Codable, Equatable {
     let height: Int?
 }
 
-private struct GoogleProxyResponse: Decodable {
+nonisolated private struct GoogleProxyResponse: Decodable {
     let placeId: String
     let rating: Double?
     let reviewCount: Int?
@@ -128,7 +128,7 @@ private struct GoogleProxyResponse: Decodable {
     let expiresAt: Date?
 }
 
-private struct GoogleProxyPhoto: Decodable {
+nonisolated private struct GoogleProxyPhoto: Decodable {
     let position: Int?
     let url: String
     let attribution: String?

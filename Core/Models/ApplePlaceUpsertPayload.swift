@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-struct ApplePlaceUpsertPayload: Encodable, Sendable {
+nonisolated struct ApplePlaceUpsertPayload: Encodable, Sendable {
     let applePlaceID: String
     let name: String
     let latitude: Double

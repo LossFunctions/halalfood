@@ -74,7 +74,7 @@ enum YelpAPIError: Error {
     case server(statusCode: Int, body: String?)
 }
 
-struct YelpBusinessData: Codable, Equatable {
+nonisolated struct YelpBusinessData: Codable, Equatable {
     static let maxCacheAge: TimeInterval = 60 * 60 * 23 + 60 * 55
     static let refreshWindow: TimeInterval = 60 * 60
 
@@ -87,7 +87,7 @@ struct YelpBusinessData: Codable, Equatable {
     let expiresAt: Date
 }
 
-extension YelpBusinessData {
+nonisolated extension YelpBusinessData {
     var effectiveExpiresAt: Date {
         let maxExpiresAt = fetchedAt.addingTimeInterval(Self.maxCacheAge)
         return min(expiresAt, maxExpiresAt)
@@ -103,13 +103,13 @@ extension YelpBusinessData {
     }
 }
 
-struct YelpPhotoData: Codable, Equatable {
+nonisolated struct YelpPhotoData: Codable, Equatable {
     let position: Int
     let url: String
     let attribution: String?
 }
 
-private struct YelpProxyResponse: Decodable {
+nonisolated private struct YelpProxyResponse: Decodable {
     let yelpId: String
     let rating: Double?
     let reviewCount: Int?
@@ -119,7 +119,7 @@ private struct YelpProxyResponse: Decodable {
     let expiresAt: Date?
 }
 
-private struct YelpProxyPhoto: Decodable {
+nonisolated private struct YelpProxyPhoto: Decodable {
     let position: Int?
     let url: String
     let attribution: String?

@@ -1,6 +1,6 @@
 import Foundation
 
-struct PlacePhoto: Decodable, Identifiable, Hashable {
+nonisolated struct PlacePhoto: Decodable, Identifiable, Hashable {
     let id: UUID
     let placeId: UUID
     let src: String
@@ -12,7 +12,7 @@ struct PlacePhoto: Decodable, Identifiable, Hashable {
     let attribution: String?
 }
 
-extension PlacePhoto {
+nonisolated extension PlacePhoto {
     init(placeID: UUID, position: Int, url: String, attribution: String?) {
         self.id = UUID()
         self.placeId = placeID

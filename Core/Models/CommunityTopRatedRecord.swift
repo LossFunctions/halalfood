@@ -1,6 +1,6 @@
 import Foundation
 
-struct CommunityTopRatedRecord: Decodable {
+nonisolated struct CommunityTopRatedRecord: Decodable {
     let region: String
     let regionRank: Int
     let id: UUID

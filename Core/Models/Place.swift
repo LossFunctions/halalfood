@@ -2,14 +2,14 @@ import Foundation
 import MapKit
 import CoreLocation
 
-enum PlaceCategory: String, Identifiable, Codable {
+nonisolated enum PlaceCategory: String, Identifiable, Codable {
     case restaurant
     case other
 
     var id: String { rawValue }
 }
 
-struct Place: Identifiable, Hashable, Sendable {
+nonisolated struct Place: Identifiable, Hashable, Sendable {
     enum HalalStatus: String, Codable {
         case unknown
         case yes
@@ -109,7 +109,7 @@ struct Place: Identifiable, Hashable, Sendable {
 }
 
 // RegionGate integration: provide coordinates to the geofilter
-extension Place: Geolocated {
+nonisolated extension Place: Geolocated {
     var latitude: Double { coordinate.latitude }
     var longitude: Double { coordinate.longitude }
     var state: String? { nil }
@@ -117,7 +117,7 @@ extension Place: Geolocated {
 }
 
 
-extension Place {
+nonisolated extension Place {
     static func == (lhs: Place, rhs: Place) -> Bool { lhs.id == rhs.id }
 
     func hash(into hasher: inout Hasher) {
@@ -125,7 +125,7 @@ extension Place {
     }
 }
 
-extension Place {
+nonisolated extension Place {
     init(id: UUID = UUID(),
          name: String,
          latitude: Double,
@@ -219,7 +219,7 @@ extension Place {
     }
 }
 
-extension Place: Codable {
+nonisolated extension Place: Codable {
     private enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -330,7 +330,7 @@ extension Place: Codable {
     }
 }
 
-extension Place {
+nonisolated extension Place {
     func hasCategory(_ candidate: String) -> Bool {
         categories.contains(candidate.lowercased())
     }
@@ -345,7 +345,7 @@ extension Place {
     }
 }
 
-extension Place {
+nonisolated extension Place {
     var hasGooglePlaceID: Bool {
         guard let id = googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
         return !id.isEmpty
@@ -427,7 +427,7 @@ extension Place {
         return cleaned
     }
 }
-enum PlaceOverrides {
+nonisolated enum PlaceOverrides {
     private static let permanentlyClosedNames: Set<String> = {
         let names = [
             "Sofra Mediterranean Grill",

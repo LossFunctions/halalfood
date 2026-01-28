@@ -237,7 +237,7 @@ private extension CuisineFilterOption {
     }
 }
 
-private enum FavoritesSortOption: String, CaseIterable, Identifiable {
+nonisolated private enum FavoritesSortOption: String, CaseIterable, Identifiable {
     case recentlySaved
     case alphabetical
     case rating
@@ -253,7 +253,7 @@ private enum FavoritesSortOption: String, CaseIterable, Identifiable {
     }
 }
 
-private enum TopRatedSortOption: String, CaseIterable, Identifiable {
+nonisolated private enum TopRatedSortOption: String, CaseIterable, Identifiable {
     case google
     case community
 
@@ -267,7 +267,7 @@ private enum TopRatedSortOption: String, CaseIterable, Identifiable {
     }
 }
 
-private enum TopRatedRegion: String, CaseIterable, Identifiable {
+nonisolated private enum TopRatedRegion: String, CaseIterable, Identifiable {
     case all
     case manhattan
     case brooklyn
@@ -291,7 +291,7 @@ private enum TopRatedRegion: String, CaseIterable, Identifiable {
     }
 }
 
-private enum CommunityTopRatedConfig {
+nonisolated private enum CommunityTopRatedConfig {
     static let regions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .bronx, .statenIsland, .longIsland]
 
     static let curatedNames: [TopRatedRegion: [String]] = [
@@ -1516,6 +1516,16 @@ struct ContentView: View {
     }
 
     var body: some View {
+        applyPostOverlayModifiers(
+            applyOverlayAndSheetModifiers(
+                applyPreOverlayModifiers(baseContentView)
+            )
+        )
+        .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
+    }
+
+    @ViewBuilder
+    private var baseContentView: some View {
         ZStack {
             if showInitialPinsLoader {
                 InitialPinsLoadingView(
@@ -1539,7 +1549,17 @@ struct ContentView: View {
                 mapShell
             }
         }
-        .onAppear {
+    }
+
+    private func applyPreOverlayModifiers<V: View>(_ view: V) -> some View {
+        let withAppear = applyAppearModifiers(view)
+        let withChanges = applyChangeTrackingModifiers(withAppear)
+        let withReceives = applyReceiveModifiers(withChanges)
+        return applySearchAndAlertModifiers(withReceives)
+    }
+
+    private func applyAppearModifiers<V: View>(_ view: V) -> some View {
+        view.onAppear {
             if !hasLoadedPinsOnce,
                pinsStore.didLoadFromDisk,
                pinsStore.pins.isEmpty,
@@ -1576,78 +1596,104 @@ struct ContentView: View {
 #endif
             }
         }
-        .onChange(of: selectedFilter) { oldValue, newValue in
-            guard oldValue != newValue else { return }
-            viewModel.filterChanged(to: newValue, region: mapRegion)
-            refreshVisiblePins()
-        }
-        .onChange(of: selectedPlace) { oldValue, newValue in
-            guard newValue == nil, oldValue != nil else { return }
-            restoreSearchStateAfterDismiss()
-        }
-        .onChange(of: selectedApplePlace) { oldValue, newValue in
-            // Auto-ingest disabled: selecting an Apple result should not persist or mark halal.
-            _ = newValue?.mapItem
-            if newValue == nil, oldValue != nil {
+    }
+
+    private func applyChangeTrackingModifiers<V: View>(_ view: V) -> some View {
+        applyDataChangeModifiers(applySelectionChangeModifiers(view))
+    }
+
+    private func applySelectionChangeModifiers<V: View>(_ view: V) -> some View {
+        view
+            .onChange(of: selectedFilter) { oldValue, newValue in
+                guard oldValue != newValue else { return }
+                viewModel.filterChanged(to: newValue, region: mapRegion)
+                refreshVisiblePins()
+            }
+            .onChange(of: selectedPlace) { oldValue, newValue in
+                guard newValue == nil, oldValue != nil else { return }
                 restoreSearchStateAfterDismiss()
             }
-        }
-        .onChange(of: viewModel.filteredPlacesVersion) { _ in
-            resetCommunityCaches()
-            if bottomTab == .topRated && topRatedSort == .community {
-                scheduleCommunityPrecomputationIfNeeded(force: true)
-            }
-            guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            guard bottomTab == .places || bottomTab == .newSpots else { return }
-            refreshVisiblePlaces()
-        }
-        .onChange(of: viewModel.searchResultsVersion) { _ in
-            guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            guard bottomTab == .places || bottomTab == .newSpots else { return }
-            refreshVisiblePlaces()
-        }
-        .onChange(of: pinsStore.didLoadFromDisk) { _, didLoad in
-            guard didLoad else { return }
-            guard pinsStore.pins.isEmpty else { return }
-            guard !hasLoadedPinsOnce else { return }
-            if !showInitialPinsLoader {
-                showInitialPinsLoader = true
-                initialPinsProgress = 0.05
-            }
-            startInitialPinsLoaderIfNeeded()
-        }
-        .onChange(of: pinsStore.pins) { _, _ in
-            if showInitialPinsLoader, !pinsStore.pins.isEmpty {
-                hasLoadedPinsOnce = true
-                completeInitialPinsLoader()
-            } else if !hasLoadedPinsOnce, !pinsStore.pins.isEmpty {
-                hasLoadedPinsOnce = true
-            }
-            guard bottomTab == .places || bottomTab == .newSpots else { return }
-            refreshVisiblePins()
-        }
-        .onChange(of: viewModel.globalDatasetVersion) { _ in
-            guard bottomTab == .places || bottomTab == .newSpots else { return }
-            guard selectedCategoryOption != nil || selectedCuisineOption != nil else { return }
-            refreshVisiblePlaces()
-        }
-        .onChange(of: bottomTab) { _, newValue in
-            if newValue != .favorites {
-                favoritesPanelTask?.cancel()
-                favoritesPanelTask = nil
-                if isFavoritesPanelCollapsed {
-                    isFavoritesPanelCollapsed = false
-                }
-                if isFavoritesPanelPinnedCollapsed {
-                    isFavoritesPanelPinnedCollapsed = false
+            .onChange(of: selectedApplePlace) { oldValue, newValue in
+                // Auto-ingest disabled: selecting an Apple result should not persist or mark halal.
+                _ = newValue?.mapItem
+                if newValue == nil, oldValue != nil {
+                    restoreSearchStateAfterDismiss()
                 }
             }
-        }
-        .onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
+    }
+
+    private func applyDataChangeModifiers<V: View>(_ view: V) -> some View {
+        view
+            .onChange(of: viewModel.filteredPlacesVersion) { _, _ in
+                resetCommunityCaches()
+                if bottomTab == .topRated && topRatedSort == .community {
+                    scheduleCommunityPrecomputationIfNeeded(force: true)
+                }
+                guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                guard bottomTab == .places || bottomTab == .newSpots else { return }
+                refreshVisiblePlaces()
+            }
+            .onChange(of: viewModel.searchResultsVersion) { _, _ in
+                guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                guard bottomTab == .places || bottomTab == .newSpots else { return }
+                refreshVisiblePlaces()
+            }
+            .onChange(of: pinsStore.didLoadFromDisk) { _, didLoad in
+                guard didLoad else { return }
+                guard pinsStore.pins.isEmpty else { return }
+                guard !hasLoadedPinsOnce else { return }
+                if !showInitialPinsLoader {
+                    showInitialPinsLoader = true
+                    initialPinsProgress = 0.05
+                }
+                startInitialPinsLoaderIfNeeded()
+            }
+            .onChange(of: pinsStore.pins) { _, _ in
+                if showInitialPinsLoader, !pinsStore.pins.isEmpty {
+                    hasLoadedPinsOnce = true
+                    completeInitialPinsLoader()
+                } else if !hasLoadedPinsOnce, !pinsStore.pins.isEmpty {
+                    hasLoadedPinsOnce = true
+                }
+                guard bottomTab == .places || bottomTab == .newSpots else { return }
+                refreshVisiblePins()
+            }
+            .onChange(of: viewModel.globalDatasetVersion) { _, _ in
+                guard bottomTab == .places || bottomTab == .newSpots else { return }
+                guard selectedCategoryOption != nil || selectedCuisineOption != nil else { return }
+                refreshVisiblePlaces()
+            }
+            .onChange(of: bottomTab) { _, newValue in
+                if newValue != .favorites {
+                    favoritesPanelTask?.cancel()
+                    favoritesPanelTask = nil
+                    if isFavoritesPanelCollapsed {
+                        isFavoritesPanelCollapsed = false
+                    }
+                    if isFavoritesPanelPinnedCollapsed {
+                        isFavoritesPanelPinnedCollapsed = false
+                    }
+                }
+            }
+    }
+
+    private func applyReceiveModifiers<V: View>(_ view: V) -> some View {
+        applyKeyboardReceiveModifiers(
+            applyCommunityReceiveModifiers(
+                applyLocationReceiveModifiers(view)
+            )
+        )
+    }
+
+    private func applyLocationReceiveModifiers<V: View>(_ view: V) -> some View {
+        view.onReceive(locationManager.$lastKnownLocation.compactMap { $0 }) { location in
             guard !hasCenteredOnUser else { return }
             centerMap(on: location)
         }
-        .onReceive(viewModel.$persistedCommunityTopRated) { snapshot in
+    }
+
+    private func applyCommunityReceiveModifiers<V: View>(_ view: V) -> some View {
+        view.onReceive(viewModel.$persistedCommunityTopRated) { snapshot in
             guard !snapshot.isEmpty else { return }
             var merged = communityCache
             var didUpdate = false
@@ -1674,191 +1720,204 @@ struct ContentView: View {
             }
 #endif
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
-            guard let info = notification.userInfo,
-                  let frameValue = info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-            let overlap = max(0, frameValue.height - currentBottomSafeAreaInset())
-            keyboardHeight = overlap
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardHeight = 0
-        }
-        .onChange(of: searchQuery) { _, newValue in
-            searchDebounceTask?.cancel()
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if isSearchOverlayPresented {
-                if selectedCategoryOption != nil || selectedCuisineOption != nil {
-                    if selectedCategoryOption?.query != trimmed || trimmed.isEmpty {
-                        selectedCategoryOption = nil
-                    }
-                    if selectedCuisineOption?.query != trimmed || trimmed.isEmpty {
-                        selectedCuisineOption = nil
-                    }
-                }
-            }
-            guard !trimmed.isEmpty else {
-                viewModel.search(query: "")
-                searchDebounceTask = nil
-                return
-            }
+    }
 
-            let workItem = DispatchWorkItem {
-                viewModel.search(query: newValue)
+    private func applyKeyboardReceiveModifiers<V: View>(_ view: V) -> some View {
+        view
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+                guard let info = notification.userInfo,
+                      let frameValue = info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+                let overlap = max(0, frameValue.height - currentBottomSafeAreaInset())
+                keyboardHeight = overlap
             }
-            searchDebounceTask = workItem
-            workItem.notify(queue: .main) {
-                if searchDebounceTask === workItem {
-                    searchDebounceTask = nil
-                }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardHeight = 0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
-        }
-        .alert("Unable to load places", isPresented: $viewModel.presentingError) {
-            Button("OK", role: .cancel) {
-                viewModel.presentingError = false
-            }
-        } message: {
-            Text(viewModel.errorMessage ?? "An unexpected error occurred.")
-        }
-        .sheet(item: $selectedPlace) { place in
-            PlaceDetailView(place: place)
-                .environmentObject(favoritesStore)
-                .presentationDetents([.medium, .large])
-        }
-        .sheet(item: $selectedApplePlace) { selection in
-            AppleMapItemSheet(selection: selection) {
-                selectedApplePlace = nil
-            }
-            .presentationDetents([.medium, .large])
-        }
-        .overlay {
-            if isSearchOverlayPresented {
-                SearchOverlayView(
-                    isPresented: $isSearchOverlayPresented,
-                    query: $searchQuery,
-                    isSearching: viewModel.isSearching,
-                    supabaseResults: applyingOverrides(to: viewModel.searchResults.filteredByCurrentGeoScope()),
-                    appleResults: appleOverlayItems,
-                    subtitle: viewModel.subtitleMessage,
-                    topSafeAreaInset: currentTopSafeAreaInset(),
-                    onSelectPlace: { place in
-                        focus(on: place)
-                        isSearchOverlayPresented = false
-                    },
-                    onSelectApplePlace: { mapItem in
-                        focus(on: mapItem)
-                        isSearchOverlayPresented = false
-                    },
-                    onClear: {
-                        searchQuery = ""
+    }
+
+    private func applySearchAndAlertModifiers<V: View>(_ view: V) -> some View {
+        view
+            .onChange(of: searchQuery) { _, newValue in
+                searchDebounceTask?.cancel()
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if isSearchOverlayPresented {
+                    if selectedCategoryOption != nil || selectedCuisineOption != nil {
+                        if selectedCategoryOption?.query != trimmed || trimmed.isEmpty {
+                            selectedCategoryOption = nil
+                        }
+                        if selectedCuisineOption?.query != trimmed || trimmed.isEmpty {
+                            selectedCuisineOption = nil
+                        }
                     }
-                )
-                .ignoresSafeArea()
-                .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(2)
+                }
+                guard !trimmed.isEmpty else {
+                    viewModel.search(query: "")
+                    searchDebounceTask = nil
+                    return
+                }
+
+                let workItem = DispatchWorkItem {
+                    viewModel.search(query: newValue)
+                }
+                searchDebounceTask = workItem
+                workItem.notify(queue: .main) {
+                    if searchDebounceTask === workItem {
+                        searchDebounceTask = nil
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
             }
-        }
-        .onChange(of: bottomTab) { tab in
+            .alert("Unable to load places", isPresented: $viewModel.presentingError) {
+                Button("OK", role: .cancel) {
+                    viewModel.presentingError = false
+                }
+            } message: {
+                Text(viewModel.errorMessage ?? "An unexpected error occurred.")
+            }
+    }
+
+    private func applyOverlayAndSheetModifiers<V: View>(_ view: V) -> some View {
+        view
+            .sheet(item: $selectedPlace) { place in
+                PlaceDetailView(place: place)
+                    .environmentObject(favoritesStore)
+                    .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $selectedApplePlace) { selection in
+                AppleMapItemSheet(selection: selection) {
+                    selectedApplePlace = nil
+                }
+                .presentationDetents([.medium, .large])
+            }
+            .overlay {
+                if isSearchOverlayPresented {
+                    SearchOverlayView(
+                        isPresented: $isSearchOverlayPresented,
+                        query: $searchQuery,
+                        isSearching: viewModel.isSearching,
+                        supabaseResults: applyingOverrides(to: viewModel.searchResults.filteredByCurrentGeoScope()),
+                        appleResults: appleOverlayItems,
+                        subtitle: viewModel.subtitleMessage,
+                        topSafeAreaInset: currentTopSafeAreaInset(),
+                        onSelectPlace: { place in
+                            focus(on: place)
+                            isSearchOverlayPresented = false
+                        },
+                        onSelectApplePlace: { mapItem in
+                            focus(on: mapItem)
+                            isSearchOverlayPresented = false
+                        },
+                        onClear: {
+                            searchQuery = ""
+                        }
+                    )
+                    .ignoresSafeArea()
+                    .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(2)
+                }
+            }
+    }
+
+    private func applyPostOverlayModifiers<V: View>(_ view: V) -> some View {
+        view
+            .onChange(of: bottomTab) { _, tab in
 #if DEBUG
-            if tab != .topRated {
-                communityInstrumentation.markCancel(reason: "Exited community tab before completion")
-                communityInstrumentation.resetAll()
-            }
+                if tab != .topRated {
+                    communityInstrumentation.markCancel(reason: "Exited community tab before completion")
+                    communityInstrumentation.resetAll()
+                }
 #endif
-            activeDropdown = nil
-            switch tab {
-            case .favorites:
-                selectedApplePlace = nil
-                if let selected = selectedPlace,
-                   !favoritesStore.contains(id: selected.id) {
+                activeDropdown = nil
+                switch tab {
+                case .favorites:
+                    selectedApplePlace = nil
+                    if let selected = selectedPlace,
+                       !favoritesStore.contains(id: selected.id) {
+                        selectedPlace = nil
+                    }
+                case .places:
+                    // Only center on first use; otherwise preserve existing map state
+                    if let location = locationManager.lastKnownLocation, !hasCenteredOnUser {
+                        centerMap(on: location)
+                    }
+                    refreshVisiblePlaces()
+                    refreshVisiblePins()
+                case .newSpots:
+                    selectedApplePlace = nil
+                    isSearchOverlayPresented = false
+                    // Ensure the global dataset is loaded so New Spots IDs resolve reliably
+                    viewModel.ensureGlobalDataset()
+                    preloadNewSpotDetailsIfNeeded()
+                    refreshVisiblePlaces()
+                    refreshVisiblePins()
+                case .topRated:
+                    selectedApplePlace = nil
+                    if let selected = selectedPlace,
+                       !topRatedDisplay.contains(where: { $0.id == selected.id }) {
+                        selectedPlace = nil
+                    }
+                    scheduleCommunityPrecomputationIfNeeded()
+                    if topRatedSort == .community {
+                        scheduleCommunityPrecomputationIfNeeded()
+                    }
+#if DEBUG
+                    if topRatedSort == .community {
+                        communityInstrumentation.startLoadIfNeeded(
+                            metadata: "Tab switch -> community region=\(topRatedRegion.rawValue)"
+                        )
+                    }
+#endif
+                case .more:
+                    selectedApplePlace = nil
                     selectedPlace = nil
+                    isSearchOverlayPresented = false
                 }
-            case .places:
-                // Only center on first use; otherwise preserve existing map state
-                if let location = locationManager.lastKnownLocation, !hasCenteredOnUser {
-                    centerMap(on: location)
-                }
-                refreshVisiblePlaces()
-                refreshVisiblePins()
-            case .newSpots:
-                selectedApplePlace = nil
-                isSearchOverlayPresented = false
-                // Ensure the global dataset is loaded so New Spots IDs resolve reliably
-                viewModel.ensureGlobalDataset()
-                preloadNewSpotDetailsIfNeeded()
-                refreshVisiblePlaces()
-                refreshVisiblePins()
-            case .topRated:
-                selectedApplePlace = nil
-                if let selected = selectedPlace,
+            }
+            .onChange(of: topRatedSort) { _, newValue in
+                if bottomTab == .topRated,
+                   let selected = selectedPlace,
                    !topRatedDisplay.contains(where: { $0.id == selected.id }) {
                     selectedPlace = nil
                 }
-                scheduleCommunityPrecomputationIfNeeded()
-                if topRatedSort == .community {
+                if newValue == .community {
                     scheduleCommunityPrecomputationIfNeeded()
                 }
 #if DEBUG
-                if topRatedSort == .community {
+                if newValue == .community, bottomTab == .topRated {
                     communityInstrumentation.startLoadIfNeeded(
-                        metadata: "Tab switch -> community region=\(topRatedRegion.rawValue)"
+                        metadata: "Sort -> community region=\(topRatedRegion.rawValue)"
                     )
-                }
-#endif
-            case .more:
-                selectedApplePlace = nil
-                selectedPlace = nil
-                isSearchOverlayPresented = false
-            default:
-                break
-            }
-        }
-        .onChange(of: topRatedSort) { _, newValue in
-            if bottomTab == .topRated,
-               let selected = selectedPlace,
-               !topRatedDisplay.contains(where: { $0.id == selected.id }) {
-                selectedPlace = nil
-            }
-            if newValue == .community {
-                scheduleCommunityPrecomputationIfNeeded()
-            }
-#if DEBUG
-            if newValue == .community, bottomTab == .topRated {
-                communityInstrumentation.startLoadIfNeeded(
-                    metadata: "Sort -> community region=\(topRatedRegion.rawValue)"
-                )
-            } else {
-                communityInstrumentation.markCancel(reason: "Community sort deactivated")
-                communityInstrumentation.resetAll()
-            }
-#endif
-        }
-        .onChange(of: topRatedRegion) { _, _ in
-            if bottomTab == .topRated,
-               let selected = selectedPlace,
-               !topRatedDisplay.contains(where: { $0.id == selected.id }) {
-                selectedPlace = nil
-            }
-#if DEBUG
-            if bottomTab == .topRated, topRatedSort == .community {
-                if let cached = communityCache[topRatedRegion] {
-                    communityInstrumentation.resetFirstRender()
-                    communityInstrumentation.markWarmCache(region: topRatedRegion, count: cached.count)
                 } else {
-                    communityInstrumentation.markCancel(reason: "Region changed before data ready")
-                    communityInstrumentation.startLoadIfNeeded(
-                        metadata: "Region -> \(topRatedRegion.rawValue)"
-                    )
+                    communityInstrumentation.markCancel(reason: "Community sort deactivated")
+                    communityInstrumentation.resetAll()
+                }
+#endif
+            }
+            .onChange(of: topRatedRegion) { _, _ in
+                if bottomTab == .topRated,
+                   let selected = selectedPlace,
+                   !topRatedDisplay.contains(where: { $0.id == selected.id }) {
+                    selectedPlace = nil
+                }
+#if DEBUG
+                if bottomTab == .topRated, topRatedSort == .community {
+                    if let cached = communityCache[topRatedRegion] {
+                        communityInstrumentation.resetFirstRender()
+                        communityInstrumentation.markWarmCache(region: topRatedRegion, count: cached.count)
+                    } else {
+                        communityInstrumentation.markCancel(reason: "Region changed before data ready")
+                        communityInstrumentation.startLoadIfNeeded(
+                            metadata: "Region -> \(topRatedRegion.rawValue)"
+                        )
+                    }
+                }
+#endif
+            }
+            .onChange(of: isSearchOverlayPresented) { _, presented in
+                if presented {
+                    activeDropdown = nil
                 }
             }
-#endif
-        }
-        .onChange(of: isSearchOverlayPresented) { presented in
-            if presented {
-                activeDropdown = nil
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: isSearchOverlayPresented)
     }
 
     private var mapShell: some View {
@@ -4417,7 +4476,7 @@ private actor TopRatedCuisineResolver {
 }
 
 // MARK: - Display Location Resolver (Neighborhood, Borough) with caching
-private enum DisplayLocationResolver {
+nonisolated private enum DisplayLocationResolver {
     static func display(for place: Place) -> String? {
         if let cached = DisplayLocationCache.shared.get(placeID: place.id) { return cached }
         guard let address = place.address, !address.isEmpty else { return nil }
@@ -4950,7 +5009,7 @@ private enum DisplayLocationResolver {
     }()
 }
 
-private final class DisplayLocationCache {
+nonisolated private final class DisplayLocationCache {
     static let shared = DisplayLocationCache()
     private var map: [UUID: String] = [:]
     private let lock = NSLock()
@@ -4971,7 +5030,7 @@ private final class DisplayLocationCache {
     }
 }
 
-private extension String {
+nonisolated private extension String {
     func capitalizedWords() -> String {
         self.split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
@@ -4984,12 +5043,12 @@ private struct TopRatedPhotoThumb: View {
     let showsPlaceholder: Bool
     @State private var imageURL: URL?
     @State private var attempted = false
-    private static var urlCache: [UUID: URL] = [:]
-    private static let urlCacheLock = NSLock()
-    private static let supabaseObjectPrefix = "/storage/v1/object/public/"
-    private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
-    private static let preferredWidth = "320"
-    private static let preferredQuality = "75"
+    nonisolated(unsafe) private static var urlCache: [UUID: URL] = [:]
+    nonisolated private static let urlCacheLock = NSLock()
+    nonisolated private static let supabaseObjectPrefix = "/storage/v1/object/public/"
+    nonisolated private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
+    nonisolated private static let preferredWidth = "320"
+    nonisolated private static let preferredQuality = "75"
 
     init(placeID: UUID, showsPlaceholder: Bool = true) {
         self.placeID = placeID
@@ -5077,13 +5136,13 @@ private struct TopRatedPhotoThumb: View {
     }
 
     // Check for a bundled asset named "thumb_<UUID>"
-    private static func localThumb(for id: UUID) -> UIImage? {
+    nonisolated private static func localThumb(for id: UUID) -> UIImage? {
         let name = "thumb_\(id.uuidString)"
         return UIImage(named: name)
     }
 
     // Allow prefetching from TopRatedScreen
-    static func prefetch(for id: UUID) {
+    nonisolated static func prefetch(for id: UUID) {
         if localThumb(for: id) != nil { return }
         if cachedURL(for: id) != nil { return }
         guard let supabaseURL = Env.optionalURL(),
@@ -5119,7 +5178,7 @@ private struct TopRatedPhotoThumb: View {
         }
     }
 
-    static func optimizedURL(from original: URL) -> URL {
+    nonisolated static func optimizedURL(from original: URL) -> URL {
         if let host = original.host, host.contains("yelpcdn.com") {
             let absolute = original.absoluteString
             if absolute.hasSuffix("/o.jpg") {
@@ -5150,27 +5209,27 @@ private struct TopRatedPhotoThumb: View {
         return components?.url ?? original
     }
 
-    static func cache(_ url: URL, for id: UUID) async {
+    nonisolated static func cache(_ url: URL, for id: UUID) async {
         setCachedURL(url, for: id)
     }
 
-    private static func warmCache(for url: URL) async {
+    nonisolated private static func warmCache(for url: URL) async {
         await YelpImagePolicy.warm(url)
     }
 
-    private static func cachedURL(for id: UUID) -> URL? {
+    nonisolated private static func cachedURL(for id: UUID) -> URL? {
         urlCacheLock.lock(); defer { urlCacheLock.unlock() }
         return urlCache[id]
     }
 
-    private static func setCachedURL(_ url: URL, for id: UUID) {
+    nonisolated private static func setCachedURL(_ url: URL, for id: UUID) {
         urlCacheLock.lock()
         urlCache[id] = url
         urlCacheLock.unlock()
     }
 }
 
-private enum GoogleThumbURLBuilder {
+nonisolated private enum GoogleThumbURLBuilder {
     private static let preferredWidth = "640"
 
     static func thumbnailURL(from original: URL) -> URL {
@@ -5185,7 +5244,7 @@ private enum GoogleThumbURLBuilder {
     }
 }
 
-private enum GooglePhotoURLBuilder {
+nonisolated private enum GooglePhotoURLBuilder {
     private static let thumbnailWidth = "1200"
     private static let fullWidth = "1600"
 
@@ -5372,7 +5431,7 @@ private struct GooglePlaceThumb: View {
         }
     }
 
-    static func prefetch(for place: Place) {
+    nonisolated static func prefetch(for place: Place) {
         GooglePhotoResolver.shared.prefetch(place)
     }
 
@@ -5725,7 +5784,7 @@ actor YelpDiskCache {
     }
 }
 
-private enum YelpImagePolicy {
+nonisolated private enum YelpImagePolicy {
     private static let yelpHost = "yelpcdn.com"
     private static let yelpSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -5878,7 +5937,7 @@ private struct ZoomableScrollView<Content: View>: UIViewRepresentable {
         }
 
         func centerContent(_ scrollView: UIScrollView) {
-            guard let view = hostingController.view else { return }
+            guard hostingController.view != nil else { return }
             let boundsSize = scrollView.bounds.size
             let contentSize = scrollView.contentSize
 
@@ -6692,7 +6751,7 @@ private struct NewSpotsScreen: View {
         let hasPrevious = !previousEntries.isEmpty
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 // Loading state
                 if isLoading {
                     ProgressView("Loading new trendy spots…")
@@ -6711,27 +6770,47 @@ private struct NewSpotsScreen: View {
                     )
                 }
 
-                // Previously Trending - using DisclosureGroup for reliable tap handling
+                // Previously Trending section
                 if hasPrevious && !isLoading {
-                    DisclosureGroup(isExpanded: $isPreviouslyTrendingExpanded) {
-                        NewSpotListView(spots: previousEntries, yelpData: availableYelpData, onSelect: onSelect)
-                            .padding(.top, 8)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.headline.weight(.semibold))
-                            Text("Previously Trending")
-                                .font(.headline.weight(.semibold))
-                            Spacer()
-                            Text("\(previousEntries.count)")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.secondary)
+                    VStack(spacing: 0) {
+                        // UIKit-backed tappable header
+                        UIKitTapView {
+                            isPreviouslyTrendingExpanded.toggle()
+                        } content: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.headline.weight(.semibold))
+                                Text("Previously Trending")
+                                    .font(.headline.weight(.semibold))
+                                Spacer()
+                                Text("\(previousEntries.count)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.secondary)
+                                Image(systemName: isPreviouslyTrendingExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            .foregroundStyle(Color.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(18)
+                            .background(Color(.secondarySystemGroupedBackground))
                         }
-                        .foregroundStyle(Color.primary)
+
+                        if isPreviouslyTrendingExpanded {
+                            VStack(alignment: .leading, spacing: 16) {
+                                ForEach(previousEntries) { entry in
+                                    if entry.id != previousEntries.first?.id {
+                                        Divider().background(Color.black.opacity(0.06))
+                                    }
+                                    NewSpotRow(entry: entry, yelpData: availableYelpData[entry.id], onSelect: onSelect)
+                                }
+                            }
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 18)
+                            .background(Color(.secondarySystemGroupedBackground))
+                        }
                     }
-                    .tint(Color.secondary)
-                    .padding(18)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
                 }
 
@@ -6915,10 +6994,69 @@ private struct NewSpotsScreen: View {
             }
             .padding(18)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+            // Shadow temporarily removed to test if it affects gesture recognition
         }
     }
 
+}
+
+// MARK: - UIKit Tap Wrapper (bypasses SwiftUI gesture bugs)
+
+private struct UIKitTapView<Content: View>: UIViewRepresentable {
+    let action: () -> Void
+    let content: () -> Content
+
+    func makeUIView(context: Context) -> UIKitTapContainerView<Content> {
+        let container = UIKitTapContainerView(content: content(), action: action)
+        return container
+    }
+
+    func updateUIView(_ uiView: UIKitTapContainerView<Content>, context: Context) {
+        uiView.updateContent(content())
+    }
+}
+
+private class UIKitTapContainerView<Content: View>: UIView {
+    private var hostingController: UIHostingController<Content>
+    private let action: () -> Void
+
+    init(content: Content, action: @escaping () -> Void) {
+        self.action = action
+        self.hostingController = UIHostingController(rootView: content)
+        super.init(frame: .zero)
+
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hostingController.view)
+
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: trailingAnchor)
+        ])
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        addGestureRecognizer(tap)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func updateContent(_ content: Content) {
+        hostingController.rootView = content
+    }
+
+    @objc private func handleTap() {
+        action()
+    }
+
+    override var intrinsicContentSize: CGSize {
+        hostingController.view.intrinsicContentSize
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        hostingController.view.sizeThatFits(size)
+    }
 }
 
 // MARK: - New Spots List
@@ -8265,7 +8403,7 @@ private struct FullscreenPhotoView: View {
     }
 }
 
-private enum PlacePhotoURLBuilder {
+nonisolated private enum PlacePhotoURLBuilder {
     private static let supabaseObjectPrefix = "/storage/v1/object/public/"
     private static let supabaseRenderPrefix = "/storage/v1/render/image/public/"
     private static let thumbnailWidth = 1600
@@ -8307,7 +8445,7 @@ private enum PlacePhotoURLBuilder {
     }
 }
 
-private extension PlacePhoto {
+nonisolated private extension PlacePhoto {
     var isYelpPhoto: Bool {
         src.lowercased().contains("yelp") ||
         (attribution?.lowercased().contains("yelp") ?? false) ||
@@ -9964,7 +10102,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
 }
 
 private extension MapScreenViewModel {
-    struct PlaceSeed: Decodable {
+    nonisolated struct PlaceSeed: Decodable {
         let id: UUID
         let name: String
         let latitude: Double
@@ -10001,17 +10139,17 @@ private extension MapScreenViewModel {
         return
     }
 
-private static let nonHalalChainBlocklist: Set<String> = {
-    let names = [
-        "Subway", "Taco Bell", "McDonald's", "Burger King", "Wendy's",
-        "KFC", "Chipotle", "Domino's", "Pizza Hut", "Papa John's",
-        "Five Guys", "White Castle", "Panera Bread", "Starbucks",
-        "Dunkin'", "Chick-fil-A", "Popeyes", "Arby's", "Jack in the Box",
-        "Sonic Drive-In", "Little Caesars", "Carl's Jr", "Hardee's",
-        "Little Ruby's", "Little Ruby's Cafe", "Little Ruby's SoHo"
-    ]
-    return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
-}()
+    nonisolated static let nonHalalChainBlocklist: Set<String> = {
+        let names = [
+            "Subway", "Taco Bell", "McDonald's", "Burger King", "Wendy's",
+            "KFC", "Chipotle", "Domino's", "Pizza Hut", "Papa John's",
+            "Five Guys", "White Castle", "Panera Bread", "Starbucks",
+            "Dunkin'", "Chick-fil-A", "Popeyes", "Arby's", "Jack in the Box",
+            "Sonic Drive-In", "Little Caesars", "Carl's Jr", "Hardee's",
+            "Little Ruby's", "Little Ruby's Cafe", "Little Ruby's SoHo"
+        ]
+        return Set(names.map { PlaceOverrides.normalizedName(for: $0) })
+    }()
 
     nonisolated static func isBlocklistedChainName(_ name: String) -> Bool {
         let normalized = PlaceOverrides.normalizedName(for: name)

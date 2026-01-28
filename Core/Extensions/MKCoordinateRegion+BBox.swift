@@ -1,6 +1,6 @@
 import MapKit
 
-extension MKCoordinateRegion {
+nonisolated extension MKCoordinateRegion {
     var bbox: BBox {
         let halfLat = span.latitudeDelta / 2.0
         let halfLon = span.longitudeDelta / 2.0

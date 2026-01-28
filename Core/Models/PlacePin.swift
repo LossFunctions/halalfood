@@ -1,7 +1,7 @@
 import Foundation
 import CoreLocation
 
-struct PlacePinDTO: Decodable {
+nonisolated struct PlacePinDTO: Decodable {
     let id: UUID
     let lat: Double
     let lon: Double
@@ -10,7 +10,7 @@ struct PlacePinDTO: Decodable {
     let address: String?
 }
 
-struct PlacePin: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct PlacePin: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     let latitude: Double
     let longitude: Double
@@ -57,7 +57,7 @@ struct PlacePin: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-extension PlacePin: Geolocated {
+nonisolated extension PlacePin: Geolocated {
     var state: String? {
         guard let address, !address.isEmpty else { return nil }
         return RegionGate.deriveUSStateCode(fromAddress: address)

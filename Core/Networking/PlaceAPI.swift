@@ -1,6 +1,6 @@
 import Foundation
 
-struct BBox {
+nonisolated struct BBox {
     let west: Double
     let south: Double
     let east: Double

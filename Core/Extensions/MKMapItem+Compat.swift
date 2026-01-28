@@ -1,7 +1,7 @@
 import Foundation
 import MapKit
 
-extension MKMapItem {
+nonisolated extension MKMapItem {
     /// Coordinate that works across iOS versions without triggering deprecated APIs.
     var halalCoordinate: CLLocationCoordinate2D {
         if #available(iOS 26.0, *) {
