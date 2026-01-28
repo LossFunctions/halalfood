@@ -829,6 +829,14 @@ struct ContentView: View {
 
     private let newSpotConfigs: [NewSpotConfig] = [
         NewSpotConfig(
+            placeID: UUID(uuidString: "a170b0ae-6b20-40f8-9660-26c45c3c4e83")!,
+            image: .asset("FinalAppImage"),
+            displayLocation: "Deer Park, Long Island",
+            cuisine: "Mediterranean",
+            halalStatusOverride: .only,
+            openedOn: ("DEC", "28")
+        ),
+        NewSpotConfig(
             placeID: UUID(uuidString: "95e9a6fd-6400-4e5b-934c-6443af9e118d")!,
             image: .asset("FinalAppImage"),
             displayLocation: "Jericho, Long Island",
@@ -3767,17 +3775,17 @@ private struct TopRatedScreen: View {
         .padding(.bottom, bottomInset + 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
-        .onChange(of: sortOption) { newValue in
+        .onChange(of: sortOption) { _, _ in
             visibleLimit = pageSize
         }
-        .onChange(of: googleTaskKey) { _ in
+        .onChange(of: googleTaskKey) { _, _ in
             didFinalizeGoogleOrder = false
             googleOrderedIDs = resolvedInitialGoogleOrder()
         }
-        .onChange(of: region) { _ in
+        .onChange(of: region) { _, _ in
             visibleLimit = pageSize
         }
-        .onChange(of: places.count) { _ in
+        .onChange(of: places.count) { _, _ in
             visibleLimit = min(visibleLimit, max(places.count, pageSize))
         }
         .task(id: googleTaskKey) {
@@ -7402,7 +7410,7 @@ struct PlaceDetailView: View {
                 expandedPhotoSelection = nil
             }
         }
-        .onChange(of: expandedPhotoSelection) { newValue in
+        .onChange(of: expandedPhotoSelection) { _, newValue in
             if let selection = newValue,
                !viewModel.photos.indices.contains(selection.index) {
                 expandedPhotoSelection = nil
@@ -8186,7 +8194,7 @@ private struct FullscreenPhotoView: View {
         .accessibilityLabel("Expanded restaurant photo")
         .accessibilityAddTraits(.isModal)
         .gesture(dismissDragGesture)
-        .onChange(of: photos.count) { _ in
+        .onChange(of: photos.count) { _, _ in
             clampIndexIfNeeded()
         }
         .onAppear {
@@ -8395,7 +8403,7 @@ private struct PhotoCarouselView: View {
                     .padding(16)
             }
         }
-        .onChange(of: photos) { newValue in
+        .onChange(of: photos) { _, newValue in
             if let lastIndex = newValue.indices.last {
                 selectedIndex = min(selectedIndex, lastIndex)
             } else {
