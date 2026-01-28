@@ -11,6 +11,9 @@ import GoogleMaps
 @main
 struct HalalFoodApp: App {
     init() {
+        // Fix ScrollView intercepting taps on buttons (e.g., PreviouslyTrendingCard toggle)
+        UIScrollView.appearance().delaysContentTouches = false
+
         if let apiKey = Env.googleMapsAPIKey {
             GMSServices.provideAPIKey(apiKey)
         } else {

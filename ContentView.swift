@@ -7,6 +7,22 @@ import SwiftUI
 import UIKit
 import ImageIO
 
+// MARK: - Blocked Google Photos
+// Add photo ID fragments here to block outdated/inappropriate photos.
+// Use the photo ID from the reference (the part after "/photos/").
+private enum BlockedGooglePhotos {
+    static let blockedPhotoIDs: Set<String> = [
+        // King of Tandoor - 600 Flatbush Ave - outdated photo by Roni Khan
+        "AcnlKN1KPW1RK9J8fREjV1y4M0yG88GymyjxzynC5_CkuKSraSlW558-LylUsuzPKUCHKjnWT1Dg0IYdbz6mpKmQrYS3klXtOk8ajK4hyjEziezuR9X2vloqAcl-soYhuaPOSt-myLqWts9HEpuv-t5QidTvdoLYTpHfXlduJEVnVV0ztk_YTD7OdiLuvqs2DMnQUv_SjhGWTC-BTl5SdUrzm_U0lKLTUnnmz2Gu8FTZFConPSV_3xql4wOtxazgYF9iNsjOxh3UBP6GTalgCYDIY8_GBRJYVqFbbHVPWsBrL7BxazXoacX3ID0WTh-JNw__m_74a9lTi5P1qHV4StVdq5MvURm5qsQLtBlbWx2bs5ErSyjx33B0AH57SvnFmGD4i1kdqmNIV0etNcMnv1QLhzIAKXcekQIQ-2sx8ApPjgnNww",
+    ]
+
+    static func isBlocked(url: String, reference: String?) -> Bool {
+        blockedPhotoIDs.contains { id in
+            url.contains(id) || (reference?.contains(id) ?? false)
+        }
+    }
+}
+
 enum MapFilter: CaseIterable, Identifiable {
     case all
     case fullyHalal
@@ -780,7 +796,6 @@ struct ContentView: View {
     @State private var initialPinsProgress = 0.0
     @State private var isFavoritesPanelCollapsed = false
     @State private var isFavoritesPanelPinnedCollapsed = false
-    @State private var isPreviouslyTrendingExpanded = false
 #if DEBUG
     @State private var didLogInitialAppear = false
     @StateObject private var communityInstrumentation = CommunityInstrumentation()
@@ -1945,14 +1960,6 @@ struct ContentView: View {
                     spotlight: spotlightEntry,
                     userLocation: locationManager.lastKnownLocation,
                     topInset: currentTopSafeAreaInset(),
-                    isPreviouslyTrendingExpanded: isPreviouslyTrendingExpanded,
-                    onToggleExpand: {
-                        DispatchQueue.main.async {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                isPreviouslyTrendingExpanded.toggle()
-                            }
-                        }
-                    },
                     onSelect: { place in
                         selectedPlace = place
                     }
@@ -6087,6 +6094,12 @@ private actor GooglePlaceCache {
         return nil
     }
 
+    /// Direct cache lookup by Google Place ID (for FavoritesPanel pre-population)
+    func cachedDataByID(_ googlePlaceID: String) -> GooglePlaceData? {
+        guard let cached = cache[googlePlaceID], !cached.isExpired else { return nil }
+        return cached
+    }
+
     func fetchPlace(for place: Place, forceRefresh: Bool = false) async throws -> GooglePlaceData {
         guard let googlePlaceID = await resolveGooglePlaceID(for: place) else {
             throw GooglePlaceCacheError.missingGooglePlaceID
@@ -6436,6 +6449,16 @@ private struct FavoritesPanel: View {
     }
 
     private func fetchGoogleRatings() async {
+        // Pre-populate from cache for instant display
+        for snapshot in favorites {
+            guard let googleID = snapshot.googlePlaceID, !googleID.isEmpty else { continue }
+            if googleRatings[googleID] == nil {
+                if let cached = await GooglePlaceCache.shared.cachedDataByID(googleID) {
+                    googleRatings[googleID] = cached
+                }
+            }
+        }
+
         // Get favorites that have googlePlaceID but no stored rating
         let toFetch = favorites.filter { snapshot in
             guard let googleID = snapshot.googlePlaceID, !googleID.isEmpty else { return false }
@@ -6447,13 +6470,16 @@ private struct FavoritesPanel: View {
 
         guard !toFetch.isEmpty else { return }
 
-        // Fetch in parallel with concurrency limit
+        // Fetch in parallel with concurrency limit (using cache for deduplication/TTL)
         await withTaskGroup(of: (String, GooglePlaceData?).self) { group in
             for snapshot in toFetch.prefix(10) { // Limit concurrent fetches
                 guard let googleID = snapshot.googlePlaceID else { continue }
                 group.addTask {
                     do {
-                        let data = try await GooglePlacesAPI.fetchPlace(googlePlaceID: googleID)
+                        let data = try await GooglePlaceCache.shared.fetchPlace(
+                            googlePlaceID: googleID,
+                            placeID: snapshot.id
+                        )
                         return (googleID, data)
                     } catch {
                         return (googleID, nil)
@@ -6630,10 +6656,9 @@ private struct NewSpotsScreen: View {
     let spotlight: NewSpotEntry?
     let userLocation: CLLocation?
     let topInset: CGFloat
-    let isPreviouslyTrendingExpanded: Bool
-    let onToggleExpand: () -> Void
     let onSelect: (Place) -> Void
     @State private var yelpData: [UUID: YelpBusinessData] = [:]
+    @State private var isPreviouslyTrendingExpanded = false
     private let primarySpotLimit = 6
     private let useYelpPhotos = false
 
@@ -6642,50 +6667,78 @@ private struct NewSpotsScreen: View {
         return Dictionary(uniqueKeysWithValues: yelpData.filter { !$0.value.isExpired })
     }
 
+    // Computed properties for stable array identity
+    private var primaryEntries: [NewSpotEntry] {
+        Array(spots.prefix(primarySpotLimit))
+    }
+
+    private var previousEntries: [NewSpotEntry] {
+        Array(spots.dropFirst(primarySpotLimit))
+    }
+
     var body: some View {
         let spotlightEntry = spotlight
-        // Include the hero in the list as well, per request
-        let listEntries: [NewSpotEntry] = spots
-        let primaryEntries = Array(listEntries.prefix(primarySpotLimit))
-        let previousEntries = Array(listEntries.dropFirst(primarySpotLimit))
         let availableYelpData = validYelpData
+        let isLoading = spots.isEmpty
+        let hasPrimary = !primaryEntries.isEmpty
+        let hasPrevious = !previousEntries.isEmpty
+
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if listEntries.isEmpty {
+                // Loading state
+                if isLoading {
                     ProgressView("Loading new trendy spots…")
                         .progressViewStyle(.circular)
                         .padding(.top, 80)
                         .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    if !primaryEntries.isEmpty {
-                        NewSpotsCard(
-                            title: "New Trending Spots",
-                            spots: primaryEntries,
-                            yelpData: availableYelpData,
-                            onSelect: onSelect
-                        )
-                    }
-                    if !previousEntries.isEmpty {
-                        PreviouslyTrendingCard(
-                            spots: previousEntries,
-                            yelpData: availableYelpData,
-                            isExpanded: isPreviouslyTrendingExpanded,
-                            onToggle: onToggleExpand,
-                            onSelect: onSelect
-                        )
-                    }
-                    if let hero = spotlightEntry {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack(spacing: 8) {
-                                Text("Restaurant Spotlight")
-                                    .font(.headline.weight(.semibold))
-                                Spacer()
-                            }
-                            .foregroundStyle(Color.primary)
+                }
 
-                            NewSpotHero(entry: hero, yelpData: availableYelpData[hero.id], onSelect: onSelect)
-                            SpotlightSummary(entry: hero)
+                // Primary spots card
+                if hasPrimary && !isLoading {
+                    NewSpotsCard(
+                        title: "New Trending Spots",
+                        spots: primaryEntries,
+                        yelpData: availableYelpData,
+                        onSelect: onSelect
+                    )
+                }
+
+                // Previously Trending - using DisclosureGroup for reliable tap handling
+                if hasPrevious && !isLoading {
+                    DisclosureGroup(isExpanded: $isPreviouslyTrendingExpanded) {
+                        NewSpotListView(spots: previousEntries, yelpData: availableYelpData, onSelect: onSelect)
+                            .padding(.top, 8)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.headline.weight(.semibold))
+                            Text("Previously Trending")
+                                .font(.headline.weight(.semibold))
+                            Spacer()
+                            Text("\(previousEntries.count)")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.secondary)
                         }
+                        .foregroundStyle(Color.primary)
+                    }
+                    .tint(Color.secondary)
+                    .padding(18)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+                }
+
+                // Spotlight section
+                if let hero = spotlightEntry, !isLoading {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 8) {
+                            Text("Restaurant Spotlight")
+                                .font(.headline.weight(.semibold))
+                            Spacer()
+                        }
+                        .foregroundStyle(Color.primary)
+
+                        NewSpotHero(entry: hero, yelpData: availableYelpData[hero.id], onSelect: onSelect)
+                        SpotlightSummary(entry: hero)
                     }
                 }
             }
@@ -6850,7 +6903,7 @@ private struct NewSpotsScreen: View {
                 }
                 .foregroundStyle(Color.primary)
 
-                NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
+                NewSpotListView(spots: spots, yelpData: yelpData, onSelect: onSelect)
             }
             .padding(18)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -6858,80 +6911,27 @@ private struct NewSpotsScreen: View {
         }
     }
 
-    private struct PreviouslyTrendingCard: View {
-        let spots: [NewSpotEntry]
-        let yelpData: [UUID: YelpBusinessData]
-        let isExpanded: Bool
-        let onToggle: () -> Void
-        let onSelect: (Place) -> Void
+}
 
-        // Local test state - this worked before
-        @State private var tapCount = 0
+// MARK: - New Spots List
 
-        var body: some View {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.headline.weight(.semibold))
-                    Text("Previously Trending")
-                        .font(.headline.weight(.semibold))
+private struct NewSpotListView: View {
+    let spots: [NewSpotEntry]
+    let yelpData: [UUID: YelpBusinessData]
+    let onSelect: (Place) -> Void
 
-                    // Debug: show isExpanded value from parent
-                    Text(isExpanded ? "OPEN" : "CLOSED")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isExpanded ? Color.green : Color.red)
-                        .foregroundColor(.white)
-                        .cornerRadius(4)
-
-                    Spacer()
-
-                    // Test button
-                    Button {
-                        tapCount += 1
-                        onToggle()
-                    } label: {
-                        Text("Tap:\(tapCount)")
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(6)
-                    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(spots.enumerated()), id: \.element.id) { index, spot in
+                if index != 0 {
+                    Divider()
+                        .background(Color.black.opacity(0.06))
                 }
-                .foregroundStyle(Color.primary)
-
-                // Show list only when expanded
-                if isExpanded {
-                    NewSpotList(spots: spots, yelpData: yelpData, onSelect: onSelect)
-                        .padding(.top, 8)
-                }
-            }
-            .padding(18)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
-        }
-    }
-
-    private struct NewSpotList: View {
-        let spots: [NewSpotEntry]
-        let yelpData: [UUID: YelpBusinessData]
-        let onSelect: (Place) -> Void
-
-        var body: some View {
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(Array(spots.enumerated()), id: \.element.id) { index, spot in
-                    if index != 0 {
-                        Divider()
-                            .background(Color.black.opacity(0.06))
-                    }
-                    NewSpotRow(entry: spot, yelpData: yelpData[spot.id], onSelect: onSelect)
-                }
+                NewSpotRow(entry: spot, yelpData: yelpData[spot.id], onSelect: onSelect)
             }
         }
     }
+}
 
 private struct NewSpotImageView: View {
     let image: NewSpotImage
@@ -6982,9 +6982,9 @@ private struct NewSpotImageView: View {
                     .scaledToFill()
             }
         }
-    }
+}
 
-    private struct NewSpotGoogleThumb: View {
+private struct NewSpotGoogleThumb: View {
         let place: Place
         @State private var imageURL: URL?
         @State private var refreshToken: Int = 0
@@ -7040,7 +7040,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct NewSpotRow: View {
+private struct NewSpotRow: View {
         @EnvironmentObject private var favoritesStore: FavoritesStore
         let entry: NewSpotEntry
         let yelpData: YelpBusinessData?
@@ -7141,7 +7141,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct FavoriteToggleSmall: View {
+private struct FavoriteToggleSmall: View {
         @EnvironmentObject private var favoritesStore: FavoritesStore
         let place: Place
 
@@ -7176,7 +7176,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct NewSpotHero: View {
+private struct NewSpotHero: View {
         let entry: NewSpotEntry
         let yelpData: YelpBusinessData?
         let onSelect: (Place) -> Void
@@ -7228,7 +7228,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct SpotlightSummary: View {
+private struct SpotlightSummary: View {
         let entry: NewSpotEntry
 
         private var hasContent: Bool {
@@ -7268,7 +7268,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct DateOpenedLabel: View {
+private struct DateOpenedLabel: View {
         let month: String
         let day: String
 
@@ -7277,7 +7277,7 @@ private struct NewSpotImageView: View {
         }
     }
 
-    private struct CalendarBadge: View {
+private struct CalendarBadge: View {
         let month: String
         let day: String
         @Environment(\.colorScheme) private var colorScheme
@@ -7327,7 +7327,6 @@ private struct NewSpotImageView: View {
             // Fallback to raw if parsing fails
             return day
         }
-    }
 }
 
 struct PlaceDetailView: View {
@@ -8720,19 +8719,21 @@ final class PlaceDetailViewModel: ObservableObject {
                 for: place,
                 forceRefresh: true
             ) else { return }
-            let googlePhotos = refreshed.photos.map { photo in
-                let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
-                return PlacePhoto(
-                    placeID: placeID,
-                    position: photo.position,
-                    url: photo.url,
-                    attribution: photo.attribution,
-                    source: "google",
-                    externalId: externalId,
-                    width: photo.width,
-                    height: photo.height
-                )
-            }
+            let googlePhotos = refreshed.photos
+                .filter { !BlockedGooglePhotos.isBlocked(url: $0.url, reference: $0.reference) }
+                .map { photo in
+                    let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+                    return PlacePhoto(
+                        placeID: placeID,
+                        position: photo.position,
+                        url: photo.url,
+                        attribution: photo.attribution,
+                        source: "google",
+                        externalId: externalId,
+                        width: photo.width,
+                        height: photo.height
+                    )
+                }
             await MainActor.run {
                 guard self.resolvedPlace?.id == placeID else { return }
                 self.googleData = refreshed
@@ -8819,19 +8820,21 @@ final class PlaceDetailViewModel: ObservableObject {
 
             await loadGoogleData(for: place)
             if let googleData {
-                let googlePhotos = googleData.photos.map { photo in
-                    let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
-                    return PlacePhoto(
-                        placeID: place.id,
-                        position: photo.position,
-                        url: photo.url,
-                        attribution: photo.attribution,
-                        source: "google",
-                        externalId: externalId,
-                        width: photo.width,
-                        height: photo.height
-                    )
-                }
+                let googlePhotos = googleData.photos
+                    .filter { !BlockedGooglePhotos.isBlocked(url: $0.url, reference: $0.reference) }
+                    .map { photo in
+                        let externalId = photo.reference.map { "google:\($0)" } ?? "google:\(photo.position)"
+                        return PlacePhoto(
+                            placeID: place.id,
+                            position: photo.position,
+                            url: photo.url,
+                            attribution: photo.attribution,
+                            source: "google",
+                            externalId: externalId,
+                            width: photo.width,
+                            height: photo.height
+                        )
+                    }
                 self.photos = googlePhotos
                 await PlacePhotoCache.shared.set(
                     place.id,
