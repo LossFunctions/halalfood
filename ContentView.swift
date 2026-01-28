@@ -7595,9 +7595,10 @@ struct PlaceDetailView: View {
     private var favoriteButton: some View {
         Button(action: toggleFavorite) {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(isFavorite ? Color.red : Color.white)
-                .padding(6)
+                .offset(y: 0.5)
+                .frame(width: 32, height: 32)
                 .background(Color(.systemGray), in: Circle())
                 .shadow(color: .black.opacity(0.12), radius: 4.5, y: 4)
         }
@@ -7655,16 +7656,9 @@ struct PlaceDetailView: View {
             ZStack {
                 Text(displayName)
                     .font(.title2)
-                    .fontWeight(.semibold)
+                    .fontWeight(.bold)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-
-                if !hasAppleDetails {
-                    HStack {
-                        Spacer()
-                        favoriteButton
-                    }
-                }
             }
 
             // Rating moved below photos to follow: photos → rating → halal details.
@@ -7964,7 +7958,15 @@ struct PlaceDetailView: View {
                 servesAlcohol: place.servesAlcohol,
                 certifierOrg: display.certifierOrg
             )
+            .overlay(alignment: .topTrailing) {
+                if !hasAppleDetails {
+                    favoriteButton
+                        .padding(12)
+                }
+            }
             .transition(AnyTransition.opacity)
+        } else if !hasAppleDetails {
+            favoriteButton
         }
     }
 

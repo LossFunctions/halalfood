@@ -5,6 +5,8 @@ struct GooglePlaceDetailView: View {
     let googleData: GooglePlaceData?
     let googleErrorMessage: String?
 
+    private static let iconColor = Color(red: 0x1f/255, green: 0x1f/255, blue: 0x1f/255)
+
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -50,25 +52,25 @@ struct GooglePlaceDetailView: View {
     @ViewBuilder
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            infoRow(icon: "clock", title: "Hours") {
+            infoRow(icon: "clock") {
                 hoursDetail
             }
 
             Divider().opacity(0.4)
 
-            infoRow(icon: "phone", title: "Phone") {
+            infoRow(icon: "phone") {
                 phoneDetail
             }
 
             Divider().opacity(0.4)
 
-            infoRow(icon: "safari", title: "Website") {
+            infoRow(icon: "safari") {
                 websiteDetail
             }
 
             Divider().opacity(0.4)
 
-            infoRow(icon: "mappin.circle", title: "Address") {
+            infoRow(icon: "mappin.circle") {
                 addressDetail
             }
         }
@@ -168,19 +170,15 @@ struct GooglePlaceDetailView: View {
     @ViewBuilder
     private func infoRow(
         icon: String,
-        title: String,
         @ViewBuilder content: () -> some View
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22, alignment: .top)
+                .foregroundStyle(Self.iconColor)
+                .frame(width: 22)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
                 content()
             }
         }
@@ -190,7 +188,7 @@ struct GooglePlaceDetailView: View {
     @ViewBuilder
     private var hoursDetail: some View {
         if let hours = googleData?.openingHours, hasOpeningHours(hours) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 if let openNow = hours.openNow {
                     Text(openNow ? "Open now" : "Closed now")
                         .font(.subheadline.weight(.semibold))
@@ -198,11 +196,14 @@ struct GooglePlaceDetailView: View {
                 }
 
                 if let descriptions = hours.weekdayDescriptions, !descriptions.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+                    let todayIndex = currentDayIndex
+                    VStack(alignment: .leading, spacing: 3) {
                         ForEach(descriptions.indices, id: \.self) { index in
-                            Text(descriptions[index])
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            let isToday = index == todayIndex
+                            Text(formatHoursLine(descriptions[index]))
+                                .font(.subheadline)
+                                .fontWeight(isToday ? .bold : .regular)
+                                .foregroundStyle(Color.primary)
                         }
                     }
                 }
@@ -212,6 +213,44 @@ struct GooglePlaceDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Index of today in Google's weekday descriptions (0=Monday … 6=Sunday).
+    private var currentDayIndex: Int {
+        // Calendar weekday: 1=Sun, 2=Mon, …, 7=Sat
+        // Google weekdayDescriptions order: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+        let calendarWeekday = Calendar.current.component(.weekday, from: Date())
+        return calendarWeekday == 1 ? 6 : calendarWeekday - 2
+    }
+
+    /// Removes redundant `:00` from times and ensures both times show AM/PM.
+    /// "Monday: 10:00 AM – 9:00 PM" → "Monday: 10 AM – 9 PM"
+    /// "Saturday: 12:00 – 4:00 PM"  → "Saturday: 12 PM – 4 PM"
+    /// Preserves non-zero minutes like "11:30 AM".
+    private func formatHoursLine(_ line: String) -> String {
+        var result = line.replacingOccurrences(of: ":00", with: "")
+
+        // Google omits AM/PM on the opening time when both times share the
+        // same period (e.g. "12 – 10 PM"). Detect this and copy the period
+        // from the closing time so it reads "12 PM – 10 PM".
+        for sep in ["–", "—", "-"] where result.contains(sep) {
+            let parts = result.components(separatedBy: sep)
+            guard parts.count == 2 else { break }
+            let left = parts[0]
+            let right = parts[1]
+            let leftUpper = left.uppercased()
+            if !leftUpper.contains("AM") && !leftUpper.contains("PM") {
+                let rightUpper = right.uppercased()
+                let period = rightUpper.contains("PM") ? "PM" : (rightUpper.contains("AM") ? "AM" : nil)
+                if let period {
+                    result = left.trimmingCharacters(in: .whitespaces)
+                        + " " + period + " " + sep + right
+                }
+            }
+            break
+        }
+
+        return result
     }
 
     @ViewBuilder
@@ -253,7 +292,7 @@ struct GooglePlaceDetailView: View {
         if let address = resolvedAddress {
             Text(address)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.primary)
         } else {
             Text("Address unavailable")
                 .font(.subheadline)
