@@ -6768,6 +6768,7 @@ private struct NewSpotsScreen: View {
                         yelpData: availableYelpData,
                         onSelect: onSelect
                     )
+                    .zIndex(0)
                 }
 
                 // Previously Trending section
@@ -6812,6 +6813,7 @@ private struct NewSpotsScreen: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .shadow(color: Color.black.opacity(0.08), radius: 18, y: 9)
+                    .zIndex(1)
                 }
 
                 // Spotlight section
@@ -6993,7 +6995,11 @@ private struct NewSpotsScreen: View {
                 NewSpotListView(spots: spots, yelpData: yelpData, onSelect: onSelect)
             }
             .padding(18)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+                    .allowsHitTesting(false)
+            }
             // Shadow temporarily removed to test if it affects gesture recognition
         }
     }
@@ -7195,18 +7201,18 @@ private struct NewSpotRow: View {
         private var place: Place { entry.place }
 
         var body: some View {
-            Button {
-                onSelect(place)
-            } label: {
-                ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottomTrailing) {
+                Button {
+                    onSelect(place)
+                } label: {
                     HStack(alignment: .top, spacing: 12) {
                         NewSpotImageView(image: entry.image, place: place, overrideURL: yelpPhotoURL)
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
-                        )
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+                            )
 
                         VStack(alignment: .leading, spacing: 6) {
                             Text(place.name)
@@ -7232,16 +7238,20 @@ private struct NewSpotRow: View {
 
                         Spacer(minLength: 8)
 
-                        FavoriteToggleSmall(place: place)
+                        Color.clear
+                            .frame(width: 28, height: 28)
                     }
                     .padding(.vertical, 4)
-
-                    DateOpenedLabel(month: entry.openedOn.month, day: entry.openedOn.day)
-                        .padding(.trailing, 4)
-                        .padding(.bottom, 4)
                 }
+                .buttonStyle(.plain)
+
+                DateOpenedLabel(month: entry.openedOn.month, day: entry.openedOn.day)
+                    .padding(.trailing, 4)
+                    .padding(.bottom, 4)
             }
-            .buttonStyle(.plain)
+            .overlay(alignment: .topTrailing) {
+                FavoriteToggleSmall(place: place)
+            }
         }
 
         private func ratingView(for place: Place) -> some View {
