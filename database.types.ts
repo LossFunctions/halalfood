@@ -106,6 +106,162 @@ export type Database = {
           address_normalized: string | null
           apple_place_id: string | null
           category: string
+          category_label: string | null
+          cc_certifier_org: string | null
+          cc_halal_confidence: number | null
+          cc_halal_likelihood: string | null
+          cc_halal_status: string | null
+          cc_halal_type: string | null
+          cc_is_zabiha: boolean | null
+          cc_note: string | null
+          cc_reasoning_raw: string | null
+          created_at: string | null
+          display_location: string | null
+          external_id: string
+          geog: unknown
+          geom: unknown
+          google_business_status: string | null
+          google_business_status_updated_at: string | null
+          google_maps_url: string | null
+          google_match_address: string | null
+          google_match_distance_m: number | null
+          google_match_method: string | null
+          google_match_name: string | null
+          google_match_place_id: string | null
+          google_match_reasons: string | null
+          google_match_score: number | null
+          google_match_status: string | null
+          google_match_updated_at: string | null
+          google_place_id: string | null
+          halal_status: Database["public"]["Enums"]["halal_status"] | null
+          id: string
+          lat: number
+          lon: number
+          name: string
+          name_normalized: string | null
+          note: string | null
+          open_hours_json: Json | null
+          price_tier: number | null
+          rating: number | null
+          rating_count: number | null
+          serves_alcohol: boolean | null
+          source: string | null
+          source_id: string | null
+          source_raw: Json | null
+          state: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          address_normalized?: string | null
+          apple_place_id?: string | null
+          category: string
+          category_label?: string | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
+          created_at?: string | null
+          display_location?: string | null
+          external_id: string
+          geog?: unknown
+          geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string
+          lat: number
+          lon: number
+          name: string
+          name_normalized?: string | null
+          note?: string | null
+          open_hours_json?: Json | null
+          price_tier?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          serves_alcohol?: boolean | null
+          source?: string | null
+          source_id?: string | null
+          source_raw?: Json | null
+          state?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          address_normalized?: string | null
+          apple_place_id?: string | null
+          category?: string
+          category_label?: string | null
+          cc_certifier_org?: string | null
+          cc_halal_confidence?: number | null
+          cc_halal_likelihood?: string | null
+          cc_halal_status?: string | null
+          cc_halal_type?: string | null
+          cc_is_zabiha?: boolean | null
+          cc_note?: string | null
+          cc_reasoning_raw?: string | null
+          created_at?: string | null
+          display_location?: string | null
+          external_id?: string
+          geog?: unknown
+          geom?: unknown
+          google_business_status?: string | null
+          google_business_status_updated_at?: string | null
+          google_maps_url?: string | null
+          google_match_address?: string | null
+          google_match_distance_m?: number | null
+          google_match_method?: string | null
+          google_match_name?: string | null
+          google_match_place_id?: string | null
+          google_match_reasons?: string | null
+          google_match_score?: number | null
+          google_match_status?: string | null
+          google_match_updated_at?: string | null
+          google_place_id?: string | null
+          halal_status?: Database["public"]["Enums"]["halal_status"] | null
+          id?: string
+          lat?: number
+          lon?: number
+          name?: string
+          name_normalized?: string | null
+          note?: string | null
+          open_hours_json?: Json | null
+          price_tier?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          serves_alcohol?: boolean | null
+          source?: string | null
+          source_id?: string | null
+          source_raw?: Json | null
+          state?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      place_duplicate_Backup: {
+        Row: {
+          address: string | null
+          address_normalized: string | null
+          apple_place_id: string | null
+          category: string
           cc_certifier_org: string | null
           cc_halal_confidence: number | null
           cc_halal_likelihood: string | null
@@ -295,6 +451,13 @@ export type Database = {
             foreignKeyName: "place_photo_place_id_fkey"
             columns: ["place_id"]
             isOneToOne: false
+            referencedRelation: "community_top_rated_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_photo_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
             referencedRelation: "place"
             referencedColumns: ["id"]
           },
@@ -438,6 +601,8 @@ export type Database = {
           address: string | null
           apple_place_id: string | null
           category: string | null
+          category_label: string | null
+          cc_certifier_org: string | null
           display_location: string | null
           google_business_status: string | null
           google_maps_url: string | null
@@ -454,6 +619,7 @@ export type Database = {
           rating_count: number | null
           region: string | null
           region_rank: number | null
+          serves_alcohol: boolean | null
           source: string | null
           source_raw: Json | null
         }
@@ -862,6 +1028,7 @@ export type Database = {
         Args: { address: string; lat: number; lon: number }
         Returns: string
       }
+      derive_category_label: { Args: { source_raw: Json }; Returns: string }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {
@@ -999,6 +1166,8 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
           display_location: string
           google_business_status: string
           google_maps_url: string
@@ -1015,6 +1184,7 @@ export type Database = {
           rating_count: number
           region: string
           region_rank: number
+          serves_alcohol: boolean
           source: string
           source_raw: Json
         }[]
@@ -1025,6 +1195,8 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
           display_location: string
           external_id: string
           google_business_status: string
@@ -1042,7 +1214,6 @@ export type Database = {
           serves_alcohol: boolean
           source: string
           source_id: string
-          source_raw: Json
         }[]
       }
       get_place_details_by_ids: {
@@ -1051,6 +1222,8 @@ export type Database = {
           address: string
           apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
           display_location: string
           external_id: string
           google_business_status: string
@@ -1068,7 +1241,6 @@ export type Database = {
           serves_alcohol: boolean
           source: string
           source_id: string
-          source_raw: Json
         }[]
       }
       get_places_in_bbox_v3: {
@@ -1082,7 +1254,10 @@ export type Database = {
         }
         Returns: {
           address: string
+          apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
           display_location: string
           external_id: string
           google_business_status: string
@@ -1100,10 +1275,12 @@ export type Database = {
           serves_alcohol: boolean
           source: string
           source_id: string
+          source_raw: Json
         }[]
       }
       gettransactionid: { Args: never; Returns: unknown }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      normalize_category_label: { Args: { input: string }; Returns: string }
       normalize_display_location: { Args: { input: string }; Returns: string }
       normalize_text: { Args: { input: string }; Returns: string }
       populate_geometry_columns:
@@ -1167,11 +1344,14 @@ export type Database = {
         }[]
       }
       search_places: {
-        Args: { p_limit?: number; p_normalized_query?: string; p_query: string }
+        Args: { p_limit?: number; p_normalized_query: string; p_query: string }
         Returns: {
           address: string
           apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
+          display_location: string
           external_id: string
           google_business_status: string
           google_maps_url: string
@@ -1191,11 +1371,13 @@ export type Database = {
         }[]
       }
       search_places_v2: {
-        Args: { p_limit?: number; p_normalized_query?: string; p_query: string }
+        Args: { p_limit?: number; p_normalized_query: string; p_query: string }
         Returns: {
           address: string
           apple_place_id: string
           category: string
+          category_label: string
+          cc_certifier_org: string
           display_location: string
           external_id: string
           google_business_status: string

@@ -4194,6 +4194,7 @@ private struct TopRatedRow: View {
 
     private func titleCase(_ s: String) -> String {
         s.replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: "_", with: " / ")
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
@@ -4367,6 +4368,7 @@ private actor TopRatedCuisineResolver {
 
     private struct SourceRow: Decodable {
         let display_location: String?
+        let category_label: String?
         let source_raw: SourceRaw?
     }
 
@@ -4376,7 +4378,7 @@ private actor TopRatedCuisineResolver {
     }
 
     private static func fetchEntry(for place: Place) async -> Entry {
-        var cuisine: String?
+        var cuisine: String? = place.categoryLabel
         var display = place.displayLocation ?? DisplayLocationResolver.display(for: place)
 
         if cuisine == nil, !place.categories.isEmpty {
@@ -4398,7 +4400,7 @@ private actor TopRatedCuisineResolver {
             comps.path = path
             comps.queryItems = [
                 URLQueryItem(name: "id", value: "eq.\(place.id.uuidString)"),
-                URLQueryItem(name: "select", value: "source_raw,display_location")
+                URLQueryItem(name: "select", value: "category_label,source_raw,display_location")
             ]
             guard let requestURL = comps.url else {
                 return Entry(cuisine: cuisine, displayLocation: display)
@@ -4410,7 +4412,11 @@ private actor TopRatedCuisineResolver {
             let (data, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
                 if let row = try? JSONDecoder().decode([SourceRow].self, from: data).first {
-                    if let categories = row.source_raw?.categories {
+                    if let label = row.category_label?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !label.isEmpty {
+                        cuisine = label
+                    }
+                    if cuisine == nil, let categories = row.source_raw?.categories {
                         cuisine = preferredCuisine(from: categories)
                     }
                     if let disp = row.display_location?.trimmingCharacters(in: .whitespacesAndNewlines), !disp.isEmpty {
@@ -4489,6 +4495,7 @@ private actor TopRatedCuisineResolver {
 
     private static func titleCase(_ value: String) -> String {
         value.replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: "_", with: " / ")
             .split(separator: " ")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")

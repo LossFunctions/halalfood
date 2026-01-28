@@ -4,6 +4,7 @@ nonisolated struct PlaceDTO: Decodable, Identifiable {
     let id: UUID
     let name: String
     let category: String
+    let category_label: String?
     let lat: Double
     let lon: Double
     let address: String?
@@ -33,6 +34,7 @@ nonisolated struct PlaceDTO: Decodable, Identifiable {
         case id
         case name
         case category
+        case category_label
         case lat
         case lon
         case address

@@ -6,6 +6,7 @@ nonisolated struct CommunityTopRatedRecord: Decodable {
     let id: UUID
     let name: String
     let category: String
+    let categoryLabel: String?
     let lat: Double
     let lon: Double
     let address: String?
@@ -31,6 +32,7 @@ nonisolated struct CommunityTopRatedRecord: Decodable {
         case id
         case name
         case category
+        case categoryLabel = "category_label"
         case lat
         case lon
         case address
@@ -58,6 +60,7 @@ nonisolated struct CommunityTopRatedRecord: Decodable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         category = try container.decode(String.self, forKey: .category)
+        categoryLabel = try container.decodeIfPresent(String.self, forKey: .categoryLabel)
         lat = try container.decode(Double.self, forKey: .lat)
         lon = try container.decode(Double.self, forKey: .lon)
         address = try container.decodeIfPresent(String.self, forKey: .address)
@@ -83,6 +86,7 @@ nonisolated struct CommunityTopRatedRecord: Decodable {
             id: id,
             name: name,
             category: category,
+            category_label: categoryLabel,
             lat: lat,
             lon: lon,
             address: address,

@@ -39,6 +39,7 @@ nonisolated struct Place: Identifiable, Hashable, Sendable {
     let coordinate: CLLocationCoordinate2D
     let category: PlaceCategory
     let rawCategory: String
+    let categoryLabel: String?
     let categories: Set<String>
     let address: String?
     let halalStatus: HalalStatus
@@ -62,6 +63,8 @@ nonisolated struct Place: Identifiable, Hashable, Sendable {
         name = dto.name
         coordinate = CLLocationCoordinate2D(latitude: dto.lat, longitude: dto.lon)
         rawCategory = dto.category.lowercased()
+        let trimmedCategoryLabel = dto.category_label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        categoryLabel = (trimmedCategoryLabel?.isEmpty ?? true) ? nil : trimmedCategoryLabel
 
         if rawCategory == "mosque" {
             return nil
@@ -131,6 +134,7 @@ nonisolated extension Place {
          latitude: Double,
          longitude: Double,
          category: PlaceCategory = .restaurant,
+         categoryLabel: String? = nil,
          address: String? = nil,
          halalStatus: HalalStatus = .unknown,
          rating: Double? = nil,
@@ -153,6 +157,7 @@ nonisolated extension Place {
         self.coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         self.category = category
         self.rawCategory = category.rawValue
+        self.categoryLabel = categoryLabel
         self.categories = categories
         self.address = address
         self.halalStatus = halalStatus
@@ -177,6 +182,7 @@ nonisolated extension Place {
          coordinate: CLLocationCoordinate2D,
          category: PlaceCategory,
          rawCategory: String,
+         categoryLabel: String? = nil,
          address: String?,
          halalStatus: HalalStatus,
          rating: Double?,
@@ -199,6 +205,7 @@ nonisolated extension Place {
         self.coordinate = coordinate
         self.category = category
         self.rawCategory = rawCategory
+        self.categoryLabel = categoryLabel
         self.categories = categories
         self.address = address
         self.halalStatus = halalStatus
@@ -227,6 +234,7 @@ nonisolated extension Place: Codable {
         case longitude
         case category
         case rawCategory
+        case categoryLabel
         case categories
         case address
         case displayLocation
@@ -254,6 +262,7 @@ nonisolated extension Place: Codable {
         let longitude = try container.decode(Double.self, forKey: .longitude)
         let category = try container.decode(PlaceCategory.self, forKey: .category)
         let rawCategory = try container.decodeIfPresent(String.self, forKey: .rawCategory) ?? category.rawValue
+        let categoryLabel = try container.decodeIfPresent(String.self, forKey: .categoryLabel)
         let address = try container.decodeIfPresent(String.self, forKey: .address)
         let displayLocation = try container.decodeIfPresent(String.self, forKey: .displayLocation)
         let halalStatus = try container.decode(Place.HalalStatus.self, forKey: .halalStatus)
@@ -282,6 +291,7 @@ nonisolated extension Place: Codable {
             coordinate: coordinate,
             category: category,
             rawCategory: rawCategory,
+            categoryLabel: categoryLabel,
             address: address,
             halalStatus: halalStatus,
             rating: rating,
@@ -310,6 +320,7 @@ nonisolated extension Place: Codable {
         try container.encode(coordinate.longitude, forKey: .longitude)
         try container.encode(category, forKey: .category)
         try container.encode(rawCategory, forKey: .rawCategory)
+        try container.encodeIfPresent(categoryLabel, forKey: .categoryLabel)
         try container.encode(Array(categories), forKey: .categories)
         try container.encodeIfPresent(address, forKey: .address)
         try container.encodeIfPresent(displayLocation, forKey: .displayLocation)

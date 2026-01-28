@@ -158,7 +158,7 @@ enum PlaceAPI {
     ) async throws -> FetchAllPlacesResponse {
         let desired = max(1, min(limit, 10_000))
         let size = max(1, min(pageSize, 1000))
-        let selectColumns = "id,name,category,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,google_place_id,google_match_status,google_maps_url,google_business_status,apple_place_id,note,cc_certifier_org,source_raw"
+        let selectColumns = "id,name,category,category_label,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,google_place_id,google_match_status,google_maps_url,google_business_status,apple_place_id,note,cc_certifier_org,source_raw"
         let baseQueryItems = [
             URLQueryItem(name: "select", value: selectColumns),
             URLQueryItem(name: "status", value: "eq.published"),
