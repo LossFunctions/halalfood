@@ -393,6 +393,39 @@ enum PlaceAPI {
         return rows.first
     }
 
+    static func fetchPlacesByGooglePlaceIDs(_ googlePlaceIDs: [String]) async throws -> [PlaceDTO] {
+        let cleaned = googlePlaceIDs
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else { return [] }
+
+        let quoted = cleaned.map { "\"\($0)\"" }.joined(separator: ",")
+        let selectColumns = "id,name,category,category_label,lat,lon,address,display_location,halal_status,rating,rating_count,serves_alcohol,source,source_id,external_id,google_place_id,google_match_status,google_maps_url,google_business_status,apple_place_id,note,cc_certifier_org,source_raw"
+        let queryItems = [
+            URLQueryItem(name: "select", value: selectColumns),
+            URLQueryItem(name: "google_place_id", value: "in.(\(quoted))"),
+            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "category", value: "eq.restaurant"),
+            URLQueryItem(name: "halal_status", value: "in.(\"yes\",\"only\")")
+        ]
+        let request = try makeGETRequest(path: "rest/v1/place_google_ready", queryItems: queryItems)
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlaceAPIError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw PlaceAPIError.server(
+                statusCode: httpResponse.statusCode,
+                body: String(data: data, encoding: .utf8)
+            )
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([PlaceDTO].self, from: data)
+    }
+
     static func fetchCommunityTopRated(limitPerRegion: Int = 20) async throws -> [CommunityTopRatedRecord] {
         let params = GetCommunityTopRatedParams(limitPerRegion: limitPerRegion)
         let encoder = JSONEncoder()

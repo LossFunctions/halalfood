@@ -293,47 +293,67 @@ nonisolated private enum TopRatedRegion: String, CaseIterable, Identifiable {
 
 nonisolated private enum CommunityTopRatedConfig {
     static let regions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .bronx, .statenIsland, .longIsland]
+    static let allLocationsRegions: [TopRatedRegion] = [.manhattan, .brooklyn, .queens, .statenIsland, .longIsland]
+    static let allLocationsLimit = 15
 
-    static let curatedNames: [TopRatedRegion: [String]] = [
+    static let curatedPlaces: [TopRatedRegion: [CuratedPlaceSpec]] = [
         .manhattan: [
-            "Top Thai",
-            "Adel's",
-            "Au Za'atar - Midtown East",
-            "Nishaan",
-            "Butter Smashburgers"
+            .name("Top Thai"),
+            .googlePlaceID("ChIJNRe1Mf9YwokRvxBdos5UEY4", name: "Adele's Famous Halal Food"),
+            .name("Au Za'atar - Midtown East"),
+            .name("Nishaan"),
+            .name("Butter Smashburgers")
         ],
         .queens: [
-            "Little Flower",
-            "Darjeeling Kitchen & Cafe",
-            "Zyara Restaurant",
-            "Mahmoud's Corner",
-            "Nur Thai"
+            .name("Little Flower"),
+            .name("Darjeeling Kitchen & Cafe"),
+            .name("Zyara Restaurant"),
+            .name("Mahmoud's Corner"),
+            .name("Nur Thai")
         ],
         .brooklyn: [
-            "BK Jani",
-            "Milk & Honey Cafe",
-            "Namkeen",
-            "Ayat",
-            "Affy's Premium Grill"
+            .name("BK Jani"),
+            .name("Milk & Honey Cafe"),
+            .name("Namkeen"),
+            .name("Ayat"),
+            .name("Affy's Premium Grill")
         ],
         .bronx: [
-            "Waleed's Kitchen & Hot Wings",
-            "Fry Chick",
-            "Sooq NYC",
-            "Halal Indian Grill",
-            "Neerob Restaurant & Halal Chinese"
+            .name("Waleed's Kitchen & Hot Wings"),
+            .name("Fry Chick"),
+            .name("Sooq NYC"),
+            .name("Halal Indian Grill"),
+            .name("Neerob Restaurant & Halal Chinese")
         ],
         .longIsland: [
-            "Zaoq 100",
-            "Rooh's BBQ Smoked Meat & Steakhouse",
-            "Guac Time",
-            "Halal Express Kabab House",
-            "While in Kathmandu"
+            .name("Zaoq 100"),
+            .name("Rooh's BBQ Smoked Meat & Steakhouse"),
+            .name("Guac Time"),
+            .googlePlaceID("ChIJR2pN90st6IkRyh0ibr1ZIqo", name: "Shawarma Bay"),
+            .googlePlaceID("ChIJ77O9W_2BwokRa2f5ngX7w6s", name: "MOTW Coffee")
         ],
         .statenIsland: [
-            "Kabab Time",
-            "The Buttery"
+            .name("Kabab Time"),
+            .name("The Buttery")
         ]
+    ]
+
+    static let allLocationsOverride: [CuratedPlaceSpec] = [
+        .placeID(UUID(uuidString: "ca61f1f1-a85d-4d57-af59-3d2e150951a1")!, name: "Top Thai Vintage", region: .manhattan),
+        .name("BK Jani", region: .brooklyn),
+        .name("Namkeen", region: .brooklyn),
+        .name("Milk & Honey Cafe", region: .brooklyn),
+        .name("Darjeeling Kitchen & Cafe", region: .queens),
+        .name("Little Flower", region: .queens),
+        .name("Zyara Restaurant", region: .queens),
+        .name("The Kasbah Cafe", region: .manhattan),
+        .name("Au Za'atar - Midtown East", region: .manhattan),
+        .name("Nishaan", region: .manhattan),
+        .googlePlaceID("ChIJNRe1Mf9YwokRvxBdos5UEY4", name: "Adele's Famous Halal Food", region: .manhattan),
+        .name("Rooh's BBQ Smoked Meat & Steakhouse", region: .longIsland),
+        .name("Mahmoud's Corner", region: .queens),
+        .name("The Buttery", region: .statenIsland),
+        .name("Ayat", region: .brooklyn)
     ]
 
     static let excludedFromAllLocations: Set<String> = Set([
@@ -344,6 +364,25 @@ nonisolated private enum CommunityTopRatedConfig {
         "220 African Restaurant"
     ].map { PlaceOverrides.normalizedName(for: $0) })
 
+}
+
+nonisolated private struct CuratedPlaceSpec: Hashable {
+    let name: String?
+    let googlePlaceID: String?
+    let placeID: UUID?
+    let region: TopRatedRegion?
+
+    static func name(_ name: String, region: TopRatedRegion? = nil) -> CuratedPlaceSpec {
+        CuratedPlaceSpec(name: name, googlePlaceID: nil, placeID: nil, region: region)
+    }
+
+    static func googlePlaceID(_ id: String, name: String? = nil, region: TopRatedRegion? = nil) -> CuratedPlaceSpec {
+        CuratedPlaceSpec(name: name, googlePlaceID: id, placeID: nil, region: region)
+    }
+
+    static func placeID(_ id: UUID, name: String? = nil, region: TopRatedRegion? = nil) -> CuratedPlaceSpec {
+        CuratedPlaceSpec(name: name, googlePlaceID: nil, placeID: id, region: region)
+    }
 }
 
 #if DEBUG
@@ -626,6 +665,9 @@ private enum CommunityTopRatedEngine {
 
         let dedupedPool = PlaceOverrides.deduplicate(pool)
         let filteredPool = dedupedPool.filteredByCurrentGeoScope()
+        let curatedPool = filteredPool.filter { place in
+            !MapScreenViewModel.isBlocklistedChain(place) && !place.isGoogleClosed
+        }
 
         let googleBase = snapshot.googleFallback
         var fallbackByRegion: [TopRatedRegion: [Place]] = [:]
@@ -635,23 +677,12 @@ private enum CommunityTopRatedEngine {
         }
 
         for region in CommunityTopRatedConfig.regions {
-            let curatedNames = CommunityTopRatedConfig.curatedNames[region] ?? []
+            let curatedPlaces = CommunityTopRatedConfig.curatedPlaces[region] ?? []
             var curatedResults: [Place] = []
 
-            for name in curatedNames {
-                let normalized = PlaceOverrides.normalizedName(for: name)
-                guard !normalized.isEmpty else { continue }
-
-                let matches: [Place]
-                if let cached = nameMatches[normalized] {
-                    matches = cached
-                } else {
-                    let resolved = findMatches(in: filteredPool, normalizedQuery: normalized)
-                    nameMatches[normalized] = resolved
-                    matches = resolved
-                }
-
-                if let best = pickBest(from: matches, normalizedTarget: normalized, region: region) {
+            for spec in curatedPlaces {
+                if let best = resolve(spec: spec, in: curatedPool, region: region, nameMatches: &nameMatches),
+                   !curatedResults.contains(where: { $0.id == best.id }) {
                     curatedResults.append(best)
                 }
             }
@@ -672,15 +703,32 @@ private enum CommunityTopRatedEngine {
             regionResults[region] = Array(curatedResults.prefix(5))
         }
 
+        let overrideSpecs = CommunityTopRatedConfig.allLocationsOverride
+        if !overrideSpecs.isEmpty {
+            var overrideResults: [Place] = []
+            var seenOverride = Set<UUID>()
+            for spec in overrideSpecs {
+                if let best = resolve(spec: spec, in: curatedPool, region: .all, nameMatches: &nameMatches),
+                   seenOverride.insert(best.id).inserted {
+                    overrideResults.append(best)
+                }
+                if overrideResults.count >= CommunityTopRatedConfig.allLocationsLimit { break }
+            }
+            if !overrideResults.isEmpty {
+                regionResults[.all] = overrideResults
+                return CommunityComputationResult(regionResults: regionResults)
+            }
+        }
+
         // Interleave the regional lists for the `.all` view so that
         // 1st of each region appears first (1..N), then 2nd of each (N+1..2N), etc.
         var combined: [Place] = []
         var seen = Set<UUID>()
-        let lists = CommunityTopRatedConfig.regions.compactMap { regionResults[$0] }
+        let lists = CommunityTopRatedConfig.allLocationsRegions.compactMap { regionResults[$0] }
         let maxLen = lists.map { $0.count }.max() ?? 0
         if maxLen > 0 {
             for i in 0..<maxLen {
-                for region in CommunityTopRatedConfig.regions {
+                for region in CommunityTopRatedConfig.allLocationsRegions {
                     if let list = regionResults[region], i < list.count {
                         let p = list[i]
                         let normalized = PlaceOverrides.normalizedName(for: p.name)
@@ -725,6 +773,42 @@ private enum CommunityTopRatedEngine {
         return PlaceOverrides.sorted(deduped)
     }
 
+    private static func resolve(
+        spec: CuratedPlaceSpec,
+        in dataset: [Place],
+        region: TopRatedRegion,
+        nameMatches: inout [String: [Place]]
+    ) -> Place? {
+        let targetRegion = spec.region ?? region
+
+        if let placeID = spec.placeID {
+            if let match = dataset.first(where: { $0.id == placeID }) {
+                return match
+            }
+        }
+
+        if let id = spec.googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
+            if let match = pickBestByGooglePlaceID(id, in: dataset, region: targetRegion) {
+                return match
+            }
+        }
+
+        guard let name = spec.name else { return nil }
+        let normalized = PlaceOverrides.normalizedName(for: name)
+        guard !normalized.isEmpty else { return nil }
+
+        let matches: [Place]
+        if let cached = nameMatches[normalized] {
+            matches = cached
+        } else {
+            let resolved = findMatches(in: dataset, normalizedQuery: normalized)
+            nameMatches[normalized] = resolved
+            matches = resolved
+        }
+
+        return pickBest(from: matches, normalizedTarget: normalized, region: targetRegion)
+    }
+
     private static func pickBest(from matches: [Place], normalizedTarget: String, region: TopRatedRegion) -> Place? {
         guard !matches.isEmpty else { return nil }
         if let exactRegional = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget && CommunityRegionClassifier.matches($0, region: region) }) {
@@ -735,6 +819,15 @@ private enum CommunityTopRatedEngine {
         }
         if let exact = matches.first(where: { PlaceOverrides.normalizedName(for: $0.name) == normalizedTarget }) {
             return exact
+        }
+        return matches.first
+    }
+
+    private static func pickBestByGooglePlaceID(_ id: String, in dataset: [Place], region: TopRatedRegion) -> Place? {
+        let matches = dataset.filter { $0.googlePlaceID?.caseInsensitiveEquals(id) == true }
+        guard !matches.isEmpty else { return nil }
+        if let regional = matches.first(where: { CommunityRegionClassifier.matches($0, region: region) }) {
+            return regional
         }
         return matches.first
     }
@@ -1350,9 +1443,12 @@ struct ContentView: View {
                 metadata: metadata
             )
 #endif
+            var workingSnapshot = snapshot
             do {
-                if snapshot.hasTrustedData {
-                    let localResult = CommunityTopRatedEngine.compute(snapshot: snapshot)
+                workingSnapshot = await ensureCommunityOverridesLoaded(snapshot: workingSnapshot, generation: generation)
+
+                if workingSnapshot.hasTrustedData {
+                    let localResult = CommunityTopRatedEngine.compute(snapshot: workingSnapshot)
                     await MainActor.run {
                         guard communityComputationGeneration == generation else { return }
                         let shouldHydrate = communityCacheIsStale || communityCache.isEmpty
@@ -1378,8 +1474,12 @@ struct ContentView: View {
                     }
                     return viewModel.communityTopRatedSnapshot()
                 }
-                guard let updatedSnapshot else { return }
-                let curated = CommunityTopRatedEngine.compute(snapshot: updatedSnapshot)
+                if let updatedSnapshot {
+                    workingSnapshot = updatedSnapshot
+                }
+                workingSnapshot = await ensureCommunityOverridesLoaded(snapshot: workingSnapshot, generation: generation)
+
+                let curated = CommunityTopRatedEngine.compute(snapshot: workingSnapshot)
                 await MainActor.run {
                     guard communityComputationGeneration == generation else { return }
                     applyCommunityComputation(curated)
@@ -1403,8 +1503,8 @@ struct ContentView: View {
                     communityPrecomputeTask = nil
                     return
                 }
-                if snapshot.hasTrustedData {
-                    let fallback = CommunityTopRatedEngine.compute(snapshot: snapshot)
+                if workingSnapshot.hasTrustedData {
+                    let fallback = CommunityTopRatedEngine.compute(snapshot: workingSnapshot)
 #if DEBUG
                     PerformanceMetrics.point(
                         event: .communityFetch,
@@ -1448,6 +1548,93 @@ struct ContentView: View {
         if persist {
             communityCacheIsStale = false
         }
+    }
+
+    private func ensureCommunityOverridesLoaded(
+        snapshot: CommunityTopRatedSnapshot,
+        generation: Int
+    ) async -> CommunityTopRatedSnapshot {
+        let missingIDs = missingCommunityOverridePlaceIDs(in: snapshot)
+        let missingGoogleIDs = missingCommunityOverrideGooglePlaceIDs(in: snapshot)
+        guard !missingIDs.isEmpty || !missingGoogleIDs.isEmpty else { return snapshot }
+
+        do {
+            var places: [Place] = []
+
+            if !missingIDs.isEmpty {
+                let dtos = try await PlaceAPI.fetchPlaceDetailsByIDs(missingIDs)
+                places.append(contentsOf: dtos.compactMap(Place.init(dto:)))
+            }
+
+            if !missingGoogleIDs.isEmpty {
+                let dtos = try await PlaceAPI.fetchPlacesByGooglePlaceIDs(missingGoogleIDs)
+                places.append(contentsOf: dtos.compactMap(Place.init(dto:)))
+            }
+
+            guard !places.isEmpty else { return snapshot }
+            return await MainActor.run {
+                guard communityComputationGeneration == generation else { return snapshot }
+                viewModel.mergeIntoGlobalDataset(places, persist: false)
+                return viewModel.communityTopRatedSnapshot()
+            }
+        } catch {
+#if DEBUG
+            PerformanceMetrics.point(
+                event: .communityFetch,
+                metadata: "Override fetch failed – \(error.localizedDescription)"
+            )
+#endif
+            return snapshot
+        }
+    }
+
+    private func missingCommunityOverridePlaceIDs(in snapshot: CommunityTopRatedSnapshot) -> [UUID] {
+        let overrideSpecs = CommunityTopRatedConfig.allLocationsOverride
+        let curatedSpecs = CommunityTopRatedConfig.curatedPlaces.values.flatMap { $0 }
+        let allSpecs = overrideSpecs + curatedSpecs
+        let rawIDs = allSpecs.compactMap { $0.placeID }
+        guard !rawIDs.isEmpty else { return [] }
+
+        var pool: [Place] = snapshot.allPlaces
+        if !snapshot.globalPlaces.isEmpty { pool.append(contentsOf: snapshot.globalPlaces) }
+        if !snapshot.searchResults.isEmpty { pool.append(contentsOf: snapshot.searchResults) }
+        let deduped = PlaceOverrides.deduplicate(pool)
+        let present = Set(deduped.map(\.id))
+
+        var missing: [UUID] = []
+        var seen = Set<UUID>()
+        for id in rawIDs {
+            guard seen.insert(id).inserted else { continue }
+            if !present.contains(id) {
+                missing.append(id)
+            }
+        }
+        return missing
+    }
+
+    private func missingCommunityOverrideGooglePlaceIDs(in snapshot: CommunityTopRatedSnapshot) -> [String] {
+        let overrideSpecs = CommunityTopRatedConfig.allLocationsOverride
+        let curatedSpecs = CommunityTopRatedConfig.curatedPlaces.values.flatMap { $0 }
+        let allSpecs = overrideSpecs + curatedSpecs
+        let rawIDs = allSpecs.compactMap { $0.googlePlaceID?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !rawIDs.isEmpty else { return [] }
+
+        var pool: [Place] = snapshot.allPlaces
+        if !snapshot.globalPlaces.isEmpty { pool.append(contentsOf: snapshot.globalPlaces) }
+        if !snapshot.searchResults.isEmpty { pool.append(contentsOf: snapshot.searchResults) }
+        let deduped = PlaceOverrides.deduplicate(pool)
+        let present = Set(deduped.compactMap { $0.googlePlaceID?.lowercased() })
+
+        var missing: [String] = []
+        var seen = Set<String>()
+        for id in rawIDs {
+            let key = id.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            if !present.contains(key) {
+                missing.append(id)
+            }
+        }
+        return missing
     }
 
     private var mapPlaces: [Place] {
@@ -8130,6 +8317,7 @@ private struct CertifierBadge: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(badgeColor.opacity(0.7))
             }
+            .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(badgeColor.opacity(0.1), in: Capsule())
@@ -9965,7 +10153,7 @@ final class MapScreenViewModel: @MainActor ObservableObject {
         }
 
         if result[.all] == nil {
-            let combined = CommunityTopRatedConfig.regions
+            let combined = CommunityTopRatedConfig.allLocationsRegions
                 .flatMap { result[$0] ?? [] }
             if !combined.isEmpty {
                 var seen = Set<UUID>()

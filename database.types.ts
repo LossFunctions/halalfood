@@ -673,6 +673,7 @@ export type Database = {
           address_normalized: string | null
           apple_place_id: string | null
           category: string | null
+          category_label: string | null
           cc_certifier_org: string | null
           cc_halal_confidence: number | null
           cc_halal_likelihood: string | null
@@ -723,6 +724,7 @@ export type Database = {
           address_normalized?: string | null
           apple_place_id?: string | null
           category?: string | null
+          category_label?: string | null
           cc_certifier_org?: string | null
           cc_halal_confidence?: number | null
           cc_halal_likelihood?: string | null
@@ -773,6 +775,7 @@ export type Database = {
           address_normalized?: string | null
           apple_place_id?: string | null
           category?: string | null
+          category_label?: string | null
           cc_certifier_org?: string | null
           cc_halal_confidence?: number | null
           cc_halal_likelihood?: string | null
